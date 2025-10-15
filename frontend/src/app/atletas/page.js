@@ -57,7 +57,6 @@ export default function AtletasPage() {
     fetchAtletas()
   }, [])
 
-  // ✏️ EDITAR
   const handleEdit = (atleta) => {
     setSelectedAtleta(atleta)
     setOpenEdit(true)
@@ -78,7 +77,6 @@ export default function AtletasPage() {
     }
   }
 
-  // ➕ CREAR
   const handleCreateAtleta = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas`, {
@@ -111,7 +109,6 @@ export default function AtletasPage() {
     }
   }
 
-  // 🗑️ ELIMINAR
   const handleDelete = (atleta) => {
     setDeleteAtleta(atleta)
     setOpenDelete(true)
