@@ -94,7 +94,7 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
     >
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.18)', mb: 1 }} />
 
-      <List sx={{ color: 'white', py: 0, mt: 0 }}>
+      <List sx={{ color: 'white', py: 0, mt: 0, width: '100%' }}>
         {tabs.map((tab, index) => {
           const selected = selectedIndex === index
           const item = (
@@ -108,6 +108,7 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
                 mb: 1,
                 height: 48,
                 px: 1.45,
+                width: '100%',
                 bgcolor: selected ? '#fff' : 'transparent',
                 '&:hover': { bgcolor: selected ? '#fff' : 'rgba(255,255,255,0.10)' },
                 '&.Mui-selected': { bgcolor: '#fff !important' },

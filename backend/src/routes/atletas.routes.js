@@ -1,9 +1,11 @@
 import express from "express";
-import { getAtletas, getAtletaById, createAtleta, deleteAtleta, updateAtleta } from "../controllers/atletas.controller.js";
+import { getAtletas, getAtletaById, getAtletasByTanda, getAtletasOrderedByTanda, createAtleta, deleteAtleta, updateAtleta } from "../controllers/atletas.controller.js";
 
 const router = express.Router();
 
 router.get("/", getAtletas);
+router.get("/ordenados-por-tanda", getAtletasOrderedByTanda);
+router.get("/tanda/:tandaId", getAtletasByTanda);
 router.get("/:id", getAtletaById);
 
 router.post("/", createAtleta);

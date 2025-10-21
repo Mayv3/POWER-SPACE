@@ -10,6 +10,8 @@ export function GenericDataGrid({
   pageSize,
   onPaginationModelChange,
   loading = false,
+  processRowUpdate,
+  onProcessRowUpdateError,
 }) {
   return (
     <Box sx={{ overflowX: 'auto' }}>
@@ -32,6 +34,8 @@ export function GenericDataGrid({
           disableColumnResize
           disableColumnMenu
           paginationMode={paginationMode}
+          processRowUpdate={processRowUpdate}
+          onProcessRowUpdateError={onProcessRowUpdateError}
           {...(paginationMode === 'server' && {
             rowCount,
             paginationModel: { page: page, pageSize: pageSize },
