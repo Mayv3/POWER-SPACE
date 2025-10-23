@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { Box, Typography, Button, Stack } from '@mui/material'
-import { GenericDataGrid } from '../../components/GenericDataGrid'
-import { columnsAtletas } from '../../const/columns/columnsAtletas'
-import { GenericModal } from '../../components/modales/GenericModal'
-import { EditAtletaForm } from '../../components/modales/EditAtletaForm'
-import { DeleteConfirmModal } from '../../components/modales/DeleteConfirmModal'
-import { CreateAtletaForm } from '../../components/modales/CreateAtletaForm'
+import { GenericDataGrid } from '../../../components/GenericDataGrid'
+import { columnsAtletas } from '../../../const/columns/columnsAtletas'
+import { GenericModal } from '../../../components/modales/GenericModal'
+import { EditAtletaForm } from '../../../components/modales/EditAtletaForm'
+import { DeleteConfirmModal } from '../../../components/modales/DeleteConfirmModal'
+import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])

@@ -19,12 +19,16 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
   }, [open, pesoActual])
 
   const handleValido = () => {
-    onConfirm(true, peso ? parseFloat(peso) : null)
+    const pesoNumerico = parseFloat(peso)
+    if (isNaN(pesoNumerico) || pesoNumerico < 0 || pesoNumerico > 500) return
+    onConfirm(true, pesoNumerico)
     onClose()
   }
 
   const handleNulo = () => {
-    onConfirm(false, peso ? parseFloat(peso) : null)
+    const pesoNumerico = parseFloat(peso)
+    if (isNaN(pesoNumerico) || pesoNumerico < 0 || pesoNumerico > 500) return
+    onConfirm(false, pesoNumerico)
     onClose()
   }
 
@@ -113,7 +117,12 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             label="Peso"
             type="number"
             value={peso}
-            onChange={(e) => setPeso(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 500 && !isNaN(parseFloat(value)))) {
+                setPeso(value)
+              }
+            }}
             fullWidth
             variant="outlined"
             sx={{ 
@@ -129,6 +138,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             inputProps={{ 
               step: 0.5,
               min: 0,
+              max: 500,
               style: { textAlign: 'center' }
             }}
             autoFocus
@@ -141,7 +151,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               size="large"
               startIcon={<CheckCircleIcon sx={{ fontSize: 28 }} />}
               onClick={handleValido}
-              disabled={!peso}
+              disabled={!peso || parseFloat(peso) < 0 || parseFloat(peso) > 500}
               sx={{ 
                 flex: 1,
                 py: 2.5,
@@ -165,7 +175,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               size="large"
               startIcon={<CancelIcon sx={{ fontSize: 28 }} />}
               onClick={handleNulo}
-              disabled={!peso}
+              disabled={!peso || parseFloat(peso) < 0 || parseFloat(peso) > 500}
               sx={{ 
                 flex: 1,
                 py: 2.5,

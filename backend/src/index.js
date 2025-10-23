@@ -6,6 +6,8 @@ import atletasRoutes from "./routes/atletas.routes.js";
 import intentosRoutes from "./routes/intentos.routes.js";
 import resultadosRoutes from "./routes/resultados.routes.js";
 import tandasRoutes from "./routes/tandas.routes.js";
+import juecesRoutes from './routes/jueces.routes.js'
+
 dotenv.config();
 const app = express();
 
@@ -16,6 +18,7 @@ app.use("/api/atletas", atletasRoutes);
 app.use("/api/intentos", intentosRoutes);
 app.use("/api/resultados", resultadosRoutes);
 app.use("/api/tandas", tandasRoutes);
+app.use('/api/jueces', juecesRoutes)
 app.get("/", (req, res) => res.send("Backend Powerlifting activo 💪"));
 
 app.use((err, req, res, next) => {

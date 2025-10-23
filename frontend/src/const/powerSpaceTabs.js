@@ -1,9 +1,9 @@
 import SportsGymnasticsIcon from "@mui/icons-material/SportsGymnastics"
 import FitnessCenterIcon from "@mui/icons-material/FitnessCenter"
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
+import TvIcon from "@mui/icons-material/Tv"
 
 export const powerspaceTabs = [
-  { label: "Atletas", icon: <SportsGymnasticsIcon />, route: "/atletas" },
-  { label: "Intentos", icon: <FitnessCenterIcon />, route: "/intentos" },
-  { label: "Resultados", icon: <EmojiEventsIcon />, route: "/resultados" },
+  { label: "Atletas", icon: <SportsGymnasticsIcon />, route: "/admin/atletas" },
+  { label: "Intentos", icon: <FitnessCenterIcon />, route: "/admin/intentos" },
+  { label: "Cargadores", icon: <TvIcon />, route: "/admin/cargadores" },
 ]

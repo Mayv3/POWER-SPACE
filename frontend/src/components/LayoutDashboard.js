@@ -4,9 +4,8 @@ import Link from "next/link"
 
 const menuItems = [
   { label: "Inicio", path: "/" },
-  { label: "Atletas", path: "/atletas" },
-  { label: "Intentos", path: "/intentos" },
-  { label: "Resultados", path: "/resultados" },
+  { label: "Atletas", path: "/admin/atletas" },
+  { label: "Intentos", path: "/admin/intentos" },
 ]
 
 export default function LayoutDashboard({ children }) {

@@ -133,6 +133,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'primer_intento_sentadilla', 'valido_s1', onCellClick, 'sentadilla')
   },
   { 
@@ -143,6 +152,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'segundo_intento_sentadilla', 'valido_s2', onCellClick, 'sentadilla')
   },
   { 
@@ -153,6 +171,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'tercer_intento_sentadilla', 'valido_s3', onCellClick, 'sentadilla')
   },
   { 
@@ -163,6 +190,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'primer_intento_banco', 'valido_b1', onCellClick, 'banco')
   },
   { 
@@ -173,6 +209,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'segundo_intento_banco', 'valido_b2', onCellClick, 'banco')
   },
   { 
@@ -183,6 +228,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'tercer_intento_banco', 'valido_b3', onCellClick, 'banco')
   },
   { 
@@ -193,6 +247,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'primer_intento_peso_muerto', 'valido_d1', onCellClick, 'peso_muerto')
   },
   { 
@@ -203,6 +266,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'segundo_intento_peso_muerto', 'valido_d2', onCellClick, 'peso_muerto')
   },
   { 
@@ -213,6 +285,15 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    valueParser: (value) => {
+      const parsed = parseFloat(value)
+      return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
+    },
+    preProcessEditCellProps: (params) => {
+      const value = parseFloat(params.props.value)
+      const hasError = isNaN(value) || value < 0 || value > 500
+      return { ...params.props, error: hasError }
+    },
     renderCell: (params) => renderIntentoCell(params, 'tercer_intento_peso_muerto', 'valido_d3', onCellClick, 'peso_muerto')
   },
   { 

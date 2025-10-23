@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { Box, Typography, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
-import { GenericDataGrid } from '../../components/GenericDataGrid'
-import { columnsIntentos } from '../../const/columns/columnsIntentos'
-import { ValidoIntentoModal } from '../../components/modales/ValidoIntentoModal'
+import { GenericDataGrid } from '../../../components/GenericDataGrid'
+import { columnsIntentos } from '../../../const/columns/columnsIntentos'
+import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
 
 function calcularDOTS(sexo, peso_corporal, total) {
   const coef =
