@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Box, Button, Typography, Stack, CircularProgress } from '@mui/material'
+import { supabase } from '../../../lib/supabaseClient'
 
 export default function JuezPage() {
   const { id } = useParams()
@@ -11,8 +12,13 @@ export default function JuezPage() {
 
   const fetchEstado = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/jueces')
-      const data = await res.json()
+      const { data, error } = await supabase
+        .from('estado_competencia')
+        .select('*')
+        .eq('id', 1)
+        .single()
+      
+      if (error) throw error
       setEstado(data)
       setLoading(false)
     } catch (err) {
@@ -22,13 +28,32 @@ export default function JuezPage() {
 
   useEffect(() => {
     fetchEstado()
-    const interval = setInterval(fetchEstado, 1000)
-    return () => clearInterval(interval)
+
+    const channel = supabase
+      .channel('estado_competencia_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'estado_competencia',
+          filter: 'id=eq.1'
+        },
+        (payload) => {
+          console.log('Estado actualizado:', payload)
+          setEstado(payload.new)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   const enviarDecision = async (valido) => {
     try {
-      await fetch(`http://localhost:4000/api/jueces/${id}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ valido }),
@@ -38,29 +63,13 @@ export default function JuezPage() {
     }
   }
 
-  const iniciarCronometro = async () => {
-    try {
-      await fetch('http://localhost:4000/api/jueces/start', { method: 'POST' })
-    } catch (err) {
-      console.error('Error al iniciar cronómetro:', err)
-    }
-  }
-
-  const detenerCronometro = async () => {
-    try {
-      await fetch('http://localhost:4000/api/jueces/stop', { method: 'POST' })
-    } catch (err) {
-      console.error('Error al detener cronómetro:', err)
-    }
-  }
-
   if (loading) return <CircularProgress />
 
   return (
     <Box
       sx={{
         height: '100vh',
-        backgroundColor: '#121212', // fondo oscuro
+        backgroundColor: '#121212',
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
@@ -90,10 +99,10 @@ export default function JuezPage() {
           (valido, index) => {
             const color =
               valido === true
-                ? '#ffffff' // blanco brillante = válido
+                ? '#ffffff'
                 : valido === false
-                  ? '#ff1744' // rojo fuerte = nulo
-                  : '#2e2e2e' // gris oscuro apagado
+                  ? '#ff1744'
+                  : '#2e2e2e'
             return (
               <Box
                 key={index}
@@ -128,7 +137,7 @@ export default function JuezPage() {
             fontWeight: 'bold',
             backgroundColor:
               estado?.[`juez${id}_valido`] === true
-                ? '#bdbdbd' // gris si ya seleccionó
+                ? '#bdbdbd'
                 : '#ffffff',
             color: '#000000',
             '&:hover': {
@@ -161,36 +170,6 @@ export default function JuezPage() {
         >
         </Button>
       </Stack>
-
-
-
-      {id === '1' && (
-        <Stack direction="row" spacing={2} mt={4} width="350px">
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={iniciarCronometro}
-            disabled={estado?.corriendo}
-            sx={{ width: '100%', fontSize: 16 }}
-          >
-            Iniciar
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={detenerCronometro}
-            disabled={!estado?.corriendo}
-            sx={{
-              width: '100%',
-              fontSize: 16,
-              borderColor: '#ff1744',
-              color: '#ff1744',
-            }}
-          >
-            Detener
-          </Button>
-        </Stack>
-      )}
     </Box>
   )
 }

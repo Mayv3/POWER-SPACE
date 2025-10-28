@@ -5,16 +5,19 @@ import {
   Box,
   Typography,
   Paper,
-  Chip,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   useMediaQuery,
-  useTheme
+  useTheme,
+  Button,
+  Stack
 } from '@mui/material'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CancelIcon from '@mui/icons-material/Cancel'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
+import { supabase } from '../../../lib/supabaseClient'
 
 export default function CargadoresPage() {
   const theme = useTheme()
@@ -26,6 +29,7 @@ export default function CargadoresPage() {
   const [tandaFiltro, setTandaFiltro] = useState(1)
   const [intentoSeleccionado, setIntentoSeleccionado] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [estadoJueces, setEstadoJueces] = useState(null)
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -45,6 +49,87 @@ export default function CargadoresPage() {
   useEffect(() => {
     fetchAtletas()
   }, [tandaFiltro])
+
+  useEffect(() => {
+    const fetchEstadoInicial = async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces`)
+      const data = await res.json()
+      setEstadoJueces(data)
+    }
+    fetchEstadoInicial()
+
+    const channel = supabase
+      .channel('public:estado_competencia')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'estado_competencia',
+          filter: 'id=eq.1',
+        },
+        (payload) => {
+          console.log('Cambio detectado:', payload)
+          setEstadoJueces(payload.new)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const iniciarCronometro = async () => {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/start`, { method: 'POST' })
+    } catch (err) {
+      console.error('Error al iniciar cronómetro:', err)
+    }
+  }
+
+  const detenerCronometro = async () => {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/stop`, { method: 'POST' })
+    } catch (err) {
+      console.error('Error al detener cronómetro:', err)
+    }
+  }
+
+  const marcarIntento = async (valido) => {
+    if (!atletaSeleccionado) {
+      alert('Selecciona un atleta primero')
+      return
+    }
+
+    try {
+      const movimientoMap = {
+        'sentadilla': 1,
+        'banco': 2,
+        'peso_muerto': 3
+      }
+
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          atleta_id: atletaSeleccionado.id,
+          movimiento_id: movimientoMap[ejercicioFiltro],
+          intento_numero: intentoSeleccionado,
+          peso: pesoActual,
+          valido: valido
+        })
+      })
+
+      await detenerCronometro()
+      await fetchAtletas()
+
+      alert(valido ? '✅ Intento VÁLIDO registrado' : '❌ Intento NULO registrado')
+    } catch (err) {
+      console.error('Error al marcar intento:', err)
+      alert('Error al registrar el intento')
+    }
+  }
 
   const calcularDiscos = (pesoTotal) => {
     if (!pesoTotal) return { discos: [], total: 0 }
@@ -85,6 +170,52 @@ export default function CargadoresPage() {
     return 0
   }
 
+  const obtenerValidoSegunEjercicio = (atleta, ejercicio, numeroIntento = 1) => {
+    if (!atleta) return null
+
+    const mapeoValido = {
+      'sentadilla': ['valido_s1', 'valido_s2', 'valido_s3'],
+      'banco': ['valido_b1', 'valido_b2', 'valido_b3'],
+      'peso_muerto': ['valido_d1', 'valido_d2', 'valido_d3']
+    }
+
+    const campos = mapeoValido[ejercicio]
+    if (!campos) return null
+
+    return atleta[campos[numeroIntento - 1]]
+  }
+
+  const getMejorIntento = (atleta, ejercicio) => {
+    if (!atleta) return null
+
+    const intentos = [
+      {
+        peso: obtenerPesoSegunEjercicio(atleta, ejercicio, 1),
+        valido: obtenerValidoSegunEjercicio(atleta, ejercicio, 1),
+        numero: 1
+      },
+      {
+        peso: obtenerPesoSegunEjercicio(atleta, ejercicio, 2),
+        valido: obtenerValidoSegunEjercicio(atleta, ejercicio, 2),
+        numero: 2
+      },
+      {
+        peso: obtenerPesoSegunEjercicio(atleta, ejercicio, 3),
+        valido: obtenerValidoSegunEjercicio(atleta, ejercicio, 3),
+        numero: 3
+      }
+    ]
+
+    const intentosValidos = intentos.filter(i => i.peso && i.valido !== false)
+    if (intentosValidos.length === 0) return null
+
+    const mejor = intentosValidos.reduce((max, current) =>
+      current.peso > max.peso ? current : max
+    )
+
+    return mejor.numero
+  }
+
   const handleCellClick = (params) => {
     setAtletaSeleccionado(params.row)
 
@@ -95,6 +226,76 @@ export default function CargadoresPage() {
     } else if (params.field === 'intento3') {
       setIntentoSeleccionado(3)
     }
+  }
+
+  const processRowUpdate = async (newRow, oldRow) => {
+    try {
+      const movimientoMap = {
+        'sentadilla': 1,
+        'banco': 2,
+        'peso_muerto': 3
+      }
+
+      const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+        ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+
+      // Verificar qué intento cambió
+      const campo1 = `primer_intento_${ejercicioKey}`
+      const campo2 = `segundo_intento_${ejercicioKey}`
+      const campo3 = `tercer_intento_${ejercicioKey}`
+
+      if (newRow[campo1] !== oldRow[campo1] && newRow[campo1] != null && newRow[campo1] !== '') {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            atleta_id: newRow.id,
+            movimiento_id: movimientoMap[ejercicioFiltro],
+            intento_numero: 1,
+            peso: parseFloat(newRow[campo1])
+            // NO enviamos valido aquí, solo el peso
+          })
+        })
+      }
+
+      if (newRow[campo2] !== oldRow[campo2] && newRow[campo2] != null && newRow[campo2] !== '') {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            atleta_id: newRow.id,
+            movimiento_id: movimientoMap[ejercicioFiltro],
+            intento_numero: 2,
+            peso: parseFloat(newRow[campo2])
+            // NO enviamos valido aquí, solo el peso
+          })
+        })
+      }
+
+      if (newRow[campo3] !== oldRow[campo3] && newRow[campo3] != null && newRow[campo3] !== '') {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            atleta_id: newRow.id,
+            movimiento_id: movimientoMap[ejercicioFiltro],
+            intento_numero: 3,
+            peso: parseFloat(newRow[campo3])
+            // NO enviamos valido aquí, solo el peso
+          })
+        })
+      }
+
+      await fetchAtletas()
+      return newRow
+    } catch (err) {
+      console.error('Error al actualizar peso:', err)
+      return oldRow
+    }
+  }
+
+  const handleProcessRowUpdateError = (error) => {
+    console.error('Error al procesar actualización:', error)
   }
 
   const columns = [
@@ -136,9 +337,54 @@ export default function CargadoresPage() {
       minWidth: 80,
       align: 'center',
       headerAlign: 'center',
+      editable: true,
+      type: 'number',
+      valueGetter: (value, row) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        return row[`primer_intento_${ejercicioKey}`] || null
+      },
+      valueSetter: (value, row) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        return { ...row, [`primer_intento_${ejercicioKey}`]: value }
+      },
       renderCell: (params) => {
         const peso = obtenerPesoSegunEjercicio(params.row, ejercicioFiltro, 1)
-        return peso ? `${peso} kg` : '-'
+        const valido = obtenerValidoSegunEjercicio(params.row, ejercicioFiltro, 1)
+        const mejorNumero = getMejorIntento(params.row, ejercicioFiltro)
+        const esMejor = mejorNumero === 1
+
+        if (!peso && peso !== 0) return (
+          <Box sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            -
+          </Box>
+        )
+
+        return (
+          <Box sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.5,
+            bgcolor: esMejor ? '#fff3e0' : 'transparent',
+            borderRadius: 1,
+            fontWeight: esMejor ? 'bold' : 'normal',
+            color: esMejor ? '#e65100' : 'inherit',
+          }}>
+            <span>{peso} kg</span>
+            {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
+            {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+          </Box>
+        )
       }
     },
     {
@@ -148,9 +394,54 @@ export default function CargadoresPage() {
       minWidth: 80,
       align: 'center',
       headerAlign: 'center',
+      editable: true,
+      type: 'number',
+      valueGetter: (value, row) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        return row[`segundo_intento_${ejercicioKey}`] || null
+      },
+      valueSetter: (value, row) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        return { ...row, [`segundo_intento_${ejercicioKey}`]: value }
+      },
       renderCell: (params) => {
         const peso = obtenerPesoSegunEjercicio(params.row, ejercicioFiltro, 2)
-        return peso ? `${peso} kg` : '-'
+        const valido = obtenerValidoSegunEjercicio(params.row, ejercicioFiltro, 2)
+        const mejorNumero = getMejorIntento(params.row, ejercicioFiltro)
+        const esMejor = mejorNumero === 2
+
+        if (!peso && peso !== 0) return (
+          <Box sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            -
+          </Box>
+        )
+
+        return (
+          <Box sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.5,
+            bgcolor: esMejor ? '#fff3e0' : 'transparent',
+            borderRadius: 1,
+            fontWeight: esMejor ? 'bold' : 'normal',
+            color: esMejor ? '#e65100' : 'inherit',
+          }}>
+            <span>{peso} kg</span>
+            {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
+            {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+          </Box>
+        )
       }
     },
     {
@@ -160,9 +451,54 @@ export default function CargadoresPage() {
       minWidth: 80,
       align: 'center',
       headerAlign: 'center',
+      editable: true,
+      type: 'number',
+      valueGetter: (value, row) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        return row[`tercer_intento_${ejercicioKey}`] || null
+      },
+      valueSetter: (value, row) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        return { ...row, [`tercer_intento_${ejercicioKey}`]: value }
+      },
       renderCell: (params) => {
         const peso = obtenerPesoSegunEjercicio(params.row, ejercicioFiltro, 3)
-        return peso ? `${peso} kg` : '-'
+        const valido = obtenerValidoSegunEjercicio(params.row, ejercicioFiltro, 3)
+        const mejorNumero = getMejorIntento(params.row, ejercicioFiltro)
+        const esMejor = mejorNumero === 3
+
+        if (!peso && peso !== 0) return (
+          <Box sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            -
+          </Box>
+        )
+
+        return (
+          <Box sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.5,
+            bgcolor: esMejor ? '#fff3e0' : 'transparent',
+            borderRadius: 1,
+            fontWeight: esMejor ? 'bold' : 'normal',
+            color: esMejor ? '#e65100' : 'inherit',
+          }}>
+            <span>{peso} kg</span>
+            {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
+            {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+          </Box>
+        )
       }
     }
   ]
@@ -186,12 +522,12 @@ export default function CargadoresPage() {
   }
 
   return (
-    <Box sx={{ p: 4, minHeight: '100vh' }}>
-      <Box sx={{ 
-        display: 'flex', 
+    <Box sx={{ p: 4, minHeight: '100vh', mx: 'auto' }}>
+      <Box sx={{
+        display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
-        gap: 2, 
-        mb: 3 
+        gap: 2,
+        mb: 3
       }}>
         <FormControl sx={{ minWidth: { xs: '100%', md: 200 } }}>
           <InputLabel>Ejercicio</InputLabel>
@@ -235,11 +571,11 @@ export default function CargadoresPage() {
           </Box>
         )}
 
-        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, width: '100%' }} >
-          <Box sx={{ flex: 1, order: { xs: 2, md: 1 } }}>
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, width: '100%', height: { xs: 'auto', md: 'calc(100vh - 250px)' } }} >
+          <Box sx={{ flex: { xs: 1, md: 1 }, order: { xs: 2, md: 1 }, height: '100%' }}>
             <Box sx={{
               width: '100%',
-              height: { xs: '400px', md: 'calc(100vh - 350px)' }
+              height: '100%'
             }}>
               <GenericDataGrid
                 rows={atletas}
@@ -247,6 +583,8 @@ export default function CargadoresPage() {
                 loading={isLoading}
                 paginationMode="client"
                 onCellClick={handleCellClick}
+                processRowUpdate={processRowUpdate}
+                onProcessRowUpdateError={handleProcessRowUpdateError}
                 columnVisibilityModel={{
                   nombre: !isMobile,
                   tanda_id: !isMobile,
@@ -257,11 +595,12 @@ export default function CargadoresPage() {
           </Box>
 
           <Box sx={{
-            width: { xs: '100%', md: '350px' },
+            width: { xs: '100%', md: '500px' },
             order: { xs: 1, md: 2 },
-            flexShrink: 0
+            flexShrink: 0,
+            height: '100%'
           }}>
-            <Paper elevation={2} sx={{ p: 3, minHeight: '600px' }}>
+            <Paper elevation={2} sx={{ p: 3, height: '100%', overflow: 'auto' }}>
               {atletaSeleccionado ? (
                 <>
                   <Paper
@@ -316,60 +655,130 @@ export default function CargadoresPage() {
                         </Box>
                       </Box>
                     ) : (
-                      <Typography variant="body1" color="text.secondary">
+                      <Typography variant="body1" color="text.secondary" textAlign="center">
                         Solo barra (20kg)
                       </Typography>
                     )
                   ) : (
-                    <Typography variant="body1" color="error">
+                    <Typography variant="body1" color="error" textAlign="center">
                       Este intento no tiene peso asignado
                     </Typography>
                   )}
 
-                  <Box
-                    sx={{
-                      mt: 4,
-                      p: 3,
-                      textAlign: 'center',
-                      borderRadius: 2,
-                      background: 'linear-gradient(135deg, #f3f4f6, #e0e7ff)',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    }}
-                  >
+                  <Box sx={{ mt: 2, textAlign: 'center' }}>
                     <Typography
-                      variant="h5"
+                      variant="h4"
                       fontWeight="bold"
                       sx={{
-                        mb: 1,
-  
-                        textTransform: 'uppercase',
-                        letterSpacing: '1px',
+                        color: estadoJueces?.corriendo ? '#1976d2' : '#9e9e9e',
                       }}
                     >
-                    Recordatorio
+                      {estadoJueces?.tiempo_restante ?? 60}s
                     </Typography>
-
                     <Typography
-                      variant="h6"
+                      variant="caption"
                       sx={{
-                        fontWeight: 600,
-                        color: '#374151',
-                        mb: 0.5,
+                        color: estadoJueces?.corriendo ? '#1976d2' : '#9e9e9e',
                       }}
                     >
-                      Barra: <span style={{ color: '#2563eb', fontWeight: 'bold' }}>20 kg</span>
+                      {estadoJueces?.corriendo ? 'En curso' : ' Detenido'}
                     </Typography>
+                  </Box>
 
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: '#6b7280',
-                        fontStyle: 'italic',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      Los discos mostrados son <b>por lado</b> 🧩
-                    </Typography>
+                  <Box sx={{ mt: 3 }}>
+                    <Stack direction="row" spacing={2}>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={iniciarCronometro}
+                        disabled={estadoJueces?.corriendo}
+                        sx={{
+                          width: '100%',
+                          fontSize: 16,
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Iniciar Timer
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        onClick={detenerCronometro}
+                        disabled={!estadoJueces?.corriendo}
+                        sx={{
+                          width: '100%',
+                          fontSize: 16,
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Detener Timer
+                      </Button>
+                    </Stack>
+
+
+
+                    <Box sx={{ mt: 3, pt: 3, borderTop: '2px solid #e5e7eb' }}>
+                      <Stack direction="row" spacing={2}>
+                        <Button
+                          variant="contained"
+                          onClick={() => marcarIntento(true)}
+                          disabled={!atletaSeleccionado || !pesoActual}
+                          sx={{
+                            width: '100%',
+                            height: 60,
+                            fontSize: 18,
+                            fontWeight: 'bold',
+                            backgroundColor: '#ffffff',
+                            color: '#000000',
+                            border: '2px solid #000000',
+                            '&:hover': {
+                              backgroundColor: '#e0e0e0',
+                            },
+                            '&:disabled': {
+                              backgroundColor: '#f5f5f5',
+                              color: '#9e9e9e',
+                            }
+                          }}
+                        >
+                          ✅ VÁLIDO
+                        </Button>
+                        <Button
+                          variant="contained"
+                          onClick={() => marcarIntento(false)}
+                          disabled={!atletaSeleccionado || !pesoActual}
+                          sx={{
+                            width: '100%',
+                            height: 60,
+                            fontSize: 18,
+                            fontWeight: 'bold',
+                            backgroundColor: '#ff1744',
+                            color: '#ffffff',
+                            '&:hover': {
+                              backgroundColor: '#d50000',
+                            },
+                            '&:disabled': {
+                              backgroundColor: '#ffcdd2',
+                              color: '#9e9e9e',
+                            }
+                          }}
+                        >
+                          ❌ NULO
+                        </Button>
+                      </Stack>
+                      {(!atletaSeleccionado || !pesoActual) && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            mt: 1,
+                            display: 'block',
+                            textAlign: 'center',
+                            color: '#ef4444'
+                          }}
+                        >
+                          Selecciona un atleta e intento para marcar el resultado
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
 
                 </>
