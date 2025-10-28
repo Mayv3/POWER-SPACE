@@ -135,7 +135,8 @@ export default function CargadoresPage() {
     if (!pesoTotal) return { discos: [], total: 0 }
 
     const pesoBarra = 20
-    const pesoPorLado = (pesoTotal - pesoBarra) / 2
+    const pesoTopes = 5
+    const pesoPorLado = (pesoTotal - pesoBarra - pesoTopes) / 2
 
     if (pesoPorLado <= 0) return { discos: [], total: pesoTotal }
 
@@ -239,7 +240,6 @@ export default function CargadoresPage() {
       const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
         ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
 
-      // Verificar qué intento cambió
       const campo1 = `primer_intento_${ejercicioKey}`
       const campo2 = `segundo_intento_${ejercicioKey}`
       const campo3 = `tercer_intento_${ejercicioKey}`
@@ -253,7 +253,6 @@ export default function CargadoresPage() {
             movimiento_id: movimientoMap[ejercicioFiltro],
             intento_numero: 1,
             peso: parseFloat(newRow[campo1])
-            // NO enviamos valido aquí, solo el peso
           })
         })
       }
@@ -267,7 +266,6 @@ export default function CargadoresPage() {
             movimiento_id: movimientoMap[ejercicioFiltro],
             intento_numero: 2,
             peso: parseFloat(newRow[campo2])
-            // NO enviamos valido aquí, solo el peso
           })
         })
       }
@@ -281,7 +279,6 @@ export default function CargadoresPage() {
             movimiento_id: movimientoMap[ejercicioFiltro],
             intento_numero: 3,
             peso: parseFloat(newRow[campo3])
-            // NO enviamos valido aquí, solo el peso
           })
         })
       }
@@ -305,7 +302,7 @@ export default function CargadoresPage() {
       flex: 0.12,
       align: 'center',
       headerAlign: 'center',
-      hide: true // Ocultar en mobile se maneja con columnVisibilityModel
+      hide: true
     },
     {
       field: 'apellido',
@@ -633,15 +630,15 @@ export default function CargadoresPage() {
                                 height: '200px',
                                 width: '40px',
                                 backgroundColor:
-                                  disco === 25 ? '#f44336' :      // Rojo
-                                    disco === 20 ? '#2196f3' :    // Azul
-                                      disco === 15 ? '#ffeb3b' :  // Amarillo
-                                        disco === 10 ? '#4caf50' : // Verde
-                                          disco === 5 ? '#fff' :   // Blanco
-                                            disco === 2.5 ? '#000' : // Negro
-                                              disco === 1.25 ? '#C0C0C0' : // Plata/Gris
-                                                disco === 0.5 ? '#9e9e9e' : // Cromo (gris)
-                                                  '#9e9e9e', // 0.25 Cromo (gris)
+                                  disco === 25 ? '#f44336' :
+                                    disco === 20 ? '#2196f3' :
+                                      disco === 15 ? '#ffeb3b' :
+                                        disco === 10 ? '#4caf50' :
+                                          disco === 5 ? '#fff' :
+                                            disco === 2.5 ? '#000' :
+                                              disco === 1.25 ? '#C0C0C0' :
+                                                disco === 0.5 ? '#9e9e9e' :
+                                                  '#9e9e9e',
                                 color: disco === 15 || disco === 5 || disco === 1.25 || disco === 0.5 || disco === 0.25 ? '#000' : '#fff',
                                 fontWeight: 'bold',
                                 border: (disco === 5 || disco === 1.25) ? '2px solid #000' : 'none',
