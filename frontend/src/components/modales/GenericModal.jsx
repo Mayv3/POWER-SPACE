@@ -7,13 +7,14 @@ import {
   DialogActions,
   Button,
   Box,
+  CircularProgress,
 } from '@mui/material'
 
-export function GenericModal({ open, title, children, onClose, onSave }) {
+export function GenericModal({ open, title, children, onClose, onSave, loading = false }) {
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={loading ? null : onClose}
       fullWidth
       maxWidth="sm"
       slotProps={{
@@ -27,11 +28,17 @@ export function GenericModal({ open, title, children, onClose, onSave }) {
         </Box>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit">
+        <Button onClick={onClose} variant="outlined" color="inherit" disabled={loading}>
           Cancelar
         </Button>
-        <Button onClick={onSave} variant="contained" color="primary">
-          Guardar
+        <Button 
+          onClick={onSave} 
+          variant="contained" 
+          color="primary"
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+        >
+          {loading ? 'Guardando...' : 'Guardar'}
         </Button>
       </DialogActions>
     </Dialog>

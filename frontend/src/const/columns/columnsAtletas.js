@@ -1,10 +1,25 @@
 import { Box, IconButton, Tooltip } from '@mui/material'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import { capitalizeWords } from '../../utils/textUtils'
 
 export const columnsAtletas = (handleEdit, handleDelete) => [
-  { field: 'nombre', headerName: 'Nombre', flex: 0.15, align: 'center', headerAlign: 'center' },
-  { field: 'apellido', headerName: 'Apellido', flex: 0.15, align: 'center', headerAlign: 'center' },
+  { 
+    field: 'nombre', 
+    headerName: 'Nombre', 
+    flex: 0.15, 
+    align: 'center', 
+    headerAlign: 'center',
+    renderCell: (params) => capitalizeWords(params.value)
+  },
+  { 
+    field: 'apellido', 
+    headerName: 'Apellido', 
+    flex: 0.15, 
+    align: 'center', 
+    headerAlign: 'center',
+    renderCell: (params) => capitalizeWords(params.value)
+  },
   { field: 'dni', headerName: 'DNI', flex: 0.12, align: 'center', headerAlign: 'center' },
   {
     field: 'edad',

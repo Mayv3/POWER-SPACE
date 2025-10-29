@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Box, Typography, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Box, Typography, FormControl, InputLabel, Select, MenuItem, TextField, InputAdornment, Stack } from '@mui/material'
+import SearchIcon from '@mui/icons-material/Search'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsIntentos } from '../../../const/columns/columnsIntentos'
 import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
@@ -64,6 +65,7 @@ function calcularPuestos(atletas) {
 export default function IntentosPage() {
   const [atletas, setAtletas] = useState([])
   const [atletasFiltrados, setAtletasFiltrados] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [tandaSeleccionada, setTandaSeleccionada] = useState('todas')
   
@@ -79,8 +81,16 @@ export default function IntentosPage() {
       const data = await res.json()
       
       const atletasConDots = data.map(atleta => {
+        // Verificar si cada ejercicio tiene al menos un intento válido
+        const tieneSentadillaValida = atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true
+        const tieneBancoValido = atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true
+        const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
+        
+        // Solo calcular DOTS si tiene al menos un intento válido en los 3 ejercicios
+        const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
+        
         const total = atleta.total || 0
-        const dots = total > 0 && atleta.peso_corporal 
+        const dots = tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal 
           ? calcularDOTS(atleta.sexo, atleta.peso_corporal, total) 
           : 0
         
@@ -106,13 +116,23 @@ export default function IntentosPage() {
   }, [])
 
   useEffect(() => {
-    if (tandaSeleccionada === 'todas') {
-      setAtletasFiltrados(atletas)
-    } else {
-      const filtrados = atletas.filter(atleta => atleta.tanda_id === parseInt(tandaSeleccionada))
-      setAtletasFiltrados(filtrados)
+    let filtrados = atletas
+    
+    // Filtrar por tanda
+    if (tandaSeleccionada !== 'todas') {
+      filtrados = filtrados.filter(atleta => atleta.tanda_id === parseInt(tandaSeleccionada))
     }
-  }, [tandaSeleccionada, atletas])
+    
+    // Filtrar por búsqueda
+    if (searchTerm.trim() !== '') {
+      filtrados = filtrados.filter(atleta => 
+        atleta.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        atleta.apellido?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+    
+    setAtletasFiltrados(filtrados)
+  }, [tandaSeleccionada, searchTerm, atletas])
 
   const handleTandaChange = (event) => {
     setTandaSeleccionada(event.target.value)
@@ -174,7 +194,15 @@ export default function IntentosPage() {
       )
       
       const total = sentadilla + banco + pesoMuerto
-      const dots = total > 0 && newRow.peso_corporal 
+      
+      // Verificar si cada ejercicio tiene al menos un intento válido
+      const tieneSentadillaValida = newRow.valido_s1 === true || newRow.valido_s2 === true || newRow.valido_s3 === true
+      const tieneBancoValido = newRow.valido_b1 === true || newRow.valido_b2 === true || newRow.valido_b3 === true
+      const tienePesoMuertoValido = newRow.valido_d1 === true || newRow.valido_d2 === true || newRow.valido_d3 === true
+      
+      const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
+      
+      const dots = tieneTodasLasValidaciones && total > 0 && newRow.peso_corporal 
         ? calcularDOTS(newRow.sexo, newRow.peso_corporal, total) 
         : 0
 
@@ -288,7 +316,15 @@ export default function IntentosPage() {
       )
       
       const total = sentadilla + banco + pesoMuerto
-      const dots = total > 0 && atletaActualizado.peso_corporal 
+      
+      // Verificar si cada ejercicio tiene al menos un intento válido
+      const tieneSentadillaValida = atletaActualizado.valido_s1 === true || atletaActualizado.valido_s2 === true || atletaActualizado.valido_s3 === true
+      const tieneBancoValido = atletaActualizado.valido_b1 === true || atletaActualizado.valido_b2 === true || atletaActualizado.valido_b3 === true
+      const tienePesoMuertoValido = atletaActualizado.valido_d1 === true || atletaActualizado.valido_d2 === true || atletaActualizado.valido_d3 === true
+      
+      const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
+      
+      const dots = tieneTodasLasValidaciones && total > 0 && atletaActualizado.peso_corporal 
         ? calcularDOTS(atletaActualizado.sexo, atletaActualizado.peso_corporal, total) 
         : 0
 
@@ -344,6 +380,22 @@ export default function IntentosPage() {
           </Select>
         </FormControl>
       </Box>
+
+      {/* Buscador */}
+      <TextField
+        fullWidth
+        placeholder="Buscar por nombre o apellido..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        sx={{ mb: 3 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+        }}
+      />
       
       <GenericDataGrid
         rows={atletasFiltrados}

@@ -5,6 +5,7 @@ export async function getAtletas(req, res) {
         const { data, error } = await supabase
             .from("atletas")
             .select("*")
+            .order("tanda_id", { ascending: true })
             .order("apellido", { ascending: true });
 
         if (error) throw error;
@@ -35,12 +36,12 @@ export async function getAtletaById(req, res) {
 
 export async function getAtletasByTanda(req, res) {
     const { tandaId } = req.params;
-    
+
     try {
         const tandaIdNum = parseInt(tandaId);
         if (!tandaIdNum || tandaIdNum < 1 || tandaIdNum > 4) {
-            return res.status(400).json({ 
-                error: "ID de tanda inválido. Debe ser 1, 2, 3 o 4" 
+            return res.status(400).json({
+                error: "ID de tanda inválido. Debe ser 1, 2, 3 o 4"
             });
         }
 
@@ -64,7 +65,8 @@ export async function getAtletasOrderedByTanda(req, res) {
         const { data, error } = await supabase
             .from("atletas")
             .select("*")
-            .order("tanda_id", { ascending: true });
+            .order("tanda_id", { ascending: true })
+            .order("apellido", { ascending: true });
 
         if (error) throw error;
 
@@ -72,19 +74,19 @@ export async function getAtletasOrderedByTanda(req, res) {
             if (a.tanda_id !== b.tanda_id) {
                 return a.tanda_id - b.tanda_id;
             }
-            
+
             const sentadillaA = a.primer_intento_sentadilla || 0;
             const sentadillaB = b.primer_intento_sentadilla || 0;
             if (sentadillaA !== sentadillaB) {
                 return sentadillaA - sentadillaB;
             }
-            
+
             const bancoA = a.primer_intento_banco || 0;
             const bancoB = b.primer_intento_banco || 0;
             if (bancoA !== bancoB) {
                 return bancoA - bancoB;
             }
-            
+
             const pesoMuertoA = a.primer_intento_peso_muerto || 0;
             const pesoMuertoB = b.primer_intento_peso_muerto || 0;
             return pesoMuertoA - pesoMuertoB;

@@ -2,6 +2,7 @@ import { Box, Chip } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import { capitalizeWords } from '../../utils/textUtils'
 
 const getMejorIntento = (row, ejercicio) => {
   let intentos = []
@@ -26,7 +27,7 @@ const getMejorIntento = (row, ejercicio) => {
     ]
   }
 
-  const intentosValidos = intentos.filter(i => i.peso && (i.valido !== false))
+  const intentosValidos = intentos.filter(i => i.peso && i.valido === true)
   if (intentosValidos.length === 0) return null
   
   const mejorIntento = intentosValidos.reduce((max, current) => 
@@ -93,7 +94,7 @@ export const columnsIntentos = (onCellClick) => [
     flex: 0.15, 
     align: 'center', 
     headerAlign: 'center',
-    renderCell: (params) => `${params.row.apellido} ${params.row.nombre}`
+    renderCell: (params) => `${capitalizeWords(params.row.apellido)} ${capitalizeWords(params.row.nombre)}`
   },
   { 
     field: 'tanda_id', 

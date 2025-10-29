@@ -1,6 +1,7 @@
 'use client'
 
 import { Box, Stack, TextField, MenuItem, Typography, Divider } from '@mui/material'
+import { capitalizeWords } from '../../utils/textUtils'
 
 const categorias = {
   M: ['59', '66', '74', '83', '93', '105', '120', '+120'],
@@ -17,13 +18,31 @@ const TANDAS = [
 export function CreateAtletaForm({ atleta, onChange }) {
   const handleChange = (e) => {
     const { name, value } = e.target
-    onChange({ ...atleta, [name]: value })
+    
+    // Capitalizar nombre y apellido
+    if (name === 'nombre' || name === 'apellido') {
+      onChange({ ...atleta, [name]: capitalizeWords(value) })
+    } else {
+      onChange({ ...atleta, [name]: value })
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const form = e.target.form
+      const inputs = Array.from(form.querySelectorAll('input, select, textarea'))
+      const index = inputs.indexOf(e.target)
+      if (index < inputs.length - 1) {
+        inputs[index + 1].focus()
+      }
+    }
   }
 
   const categoriasDisponibles = categorias[atleta.sexo] || []
 
   return (
-    <Box sx={{ width: '100%', mt: 1 }}>
+    <Box component="form" sx={{ width: '100%', mt: 1 }}>
       {/* 🔹 Datos personales */}
       <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
         Datos personales
@@ -35,6 +54,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
         label="Nombre"
         value={atleta.nombre || ''}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         sx={{ mb: 2 }}
       />
 
@@ -45,6 +65,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Apellido"
           value={atleta.apellido || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
         <TextField
           fullWidth
@@ -52,6 +73,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="DNI"
           value={atleta.dni || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
       </Stack>
 
@@ -63,6 +85,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
         type="date"
         value={atleta.fecha_nacimiento || ''}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         sx={{ mb: 2 }}
         InputLabelProps={{ shrink: true }}
       />
@@ -75,6 +98,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           type="number"
           value={atleta.peso_corporal || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
 
         <TextField
@@ -84,6 +108,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Sexo"
           value={atleta.sexo || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         >
           <MenuItem value="M">Masculino</MenuItem>
           <MenuItem value="F">Femenino</MenuItem>
@@ -97,6 +122,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
         label="Categoría"
         value={atleta.categoria || ''}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         sx={{ mb: 2 }}
         disabled={!atleta.sexo}
       >
@@ -121,6 +147,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Tanda"
           value={atleta.tanda_id || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         >
           {TANDAS.map((tanda) => (
             <MenuItem key={tanda.id} value={tanda.id}>
@@ -136,6 +163,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Modalidad"
           value={atleta.modalidad || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         >
           <MenuItem value="Classic Raw">Classic Raw</MenuItem>
           <MenuItem value="Equipado">Equipado</MenuItem>
@@ -156,6 +184,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Sentadilla (kg)"
           value={atleta.primer_intento_sentadilla || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
         <TextField
           fullWidth
@@ -164,6 +193,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Press de banco (kg)"
           value={atleta.primer_intento_banco || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
         <TextField
           fullWidth
@@ -172,6 +202,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
           label="Peso muerto (kg)"
           value={atleta.primer_intento_peso_muerto || ''}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
       </Stack>
     </Box>

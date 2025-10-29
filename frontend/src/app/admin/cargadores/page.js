@@ -16,8 +16,10 @@ import {
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
+import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { supabase } from '../../../lib/supabaseClient'
+import { capitalizeWords } from '../../../utils/textUtils'
 
 export default function CargadoresPage() {
   const theme = useTheme()
@@ -98,7 +100,7 @@ export default function CargadoresPage() {
 
   const marcarIntento = async (valido) => {
     if (!atletaSeleccionado) {
-      alert('Selecciona un atleta primero')
+      toast.warning('Selecciona un atleta primero')
       return
     }
 
@@ -124,10 +126,14 @@ export default function CargadoresPage() {
       await detenerCronometro()
       await fetchAtletas()
 
-      alert(valido ? '✅ Intento VÁLIDO registrado' : '❌ Intento NULO registrado')
+      if (valido) {
+        toast.success('Intento VÁLIDO registrado')
+      } else {
+        toast.error('Intento NULO registrado')
+      }
     } catch (err) {
       console.error('Error al marcar intento:', err)
-      alert('Error al registrar el intento')
+      toast.error('Error al registrar el intento')
     }
   }
 
@@ -207,7 +213,7 @@ export default function CargadoresPage() {
       }
     ]
 
-    const intentosValidos = intentos.filter(i => i.peso && i.valido !== false)
+    const intentosValidos = intentos.filter(i => i.peso && i.valido === true)
     if (intentosValidos.length === 0) return null
 
     const mejor = intentosValidos.reduce((max, current) =>
@@ -217,15 +223,48 @@ export default function CargadoresPage() {
     return mejor.numero
   }
 
-  const handleCellClick = (params) => {
+  const handleCellClick = async (params) => {
     setAtletaSeleccionado(params.row)
 
+    let intento = 1
     if (params.field === 'intento1') {
       setIntentoSeleccionado(1)
+      intento = 1
     } else if (params.field === 'intento2') {
       setIntentoSeleccionado(2)
+      intento = 2
     } else if (params.field === 'intento3') {
       setIntentoSeleccionado(3)
+      intento = 3
+    }
+
+    // Obtener el peso del intento seleccionado
+    const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+      ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+    
+    let peso = 0
+    if (intento === 1) {
+      peso = params.row[`primer_intento_${ejercicioKey}`] || 0
+    } else if (intento === 2) {
+      peso = params.row[`segundo_intento_${ejercicioKey}`] || 0
+    } else if (intento === 3) {
+      peso = params.row[`tercer_intento_${ejercicioKey}`] || 0
+    }
+
+    // Actualizar el atleta actual en el estado de competencia
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/atleta-actual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          atleta_id: params.row.id,
+          ejercicio: ejercicioFiltro,
+          intento: intento,
+          peso: peso
+        })
+      })
+    } catch (err) {
+      console.error('Error al actualizar atleta actual:', err)
     }
   }
 
@@ -252,7 +291,8 @@ export default function CargadoresPage() {
             atleta_id: newRow.id,
             movimiento_id: movimientoMap[ejercicioFiltro],
             intento_numero: 1,
-            peso: parseFloat(newRow[campo1])
+            peso: parseFloat(newRow[campo1]),
+            valido: null
           })
         })
       }
@@ -265,7 +305,8 @@ export default function CargadoresPage() {
             atleta_id: newRow.id,
             movimiento_id: movimientoMap[ejercicioFiltro],
             intento_numero: 2,
-            peso: parseFloat(newRow[campo2])
+            peso: parseFloat(newRow[campo2]),
+            valido: null
           })
         })
       }
@@ -278,7 +319,8 @@ export default function CargadoresPage() {
             atleta_id: newRow.id,
             movimiento_id: movimientoMap[ejercicioFiltro],
             intento_numero: 3,
-            peso: parseFloat(newRow[campo3])
+            peso: parseFloat(newRow[campo3]),
+            valido: null
           })
         })
       }
@@ -302,7 +344,8 @@ export default function CargadoresPage() {
       flex: 0.12,
       align: 'center',
       headerAlign: 'center',
-      hide: true
+      hide: true,
+      renderCell: (params) => capitalizeWords(params.value)
     },
     {
       field: 'apellido',
@@ -310,7 +353,8 @@ export default function CargadoresPage() {
       flex: 0.2,
       minWidth: 100,
       align: 'center',
-      headerAlign: 'center'
+      headerAlign: 'center',
+      renderCell: (params) => capitalizeWords(params.value)
     },
     {
       field: 'tanda_id',
@@ -563,7 +607,7 @@ export default function CargadoresPage() {
         {atletaSeleccionado && (
           <Box backgroundColor='#ff6b35 ' sx={{ p: 2, textAlign: 'center', borderRadius: 1, mb: 2 }}>
             <Typography variant="h5" fontWeight="bold" sx={{ color: 'white' }}>
-              {atletaSeleccionado.nombre} {atletaSeleccionado.apellido} {atletaSeleccionado.categoria}  T{atletaSeleccionado.tanda_id}
+              {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)} {atletaSeleccionado.categoria}  T{atletaSeleccionado.tanda_id}
             </Typography>
           </Box>
         )}
@@ -615,46 +659,87 @@ export default function CargadoresPage() {
                     </Typography>
                   </Paper>
 
+
                   {pesoActual > 0 ? (
                     discos.length > 0 ? (
-                      <Box sx={{ position: 'relative', display: 'inline-block', py: 2 }}>
-                        <Box sx={{ display: 'flex', gap: 0.5, position: 'relative', zIndex: 1 }}>
-                          {discos.map((disco, index) => (
-                            <Box
-                              key={index}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.9rem',
-                                height: '200px',
-                                width: '40px',
-                                backgroundColor:
-                                  disco === 25 ? '#f44336' :
-                                    disco === 20 ? '#2196f3' :
-                                      disco === 15 ? '#ffeb3b' :
-                                        disco === 10 ? '#4caf50' :
-                                          disco === 5 ? '#fff' :
-                                            disco === 2.5 ? '#000' :
-                                              disco === 1.25 ? '#C0C0C0' :
-                                                disco === 0.5 ? '#9e9e9e' :
-                                                  '#9e9e9e',
-                                color: disco === 15 || disco === 5 || disco === 1.25 || disco === 0.5 || disco === 0.25 ? '#000' : '#fff',
-                                fontWeight: 'bold',
-                                border: (disco === 5 || disco === 1.25) ? '2px solid #000' : 'none',
-                                borderRadius: 1,
-                                textOrientation: 'mixed'
-                              }}
-                            >
-                              {disco}
-                            </Box>
-                          ))}
+                      <>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            display: 'block',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                            color: '#374151',
+                            mb: 1
+                          }}
+                        >
+                          Discos por lado:
+                        </Typography>
+                        <Box sx={{ position: 'relative', display: 'inline-block', py: 2 }}>
+                          <Box sx={{ display: 'flex', gap: 0.5, position: 'relative', zIndex: 1 }}>
+                            {discos.map((disco, index) => (
+                              <Box
+                                key={index}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.9rem',
+                                  height: '150px',
+                                  width: '30px',
+                                  backgroundColor:
+                                    disco === 25 ? '#f44336' :
+                                      disco === 20 ? '#2196f3' :
+                                        disco === 15 ? '#ffeb3b' :
+                                          disco === 10 ? '#4caf50' :
+                                            disco === 5 ? '#fff' :
+                                              disco === 2.5 ? '#000' :
+                                                disco === 1.25 ? '#C0C0C0' :
+                                                  disco === 0.5 ? '#9e9e9e' :
+                                                    '#9e9e9e',
+                                  color: disco === 15 || disco === 5 || disco === 1.25 || disco === 0.5 || disco === 0.25 ? '#000' : '#fff',
+                                  fontWeight: 'bold',
+                                  border: (disco === 5 || disco === 1.25) ? '2px solid #000' : 'none',
+                                  borderRadius: 1,
+                                  textOrientation: 'mixed'
+                                }}
+                              >
+                                {disco}
+                              </Box>
+                            ))}
+                          </Box>
                         </Box>
-                      </Box>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            display: 'block',
+                            textAlign: 'center',
+                            color: '#6b7280',
+                            fontStyle: 'italic',
+                            mt: 1
+                          }}
+                        >
+                          Barra: 20kg + Topes: 5kg
+                        </Typography>
+                      </>
                     ) : (
-                      <Typography variant="body1" color="text.secondary" textAlign="center">
-                        Solo barra (20kg)
-                      </Typography>
+                      <>
+                        <Typography variant="body1" color="text.secondary" textAlign="center">
+                          Solo barra (20kg)
+                        </Typography>
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            display: 'block',
+                            textAlign: 'center',
+                            color: '#6b7280',
+                            fontStyle: 'italic',
+                            mt: 1
+                          }}
+                        >
+                          Barra: 20kg + Topes: 5kg
+                        </Typography>
+                      </>
                     )
                   ) : (
                     <Typography variant="body1" color="error" textAlign="center">

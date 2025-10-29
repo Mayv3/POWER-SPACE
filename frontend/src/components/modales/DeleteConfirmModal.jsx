@@ -9,14 +9,15 @@ import {
   Typography,
   Box,
   Stack,
+  CircularProgress,
 } from '@mui/material'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 
-export function DeleteConfirmModal({ open, atleta, onClose, onConfirm }) {
+export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading = false }) {
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={loading ? null : onClose}
       fullWidth
       maxWidth="xs"
       slotProps={{
@@ -70,6 +71,7 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm }) {
           onClick={onClose}
           variant="outlined"
           color="inherit"
+          disabled={loading}
           sx={{
             borderRadius: 1,
             textTransform: 'none',
@@ -83,6 +85,8 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm }) {
           onClick={onConfirm}
           variant="contained"
           color="error"
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
           sx={{
             borderRadius: 1,
             textTransform: 'none',
@@ -90,7 +94,7 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm }) {
             px: 3,
           }}
         >
-          Eliminar
+          {loading ? 'Eliminando...' : 'Eliminar'}
         </Button>
       </DialogActions>
     </Dialog>

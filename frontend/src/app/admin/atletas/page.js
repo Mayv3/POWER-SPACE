@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Box, Typography, Button, Stack } from '@mui/material'
+import { Box, Typography, Button, Stack, TextField, InputAdornment } from '@mui/material'
+import SearchIcon from '@mui/icons-material/Search'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
 import { GenericModal } from '../../../components/modales/GenericModal'
@@ -11,18 +12,21 @@ import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])
+  const [atletasFiltrados, setAtletasFiltrados] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(0)
 
   const [openEdit, setOpenEdit] = useState(false)
   const [selectedAtleta, setSelectedAtleta] = useState({})
+  const [loadingEdit, setLoadingEdit] = useState(false)
 
   const [openDelete, setOpenDelete] = useState(false)
   const [deleteAtleta, setDeleteAtleta] = useState({})
+  const [loadingDelete, setLoadingDelete] = useState(false)
 
   const [openCreate, setOpenCreate] = useState(false)
+  const [loadingCreate, setLoadingCreate] = useState(false)
   const [newAtleta, setNewAtleta] = useState({
     nombre: '',
     apellido: '',
@@ -39,12 +43,16 @@ export default function AtletasPage() {
     sexo: '',
   })
 
+
+
   const fetchAtletas = async () => {
     setIsLoading(true)
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas`)
       const data = await res.json()
       setAtletas(data)
+      setAtletasFiltrados(data)
+      console.log(data)
       setTotal(data.length)
     } catch (err) {
       console.error('Error al cargar atletas:', err)
@@ -57,12 +65,26 @@ export default function AtletasPage() {
     fetchAtletas()
   }, [])
 
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setAtletasFiltrados(atletas)
+    } else {
+      const filtered = atletas.filter(atleta => 
+        atleta.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        atleta.apellido?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      setAtletasFiltrados(filtered)
+    }
+  }, [searchTerm, atletas])
+
   const handleEdit = (atleta) => {
     setSelectedAtleta(atleta)
     setOpenEdit(true)
   }
 
   const handleSaveEdit = async () => {
+    if (loadingEdit) return
+    setLoadingEdit(true)
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${selectedAtleta.id}`, {
         method: 'PUT',
@@ -74,10 +96,14 @@ export default function AtletasPage() {
       setOpenEdit(false)
     } catch (err) {
       console.error('Error al editar atleta:', err)
+    } finally {
+      setLoadingEdit(false)
     }
   }
 
   const handleCreateAtleta = async () => {
+    if (loadingCreate) return
+    setLoadingCreate(true)
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas`, {
         method: 'POST',
@@ -106,6 +132,8 @@ export default function AtletasPage() {
     } catch (err) {
       console.error('Error al crear atleta:', err)
       alert('No se pudo crear el atleta.')
+    } finally {
+      setLoadingCreate(false)
     }
   }
 
@@ -115,6 +143,8 @@ export default function AtletasPage() {
   }
 
   const confirmDelete = async () => {
+    if (loadingDelete) return
+    setLoadingDelete(true)
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${deleteAtleta.id}`, {
         method: 'DELETE',
@@ -125,6 +155,8 @@ export default function AtletasPage() {
     } catch (err) {
       console.error('Error al eliminar atleta:', err)
       alert('Hubo un error al eliminar el atleta.')
+    } finally {
+      setLoadingDelete(false)
     }
   }
 
@@ -145,27 +177,66 @@ export default function AtletasPage() {
         </Button>
       </Stack>
 
+      {/* Buscador */}
+      <TextField
+        fullWidth
+        placeholder="Buscar por nombre o apellido..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        sx={{ mb: 3 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+        }}
+      />
+
       {/* Tabla */}
       <GenericDataGrid
-        rows={atletas}
+        rows={atletasFiltrados}
         columns={columnsAtletas(handleEdit, handleDelete)}
         paginationMode="client"
         rowCount={total}
         loading={isLoading}
+        initialState={{
+          sorting: {
+            sortModel: [{ field: 'tanda_id', sort: 'asc' }]
+          }
+        }}
       />
 
       {/* Modal editar */}
-      <GenericModal open={openEdit} title="Editar atleta" onClose={() => setOpenEdit(false)} onSave={handleSaveEdit}>
+      <GenericModal
+        open={openEdit}
+        title="Editar atleta"
+        onClose={() => setOpenEdit(false)}
+        onSave={handleSaveEdit}
+        loading={loadingEdit}
+      >
         <EditAtletaForm atleta={selectedAtleta} onChange={setSelectedAtleta} />
       </GenericModal>
 
       {/* Modal crear */}
-      <GenericModal open={openCreate} title="Crear nuevo atleta" onClose={() => setOpenCreate(false)} onSave={handleCreateAtleta}>
+      <GenericModal
+        open={openCreate}
+        title="Crear nuevo atleta"
+        onClose={() => setOpenCreate(false)}
+        onSave={handleCreateAtleta}
+        loading={loadingCreate}
+      >
         <CreateAtletaForm atleta={newAtleta} onChange={setNewAtleta} />
       </GenericModal>
 
       {/* Modal eliminar */}
-      <DeleteConfirmModal open={openDelete} atleta={deleteAtleta} onClose={() => setOpenDelete(false)} onConfirm={confirmDelete} />
+      <DeleteConfirmModal
+        open={openDelete}
+        atleta={deleteAtleta}
+        onClose={() => setOpenDelete(false)}
+        onConfirm={confirmDelete}
+        loading={loadingDelete}
+      />
     </Box>
   )
 }
