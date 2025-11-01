@@ -6,22 +6,7 @@ import SearchIcon from '@mui/icons-material/Search'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsIntentos } from '../../../const/columns/columnsIntentos'
 import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
-
-function calcularDOTS(sexo, peso_corporal, total) {
-  const coef =
-    sexo === "Masculino"
-      ? { a: -216.0475144, b: 16.2606339, c: -0.002388645, d: -0.00113732, e: 7.01863e-06, f: -1.291e-08 }
-      : { a: 594.31747775582, b: -27.23842536447, c: 0.82112226871, d: -0.00930733913, e: 0.00004731582, f: -0.00000009054 }
-
-  const denom = coef.a +
-    coef.b * peso_corporal +
-    coef.c * Math.pow(peso_corporal, 2) +
-    coef.d * Math.pow(peso_corporal, 3) +
-    coef.e * Math.pow(peso_corporal, 4) +
-    coef.f * Math.pow(peso_corporal, 5)
-
-  return (total * 500) / denom
-}
+import { Calculate_DOTS } from '../../../utils/calcularDots'
 
 function calcularPuestos(atletas) {
   const atletasPorTanda = {}
@@ -81,22 +66,46 @@ export default function IntentosPage() {
       const data = await res.json()
       
       const atletasConDots = data.map(atleta => {
-        // Verificar si cada ejercicio tiene al menos un intento válido
+        // Calcular mejores levantamientos usando solo intentos VÁLIDOS (true)
+        const sentadillaValidos = [
+          atleta.valido_s1 === true ? atleta.primer_intento_sentadilla : 0,
+          atleta.valido_s2 === true ? atleta.segundo_intento_sentadilla : 0,
+          atleta.valido_s3 === true ? atleta.tercer_intento_sentadilla : 0
+        ]
+        const sentadilla = Math.max(...sentadillaValidos)
+        
+        const bancoValidos = [
+          atleta.valido_b1 === true ? atleta.primer_intento_banco : 0,
+          atleta.valido_b2 === true ? atleta.segundo_intento_banco : 0,
+          atleta.valido_b3 === true ? atleta.tercer_intento_banco : 0
+        ]
+        const banco = Math.max(...bancoValidos)
+        
+        const pesoMuertoValidos = [
+          atleta.valido_d1 === true ? atleta.primer_intento_peso_muerto : 0,
+          atleta.valido_d2 === true ? atleta.segundo_intento_peso_muerto : 0,
+          atleta.valido_d3 === true ? atleta.tercer_intento_peso_muerto : 0
+        ]
+        const pesoMuerto = Math.max(...pesoMuertoValidos)
+        
+        const total = sentadilla + banco + pesoMuerto
+
+        // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
         const tieneSentadillaValida = atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true
         const tieneBancoValido = atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true
         const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
-        
-        // Solo calcular DOTS si tiene al menos un intento válido en los 3 ejercicios
         const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
-        
-        const total = atleta.total || 0
-        const dots = tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal 
-          ? calcularDOTS(atleta.sexo, atleta.peso_corporal, total) 
-          : 0
-        
+
+        let dots = null
+        if (tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal > 0) {
+          const isFemale = atleta.sexo === 'F'
+          dots = parseFloat(Calculate_DOTS(atleta.peso_corporal, total, isFemale))
+        }
+
         return {
           ...atleta,
-          dots: dots > 0 ? dots : null
+          total: total > 0 ? total : null,
+          dots
         }
       })
       
@@ -176,21 +185,21 @@ export default function IntentosPage() {
       }
 
       const sentadilla = Math.max(
-        (newRow.primer_intento_sentadilla && (newRow.valido_s1 !== false)) ? newRow.primer_intento_sentadilla : 0,
-        (newRow.segundo_intento_sentadilla && newRow.valido_s2) ? newRow.segundo_intento_sentadilla : 0,
-        (newRow.tercer_intento_sentadilla && newRow.valido_s3) ? newRow.tercer_intento_sentadilla : 0
+        newRow.valido_s1 === true ? (newRow.primer_intento_sentadilla || 0) : 0,
+        newRow.valido_s2 === true ? (newRow.segundo_intento_sentadilla || 0) : 0,
+        newRow.valido_s3 === true ? (newRow.tercer_intento_sentadilla || 0) : 0
       )
       
       const banco = Math.max(
-        (newRow.primer_intento_banco && (newRow.valido_b1 !== false)) ? newRow.primer_intento_banco : 0,
-        (newRow.segundo_intento_banco && newRow.valido_b2) ? newRow.segundo_intento_banco : 0,
-        (newRow.tercer_intento_banco && newRow.valido_b3) ? newRow.tercer_intento_banco : 0
+        newRow.valido_b1 === true ? (newRow.primer_intento_banco || 0) : 0,
+        newRow.valido_b2 === true ? (newRow.segundo_intento_banco || 0) : 0,
+        newRow.valido_b3 === true ? (newRow.tercer_intento_banco || 0) : 0
       )
       
       const pesoMuerto = Math.max(
-        (newRow.primer_intento_peso_muerto && (newRow.valido_d1 !== false)) ? newRow.primer_intento_peso_muerto : 0,
-        (newRow.segundo_intento_peso_muerto && newRow.valido_d2) ? newRow.segundo_intento_peso_muerto : 0,
-        (newRow.tercer_intento_peso_muerto && newRow.valido_d3) ? newRow.tercer_intento_peso_muerto : 0
+        newRow.valido_d1 === true ? (newRow.primer_intento_peso_muerto || 0) : 0,
+        newRow.valido_d2 === true ? (newRow.segundo_intento_peso_muerto || 0) : 0,
+        newRow.valido_d3 === true ? (newRow.tercer_intento_peso_muerto || 0) : 0
       )
       
       const total = sentadilla + banco + pesoMuerto
@@ -201,15 +210,18 @@ export default function IntentosPage() {
       const tienePesoMuertoValido = newRow.valido_d1 === true || newRow.valido_d2 === true || newRow.valido_d3 === true
       
       const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
-      
-      const dots = tieneTodasLasValidaciones && total > 0 && newRow.peso_corporal 
-        ? calcularDOTS(newRow.sexo, newRow.peso_corporal, total) 
-        : 0
+
+      // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
+      let dots = null
+      if (tieneTodasLasValidaciones && total > 0 && newRow.peso_corporal > 0) {
+        const isFemale = newRow.sexo === 'F'
+        dots = parseFloat(Calculate_DOTS(newRow.peso_corporal, total, isFemale))
+      }
 
       const rowConDots = {
         ...newRow,
         total: total > 0 ? total : null,
-        dots: dots > 0 ? dots : null
+        dots
       }
 
       const atletasActualizados = atletas.map(atleta => 
@@ -298,21 +310,21 @@ export default function IntentosPage() {
       }
 
       const sentadilla = Math.max(
-        (atletaActualizado.primer_intento_sentadilla && (atletaActualizado.valido_s1 !== false)) ? atletaActualizado.primer_intento_sentadilla : 0,
-        (atletaActualizado.segundo_intento_sentadilla && atletaActualizado.valido_s2) ? atletaActualizado.segundo_intento_sentadilla : 0,
-        (atletaActualizado.tercer_intento_sentadilla && atletaActualizado.valido_s3) ? atletaActualizado.tercer_intento_sentadilla : 0
+        atletaActualizado.valido_s1 === true ? (atletaActualizado.primer_intento_sentadilla || 0) : 0,
+        atletaActualizado.valido_s2 === true ? (atletaActualizado.segundo_intento_sentadilla || 0) : 0,
+        atletaActualizado.valido_s3 === true ? (atletaActualizado.tercer_intento_sentadilla || 0) : 0
       )
       
       const banco = Math.max(
-        (atletaActualizado.primer_intento_banco && (atletaActualizado.valido_b1 !== false)) ? atletaActualizado.primer_intento_banco : 0,
-        (atletaActualizado.segundo_intento_banco && atletaActualizado.valido_b2) ? atletaActualizado.segundo_intento_banco : 0,
-        (atletaActualizado.tercer_intento_banco && atletaActualizado.valido_b3) ? atletaActualizado.tercer_intento_banco : 0
+        atletaActualizado.valido_b1 === true ? (atletaActualizado.primer_intento_banco || 0) : 0,
+        atletaActualizado.valido_b2 === true ? (atletaActualizado.segundo_intento_banco || 0) : 0,
+        atletaActualizado.valido_b3 === true ? (atletaActualizado.tercer_intento_banco || 0) : 0
       )
       
       const pesoMuerto = Math.max(
-        (atletaActualizado.primer_intento_peso_muerto && (atletaActualizado.valido_d1 !== false)) ? atletaActualizado.primer_intento_peso_muerto : 0,
-        (atletaActualizado.segundo_intento_peso_muerto && atletaActualizado.valido_d2) ? atletaActualizado.segundo_intento_peso_muerto : 0,
-        (atletaActualizado.tercer_intento_peso_muerto && atletaActualizado.valido_d3) ? atletaActualizado.tercer_intento_peso_muerto : 0
+        atletaActualizado.valido_d1 === true ? (atletaActualizado.primer_intento_peso_muerto || 0) : 0,
+        atletaActualizado.valido_d2 === true ? (atletaActualizado.segundo_intento_peso_muerto || 0) : 0,
+        atletaActualizado.valido_d3 === true ? (atletaActualizado.tercer_intento_peso_muerto || 0) : 0
       )
       
       const total = sentadilla + banco + pesoMuerto
@@ -323,15 +335,18 @@ export default function IntentosPage() {
       const tienePesoMuertoValido = atletaActualizado.valido_d1 === true || atletaActualizado.valido_d2 === true || atletaActualizado.valido_d3 === true
       
       const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
-      
-      const dots = tieneTodasLasValidaciones && total > 0 && atletaActualizado.peso_corporal 
-        ? calcularDOTS(atletaActualizado.sexo, atletaActualizado.peso_corporal, total) 
-        : 0
+
+      // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
+      let dots = null
+      if (tieneTodasLasValidaciones && total > 0 && atletaActualizado.peso_corporal > 0) {
+        const isFemale = atletaActualizado.sexo === 'F'
+        dots = parseFloat(Calculate_DOTS(atletaActualizado.peso_corporal, total, isFemale))
+      }
 
       const rowConDots = {
         ...atletaActualizado,
         total: total > 0 ? total : null,
-        dots: dots > 0 ? dots : null
+        dots
       }
 
       const atletasActualizados = atletas.map(atleta => 

@@ -19,7 +19,7 @@ app.use("/api/intentos", intentosRoutes);
 app.use("/api/resultados", resultadosRoutes);
 app.use("/api/tandas", tandasRoutes);
 app.use('/api/jueces', juecesRoutes)
-app.get("/", (req, res) => res.send("Backend Powerlifting activo 💪"));
+app.get("/ping", (req, res) => res.status(200).json({ status: "ok", timestamp: new Date().toISOString() }));
 
 app.use((err, req, res, next) => {
     console.error("Error:", err);

@@ -16,10 +16,16 @@ import {
   Modal,
   Card,
   CardContent,
-  CircularProgress
+  CircularProgress,
+  TextField,
+  InputAdornment
 } from '@mui/material'
-import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import CloseIcon from '@mui/icons-material/Close'
+import SearchIcon from '@mui/icons-material/Search'
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
+import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos'
+import { Calculate_DOTS } from '../../utils/calcularDots'
+import { supabase } from '../../lib/supabaseClient'
 
 // Import Swiper
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -31,14 +37,18 @@ import './custom-swiper.css'
 export default function PublicoPage() {
   const [atletas, setAtletas] = useState([])
   const [atletasFiltrados, setAtletasFiltrados] = useState([])
-  const [sexoSeleccionado, setSexoSeleccionado] = useState('todos')
+  const [sexoSeleccionado, setSexoSeleccionado] = useState('Masculino')
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todas')
   const [isLoading, setIsLoading] = useState(true)
   const [openModal, setOpenModal] = useState(false)
   const [atletaSeleccionado, setAtletaSeleccionado] = useState(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [atletaEnVivo, setAtletaEnVivo] = useState(null)
+  const [estadoCompetencia, setEstadoCompetencia] = useState(null)
+  const [scrollPosition, setScrollPosition] = useState(0)
 
-  const categoriasMasculinas = [52, 56, 60, 67.5, 75, 82.5, 90, 100, 110, 125, 140, 140.1]
-  const categoriasFemeninas = [44, 48, 52, 56, 60, 67.5, 75, 82.5, 90, 90.1]
+  const categoriasMasculinas = [59, 66, 60, 74, 83, 93, 105, 120, 120.1]
+  const categoriasFemeninas = [47, 52, 57, 63, 69, 76, 84, 84.1]
 
   useEffect(() => {
     const fetchAtletas = async () => {
@@ -48,48 +58,40 @@ export default function PublicoPage() {
         const data = await res.json()
 
         const atletasConDatos = data.map((atleta) => {
-          // Mejor sentadilla válida
-          const sentadillaValidas = [
-            atleta.valido_s1 === true ? atleta.primer_intento_sentadilla : 0,
-            atleta.valido_s2 === true ? atleta.segundo_intento_sentadilla : 0,
-            atleta.valido_s3 === true ? atleta.tercer_intento_sentadilla : 0
+          // Usar solo intentos VÁLIDOS (true) para calcular los mejores levantamientos
+          const sentadillaValidos = [
+            atleta.valido_s1 === true ? (atleta.primer_intento_sentadilla || 0) : 0,
+            atleta.valido_s2 === true ? (atleta.segundo_intento_sentadilla || 0) : 0,
+            atleta.valido_s3 === true ? (atleta.tercer_intento_sentadilla || 0) : 0
           ]
-          const mejorSentadilla = Math.max(...sentadillaValidas)
+          const mejorSentadilla = Math.max(...sentadillaValidos)
 
-          // Mejor banco válido
-          const bancoValidas = [
-            atleta.valido_b1 === true ? atleta.primer_intento_banco : 0,
-            atleta.valido_b2 === true ? atleta.segundo_intento_banco : 0,
-            atleta.valido_b3 === true ? atleta.tercer_intento_banco : 0
+          const bancoValidos = [
+            atleta.valido_b1 === true ? (atleta.primer_intento_banco || 0) : 0,
+            atleta.valido_b2 === true ? (atleta.segundo_intento_banco || 0) : 0,
+            atleta.valido_b3 === true ? (atleta.tercer_intento_banco || 0) : 0
           ]
-          const mejorBanco = Math.max(...bancoValidas)
+          const mejorBanco = Math.max(...bancoValidos)
 
-          // Mejor peso muerto válido
-          const pesoMuertoValidas = [
-            atleta.valido_d1 === true ? atleta.primer_intento_peso_muerto : 0,
-            atleta.valido_d2 === true ? atleta.segundo_intento_peso_muerto : 0,
-            atleta.valido_d3 === true ? atleta.tercer_intento_peso_muerto : 0
+          const pesoMuertoValidos = [
+            atleta.valido_d1 === true ? (atleta.primer_intento_peso_muerto || 0) : 0,
+            atleta.valido_d2 === true ? (atleta.segundo_intento_peso_muerto || 0) : 0,
+            atleta.valido_d3 === true ? (atleta.tercer_intento_peso_muerto || 0) : 0
           ]
-          const mejorPesoMuerto = Math.max(...pesoMuertoValidas)
+          const mejorPesoMuerto = Math.max(...pesoMuertoValidos)
 
           const total = mejorSentadilla + mejorBanco + mejorPesoMuerto
 
-          let dots = null
-          if (total > 0 && atleta.peso_corporal > 0) {
-            const c =
-              atleta.sexo === 'Masculino'
-                ? { a: -216.0475144, b: 16.2606339, c: -0.002388645, d: -0.00113732, e: 7.01863e-06, f: -1.291e-08 }
-                : { a: 594.31747775582, b: -27.23842536447, c: 0.82112226871, d: -0.00930733913, e: 0.00004731582, f: -0.00000009054 }
+          // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
+          const tieneSentadillaValida = atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true
+          const tieneBancoValido = atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true
+          const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
+          const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
 
-            const denom =
-              c.a +
-              c.b * atleta.peso_corporal +
-              c.c * atleta.peso_corporal ** 2 +
-              c.d * atleta.peso_corporal ** 3 +
-              c.e * atleta.peso_corporal ** 4 +
-              c.f * atleta.peso_corporal ** 5
-
-            dots = denom !== 0 ? (total * 500) / denom : null
+          let dots = atleta.dots
+          if (!dots && tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal > 0) {
+            const isFemale = atleta.sexo === 'F'
+            dots = parseFloat(Calculate_DOTS(atleta.peso_corporal, total, isFemale))
           }
 
           return {
@@ -114,14 +116,85 @@ export default function PublicoPage() {
     fetchAtletas()
   }, [])
 
+  // Escuchar cambios en el atleta seleccionado en tiempo real
   useEffect(() => {
-    setAtletasFiltrados(atletas)
-  }, [atletas])
+    const fetchAtletaEnVivo = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces`)
+        const data = await res.json()
+        setEstadoCompetencia(data)
+        
+        if (data.atleta_id) {
+          const atletaRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${data.atleta_id}`)
+          const atletaData = await atletaRes.json()
+          setAtletaEnVivo(atletaData)
+        } else {
+          setAtletaEnVivo(null)
+        }
+      } catch (err) {
+        console.error('Error al cargar atleta en vivo:', err)
+      }
+    }
+
+    fetchAtletaEnVivo()
+
+    const channel = supabase
+      .channel('public:estado_competencia_publico')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'estado_competencia',
+          filter: 'id=eq.1',
+        },
+        async (payload) => {
+          setEstadoCompetencia(payload.new)
+          if (payload.new.atleta_id) {
+            const atletaRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${payload.new.atleta_id}`)
+            const atletaData = await atletaRes.json()
+            setAtletaEnVivo(atletaData)
+          } else {
+            setAtletaEnVivo(null)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  useEffect(() => {
+    let filtrados = atletas
+
+    // Si hay búsqueda, solo filtrar por nombre (ignorar sexo y categoría)
+    if (busqueda.trim()) {
+      const termino = busqueda.toLowerCase()
+      filtrados = filtrados.filter(a => 
+        a.nombre?.toLowerCase().includes(termino) || 
+        a.apellido?.toLowerCase().includes(termino) ||
+        `${a.nombre} ${a.apellido}`.toLowerCase().includes(termino)
+      )
+    } else {
+      // Si no hay búsqueda, aplicar filtros de sexo y categoría
+      const sexoAbreviado = sexoSeleccionado === 'Masculino' ? 'M' : 'F'
+      filtrados = filtrados.filter(a => a.sexo === sexoAbreviado)
+
+      // Filtrar por categoría
+      if (categoriaSeleccionada !== 'todas') {
+        filtrados = filtrados.filter(a => parseFloat(a.categoria) === parseFloat(categoriaSeleccionada))
+      }
+    }
+
+    setAtletasFiltrados(filtrados)
+  }, [atletas, busqueda, sexoSeleccionado, categoriaSeleccionada])
 
   const getCategoriasDisponibles = () => {
     if (sexoSeleccionado === 'Masculino') return categoriasMasculinas
     if (sexoSeleccionado === 'Femenino') return categoriasFemeninas
-    return [...new Set([...categoriasMasculinas, ...categoriasFemeninas])].sort((a, b) => a - b)
+    return []
   }
 
   const handleVerMas = (atleta) => {
@@ -129,23 +202,383 @@ export default function PublicoPage() {
     setOpenModal(true)
   }
 
-  // 🔹 Agrupar por categoría y ordenar por DOTS
+  const handleScrollProximos = (direction) => {
+    const container = document.getElementById('proximos-scroll')
+    if (container) {
+      const scrollAmount = 200
+      if (direction === 'left') {
+        container.scrollLeft -= scrollAmount
+      } else {
+        container.scrollLeft += scrollAmount
+      }
+      setScrollPosition(container.scrollLeft)
+    }
+  }
+
+  const obtenerProximosCompetidores = () => {
+    if (!atletaEnVivo) return []
+    
+    const atletasMismaTanda = atletas.filter(a => a.tanda_id === atletaEnVivo.tanda_id)
+    
+    const atletasOrdenados = atletasMismaTanda.sort((a, b) => {
+      const nombreA = `${a.nombre} ${a.apellido}`.toLowerCase()
+      const nombreB = `${b.nombre} ${b.apellido}`.toLowerCase()
+      return nombreA.localeCompare(nombreB)
+    })
+    
+    const indiceActual = atletasOrdenados.findIndex(a => a.id === atletaEnVivo.id)
+    
+    if (indiceActual === -1 || indiceActual === atletasOrdenados.length - 1) return []
+    
+    return atletasOrdenados.slice(indiceActual + 1, indiceActual + 4)
+  }
+
   const atletasOrdenados = [...atletasFiltrados].sort((a, b) => (b.dots || 0) - (a.dots || 0))
   
-  // Agrupar por categoría
   const categoriasAgrupadas = atletasOrdenados.reduce((acc, atleta) => {
     if (!acc[atleta.categoria]) acc[atleta.categoria] = []
     acc[atleta.categoria].push(atleta)
     return acc
   }, {})
 
+  const categoriasOrdenadas = Object.entries(categoriasAgrupadas).sort(([catA], [catB]) => {
+    const numA = parseFloat(catA)
+    const numB = parseFloat(catB)
+    
+    const esMaxCatMasculina = (cat) => categoriasMasculinas.includes(parseFloat(cat))
+    const esMaxCatFemenina = (cat) => categoriasFemeninas.includes(parseFloat(cat))
+    
+    const aEsMasculina = esMaxCatMasculina(catA)
+    const bEsMasculina = esMaxCatMasculina(catB)
+    
+    // Si uno es masculino y otro femenino, masculino va primero
+    if (aEsMasculina && !bEsMasculina) return -1
+    if (!aEsMasculina && bEsMasculina) return 1
+    
+    // Si son del mismo género, ordenar por número
+    return numA - numB
+  })
+
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#1a1a1a', p: 4 }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: '#1a1a1a', display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ width: '100%', maxWidth: '600px', p: 4 }}>
+      {/* Banner EN VIVO */}
+      {atletaEnVivo && (
+        <Box
+          onClick={() => handleVerMas(atletaEnVivo)}
+          sx={{
+            backgroundColor: '#FFD700',
+            color: '#000',
+            p: 2,
+            borderRadius: 2,
+            mb: 3,
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
+            animation: 'pulse 2s infinite',
+            cursor: 'pointer',
+            '&:hover': {
+              boxShadow: '0 4px 20px rgba(255, 215, 0, 0.8)',
+              transform: 'translateY(-2px)',
+              transition: 'all 0.2s'
+            },
+            '@keyframes pulse': {
+              '0%': { boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)' },
+              '50%': { boxShadow: '0 4px 20px rgba(255, 215, 0, 0.8)' },
+              '100%': { boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)' }
+            }
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: '#ff0000',
+                animation: 'blink 1s infinite',
+                '@keyframes blink': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.3 }
+                }
+              }}
+            />
+            <Typography variant="overline" fontWeight="bold" sx={{ fontSize: '0.9rem', letterSpacing: 1 }}>
+              EN VIVO
+            </Typography>
+          </Box>
+          <Typography variant="h5" fontWeight="bold">
+            {atletaEnVivo.nombre} {atletaEnVivo.apellido}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Categoría {atletaEnVivo.categoria} kg • {atletaEnVivo.sexo === 'M' ? 'Masculino' : 'Femenino'}
+          </Typography>
+        </Box>
+      )}
+      
+      {/* Próximos competidores */}
+      {atletaEnVivo && obtenerProximosCompetidores().length > 0 && (
+        <Box sx={{ mb: 3, position: 'relative' }}>
+          {scrollPosition > 0 && (
+            <IconButton
+              onClick={() => handleScrollProximos('left')}
+              sx={{
+                position: 'absolute',
+                left: -10,
+                top: '40%',
+                transform: 'translateY(-50%)',
+                zIndex: 2,
+                backgroundColor: '#FFD700',
+                color: '#000',
+                '&:hover': {
+                  backgroundColor: '#FFC700'
+                },
+                width: 20,
+                height: 20
+              }}
+            >
+              <ArrowBackIosIcon sx={{ fontSize: 10, ml: 0.5 }} />
+            </IconButton>
+          )}
+
+          {/* Contenedor scroll */}
+          <Box
+            id="proximos-scroll"
+            onScroll={(e) => setScrollPosition(e.target.scrollLeft)}
+            sx={{
+              display: 'flex',
+              gap: 2,
+              overflowX: 'auto',
+              scrollBehavior: 'smooth',
+              '&::-webkit-scrollbar': {
+                display: 'none'
+              },
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+              pb: 1
+            }}
+          >
+            {obtenerProximosCompetidores().map((atleta) => (
+              <Paper
+                key={atleta.id}
+                onClick={() => handleVerMas(atleta)}
+                sx={{
+                  minWidth: '150px',
+                  maxWidth: '150px',
+                  p: 1,
+                  backgroundColor: '#2a2a2a',
+                  color: 'white',
+                  textAlign: 'center',
+                  border: '1px solid #444',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  '&:hover': {
+                    borderColor: '#FFD700',
+                    transition: 'all 0.2s'
+                  }
+                }}
+              >
+                <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
+                  {atleta.nombre} {atleta.apellido}
+                </Typography>
+              </Paper>
+            ))}
+          </Box>
+
+          {/* Flecha derecha */}
+          {obtenerProximosCompetidores().length > 2 && (
+            <IconButton
+              onClick={() => handleScrollProximos('right')}
+              sx={{
+                position: 'absolute',
+                right: -10,
+                top: '40%',
+                transform: 'translateY(-50%)',
+                zIndex: 2,
+                backgroundColor: '#FFD700',
+                color: '#000',
+                '&:hover': {
+                  backgroundColor: '#FFC700'
+                },
+                width: 20,
+                height: 20
+              }}
+            >
+              <ArrowForwardIosIcon sx={{ fontSize: 10 }} />
+            </IconButton>
+          )}
+        </Box>
+      )}
+      
       {/* Header */}
       <Box sx={{ mb: 4, textAlign: 'center' }}>
         <Typography variant="h3" textAlign='center' fontWeight="bold" sx={{ mb: 3, color: 'white' }}>
           Competidores
         </Typography>
+        
+        {/* Buscador */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <TextField
+            placeholder="Buscar atleta por nombre..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            sx={{
+              width: '100%',
+              backgroundColor: '#2a2a2a',
+              borderRadius: 1,
+              '& .MuiOutlinedInput-root': {
+                color: 'white',
+                '& fieldset': {
+                  borderColor: '#444'
+                },
+                '&:hover fieldset': {
+                  borderColor: '#FFD700'
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#FFD700'
+                }
+              },
+              '& .MuiInputBase-input::placeholder': {
+                color: '#b0b0b0',
+                opacity: 1
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#FFD700' }} />
+                </InputAdornment>
+              )
+            }}
+          />
+        </Box>
+
+        {/* Filtros */}
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+          {/* Selector de Sexo */}
+          <FormControl 
+            sx={{ 
+              minWidth: 150,
+              backgroundColor: '#2a2a2a',
+              borderRadius: 1,
+              '& .MuiOutlinedInput-root': {
+                color: 'white',
+                '& fieldset': {
+                  borderColor: '#444'
+                },
+                '&:hover fieldset': {
+                  borderColor: '#FFD700'
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#FFD700'
+                }
+              },
+              '& .MuiInputLabel-root': {
+                color: '#b0b0b0'
+              },
+              '& .MuiInputLabel-root.Mui-focused': {
+                color: '#FFD700'
+              },
+              '& .MuiSvgIcon-root': {
+                color: '#FFD700'
+              }
+            }}
+          >
+            <InputLabel>Sexo</InputLabel>
+            <Select
+              value={sexoSeleccionado}
+              label="Sexo"
+              onChange={(e) => {
+                setSexoSeleccionado(e.target.value)
+                setCategoriaSeleccionada('todas')
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: '#2a2a2a',
+                    color: 'white',
+                    '& .MuiMenuItem-root': {
+                      '&:hover': {
+                        backgroundColor: '#3a3a3a'
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: '#FFD70033',
+                        '&:hover': {
+                          backgroundColor: '#FFD70055'
+                        }
+                      }
+                    }
+                  }
+                }
+              }}
+            >
+              <MenuItem value="Masculino">Masculino</MenuItem>
+              <MenuItem value="Femenino">Femenino</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Selector de Categoría */}
+          <FormControl 
+            sx={{ 
+              minWidth: 150,
+              backgroundColor: '#2a2a2a',
+              borderRadius: 1,
+              '& .MuiOutlinedInput-root': {
+                color: 'white',
+                '& fieldset': {
+                  borderColor: '#444'
+                },
+                '&:hover fieldset': {
+                  borderColor: '#FFD700'
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#FFD700'
+                }
+              },
+              '& .MuiInputLabel-root': {
+                color: '#b0b0b0'
+              },
+              '& .MuiInputLabel-root.Mui-focused': {
+                color: '#FFD700'
+              },
+              '& .MuiSvgIcon-root': {
+                color: '#FFD700'
+              }
+            }}
+          >
+            <InputLabel>Categoría</InputLabel>
+            <Select 
+              value={categoriaSeleccionada} 
+              label="Categoría" 
+              onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: '#2a2a2a',
+                    color: 'white',
+                    '& .MuiMenuItem-root': {
+                      '&:hover': {
+                        backgroundColor: '#3a3a3a'
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: '#FFD70033',
+                        '&:hover': {
+                          backgroundColor: '#FFD70055'
+                        }
+                      }
+                    }
+                  }
+                }
+              }}
+            >
+              <MenuItem value="todas">Todas las categorías</MenuItem>
+              {getCategoriasDisponibles().map((cat) => (
+                <MenuItem key={cat} value={cat}>
+                  {cat} kg
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
       </Box>      {/* Carruseles por categoría */}
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 10 }}>
@@ -156,9 +589,7 @@ export default function PublicoPage() {
           No hay atletas para mostrar
         </Typography>
       ) : (
-        Object.entries(categoriasAgrupadas)
-          .sort(([a], [b]) => a - b)
-          .map(([categoria, atletas]) => (
+        categoriasOrdenadas.map(([categoria, atletas]) => (
             <Box key={categoria} sx={{ mb: 6 }}>
               <Typography variant="h4" fontWeight="bold" sx={{ mb: 2, color: 'white', textAlign: 'center' }}>
                 Categoría {categoria} kg
@@ -167,13 +598,8 @@ export default function PublicoPage() {
               <Swiper
                 modules={[Pagination]}
                 spaceBetween={20}
-                slidesPerView={3}
+                slidesPerView={1}
                 pagination={{ clickable: true }}
-                breakpoints={{
-                  320: { slidesPerView: 1 },
-                  768: { slidesPerView: 2 },
-                  1200: { slidesPerView: 3 }
-                }}
               >
                 {atletas.map((atleta, index) => {
                   // Determinar color de medalla según posición
@@ -414,6 +840,7 @@ export default function PublicoPage() {
           )}
         </Paper>
       </Modal>
+      </Box>
     </Box>
   )
 }
