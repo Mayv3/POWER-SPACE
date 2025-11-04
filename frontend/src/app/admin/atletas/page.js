@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Box, Typography, Button, Stack, TextField, InputAdornment } from '@mui/material'
+import { Box, Typography, Button, Stack, TextField, InputAdornment, CircularProgress } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
@@ -69,7 +69,7 @@ export default function AtletasPage() {
     if (searchTerm.trim() === '') {
       setAtletasFiltrados(atletas)
     } else {
-      const filtered = atletas.filter(atleta => 
+      const filtered = atletas.filter(atleta =>
         atleta.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         atleta.apellido?.toLowerCase().includes(searchTerm.toLowerCase())
       )
@@ -169,7 +169,6 @@ export default function AtletasPage() {
         </Typography>
         <Button
           variant="contained"
-          color="primary"
           sx={{ borderRadius: 1, textTransform: 'none', fontWeight: 600 }}
           onClick={() => setOpenCreate(true)}
         >
@@ -177,7 +176,6 @@ export default function AtletasPage() {
         </Button>
       </Stack>
 
-      {/* Buscador */}
       <TextField
         fullWidth
         placeholder="Buscar por nombre o apellido..."
@@ -194,18 +192,24 @@ export default function AtletasPage() {
       />
 
       {/* Tabla */}
-      <GenericDataGrid
-        rows={atletasFiltrados}
-        columns={columnsAtletas(handleEdit, handleDelete)}
-        paginationMode="client"
-        rowCount={total}
-        loading={isLoading}
-        initialState={{
-          sorting: {
-            sortModel: [{ field: 'tanda_id', sort: 'asc' }]
-          }
-        }}
-      />
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+          <CircularProgress size={50} sx={{ color: '#FF9800' }} /> {/* Naranja */}
+        </Box>
+      ) : (
+        <GenericDataGrid
+          rows={atletasFiltrados}
+          columns={columnsAtletas(handleEdit, handleDelete)}
+          paginationMode="client"
+          rowCount={total}
+          loading={isLoading}
+          initialState={{
+            sorting: {
+              sortModel: [{ field: 'tanda_id', sort: 'asc' }]
+            }
+          }}
+        />
+      )}
 
       {/* Modal editar */}
       <GenericModal

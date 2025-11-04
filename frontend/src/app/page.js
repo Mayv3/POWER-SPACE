@@ -48,7 +48,7 @@ export default function HomePage() {
     }}>
       <Box sx={{ maxWidth: 900, width: '100%' }}>
         <Typography variant="h3" fontWeight="bold" textAlign="center" mb={8}>
-          Power Space
+          POWERSPACE
         </Typography>
 
         <Grid container spacing={4} justifyContent="center">

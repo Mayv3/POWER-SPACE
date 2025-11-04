@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Box, Typography, FormControl, InputLabel, Select, MenuItem, TextField, InputAdornment, Stack } from '@mui/material'
+import { Box, Typography, FormControl, InputLabel, Select, MenuItem, TextField, InputAdornment, Stack, CircularProgress } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsIntentos } from '../../../const/columns/columnsIntentos'
@@ -10,7 +10,7 @@ import { Calculate_DOTS } from '../../../utils/calcularDots'
 
 function calcularPuestos(atletas) {
   const atletasPorTanda = {}
-  
+
   atletas.forEach(atleta => {
     if (!atletasPorTanda[atleta.tanda_id]) {
       atletasPorTanda[atleta.tanda_id] = []
@@ -19,21 +19,21 @@ function calcularPuestos(atletas) {
   })
 
   const atletasConPuesto = []
-  
+
   Object.keys(atletasPorTanda).forEach(tandaId => {
     const atletasDeTanda = atletasPorTanda[tandaId]
-    
+
     const atletasOrdenados = atletasDeTanda
       .filter(a => a.dots && a.dots > 0)
       .sort((a, b) => b.dots - a.dots)
-    
+
     atletasOrdenados.forEach((atleta, index) => {
       atletasConPuesto.push({
         ...atleta,
         puesto: index + 1
       })
     })
-    
+
     atletasDeTanda
       .filter(a => !a.dots || a.dots <= 0)
       .forEach(atleta => {
@@ -43,7 +43,7 @@ function calcularPuestos(atletas) {
         })
       })
   })
-  
+
   return atletasConPuesto
 }
 
@@ -53,7 +53,7 @@ export default function IntentosPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [tandaSeleccionada, setTandaSeleccionada] = useState('todas')
-  
+
   const [openValidoModal, setOpenValidoModal] = useState(false)
   const [selectedIntento, setSelectedIntento] = useState(null)
 
@@ -64,7 +64,7 @@ export default function IntentosPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/api/intentos/atletas-con-intentos?tanda_id=todas`
       )
       const data = await res.json()
-      
+
       const atletasConDots = data.map(atleta => {
         // Calcular mejores levantamientos usando solo intentos VÁLIDOS (true)
         const sentadillaValidos = [
@@ -73,21 +73,21 @@ export default function IntentosPage() {
           atleta.valido_s3 === true ? atleta.tercer_intento_sentadilla : 0
         ]
         const sentadilla = Math.max(...sentadillaValidos)
-        
+
         const bancoValidos = [
           atleta.valido_b1 === true ? atleta.primer_intento_banco : 0,
           atleta.valido_b2 === true ? atleta.segundo_intento_banco : 0,
           atleta.valido_b3 === true ? atleta.tercer_intento_banco : 0
         ]
         const banco = Math.max(...bancoValidos)
-        
+
         const pesoMuertoValidos = [
           atleta.valido_d1 === true ? atleta.primer_intento_peso_muerto : 0,
           atleta.valido_d2 === true ? atleta.segundo_intento_peso_muerto : 0,
           atleta.valido_d3 === true ? atleta.tercer_intento_peso_muerto : 0
         ]
         const pesoMuerto = Math.max(...pesoMuertoValidos)
-        
+
         const total = sentadilla + banco + pesoMuerto
 
         // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
@@ -108,9 +108,9 @@ export default function IntentosPage() {
           dots
         }
       })
-      
+
       const atletasConPuestos = calcularPuestos(atletasConDots)
-      
+
       setAtletas(atletasConPuestos)
       setAtletasFiltrados(atletasConPuestos)
     } catch (err) {
@@ -126,20 +126,20 @@ export default function IntentosPage() {
 
   useEffect(() => {
     let filtrados = atletas
-    
+
     // Filtrar por tanda
     if (tandaSeleccionada !== 'todas') {
       filtrados = filtrados.filter(atleta => atleta.tanda_id === parseInt(tandaSeleccionada))
     }
-    
+
     // Filtrar por búsqueda
     if (searchTerm.trim() !== '') {
-      filtrados = filtrados.filter(atleta => 
+      filtrados = filtrados.filter(atleta =>
         atleta.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         atleta.apellido?.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
-    
+
     setAtletasFiltrados(filtrados)
   }, [tandaSeleccionada, searchTerm, atletas])
 
@@ -150,7 +150,7 @@ export default function IntentosPage() {
   const processRowUpdate = async (newRow, oldRow) => {
     try {
       const intentosParaActualizar = []
-      
+
       const mapearCampoAIntento = {
         primer_intento_sentadilla: { movimiento_id: 1, intento_numero: 1 },
         segundo_intento_sentadilla: { movimiento_id: 1, intento_numero: 2 },
@@ -189,26 +189,26 @@ export default function IntentosPage() {
         newRow.valido_s2 === true ? (newRow.segundo_intento_sentadilla || 0) : 0,
         newRow.valido_s3 === true ? (newRow.tercer_intento_sentadilla || 0) : 0
       )
-      
+
       const banco = Math.max(
         newRow.valido_b1 === true ? (newRow.primer_intento_banco || 0) : 0,
         newRow.valido_b2 === true ? (newRow.segundo_intento_banco || 0) : 0,
         newRow.valido_b3 === true ? (newRow.tercer_intento_banco || 0) : 0
       )
-      
+
       const pesoMuerto = Math.max(
         newRow.valido_d1 === true ? (newRow.primer_intento_peso_muerto || 0) : 0,
         newRow.valido_d2 === true ? (newRow.segundo_intento_peso_muerto || 0) : 0,
         newRow.valido_d3 === true ? (newRow.tercer_intento_peso_muerto || 0) : 0
       )
-      
+
       const total = sentadilla + banco + pesoMuerto
-      
+
       // Verificar si cada ejercicio tiene al menos un intento válido
       const tieneSentadillaValida = newRow.valido_s1 === true || newRow.valido_s2 === true || newRow.valido_s3 === true
       const tieneBancoValido = newRow.valido_b1 === true || newRow.valido_b2 === true || newRow.valido_b3 === true
       const tienePesoMuertoValido = newRow.valido_d1 === true || newRow.valido_d2 === true || newRow.valido_d3 === true
-      
+
       const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
 
       // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
@@ -224,10 +224,10 @@ export default function IntentosPage() {
         dots
       }
 
-      const atletasActualizados = atletas.map(atleta => 
+      const atletasActualizados = atletas.map(atleta =>
         atleta.id === newRow.id ? rowConDots : atleta
       )
-      
+
       const atletasConPuestos = calcularPuestos(atletasActualizados)
       setAtletas(atletasConPuestos)
 
@@ -303,8 +303,8 @@ export default function IntentosPage() {
       }
 
       const validoField = validoFieldMap[selectedIntento.field]
-      const atletaActualizado = { 
-        ...selectedIntento.atleta, 
+      const atletaActualizado = {
+        ...selectedIntento.atleta,
         [validoField]: valido,
         ...(nuevoPeso !== null && nuevoPeso !== undefined ? { [selectedIntento.field]: nuevoPeso } : {})
       }
@@ -314,26 +314,26 @@ export default function IntentosPage() {
         atletaActualizado.valido_s2 === true ? (atletaActualizado.segundo_intento_sentadilla || 0) : 0,
         atletaActualizado.valido_s3 === true ? (atletaActualizado.tercer_intento_sentadilla || 0) : 0
       )
-      
+
       const banco = Math.max(
         atletaActualizado.valido_b1 === true ? (atletaActualizado.primer_intento_banco || 0) : 0,
         atletaActualizado.valido_b2 === true ? (atletaActualizado.segundo_intento_banco || 0) : 0,
         atletaActualizado.valido_b3 === true ? (atletaActualizado.tercer_intento_banco || 0) : 0
       )
-      
+
       const pesoMuerto = Math.max(
         atletaActualizado.valido_d1 === true ? (atletaActualizado.primer_intento_peso_muerto || 0) : 0,
         atletaActualizado.valido_d2 === true ? (atletaActualizado.segundo_intento_peso_muerto || 0) : 0,
         atletaActualizado.valido_d3 === true ? (atletaActualizado.tercer_intento_peso_muerto || 0) : 0
       )
-      
+
       const total = sentadilla + banco + pesoMuerto
-      
+
       // Verificar si cada ejercicio tiene al menos un intento válido
       const tieneSentadillaValida = atletaActualizado.valido_s1 === true || atletaActualizado.valido_s2 === true || atletaActualizado.valido_s3 === true
       const tieneBancoValido = atletaActualizado.valido_b1 === true || atletaActualizado.valido_b2 === true || atletaActualizado.valido_b3 === true
       const tienePesoMuertoValido = atletaActualizado.valido_d1 === true || atletaActualizado.valido_d2 === true || atletaActualizado.valido_d3 === true
-      
+
       const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
 
       // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
@@ -349,10 +349,10 @@ export default function IntentosPage() {
         dots
       }
 
-      const atletasActualizados = atletas.map(atleta => 
+      const atletasActualizados = atletas.map(atleta =>
         atleta.id === selectedIntento.atleta.id ? rowConDots : atleta
       )
-      
+
       const atletasConPuestos = calcularPuestos(atletasActualizados)
       setAtletas(atletasConPuestos)
 
@@ -371,13 +371,13 @@ export default function IntentosPage() {
             Intentos
           </Typography>
           <Typography variant="h6" color="text.secondary" sx={{ mt: 1 }}>
-            {tandaSeleccionada === 'todas' 
-              ? 'Todas las tandas' 
+            {tandaSeleccionada === 'todas'
+              ? 'Todas las tandas'
               : `Tanda ${tandaSeleccionada}`
             }
           </Typography>
         </Box>
-         
+
         <FormControl sx={{ minWidth: 200 }}>
           <InputLabel id="tanda-select-label">Tanda</InputLabel>
           <Select
@@ -411,15 +411,28 @@ export default function IntentosPage() {
           ),
         }}
       />
-      
-      <GenericDataGrid
-        rows={atletasFiltrados}
-        columns={columnsIntentos(handleCellClick)}
-        loading={isLoading}
-        paginationMode="client"
-        processRowUpdate={processRowUpdate}
-        onProcessRowUpdateError={handleProcessRowUpdateError}
-      />
+
+      {isLoading ? (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: 300,
+          }}
+        >
+          <CircularProgress size={50} sx={{ color: '#FF9800' }} />
+        </Box>
+      ) : (
+        <GenericDataGrid
+          rows={atletasFiltrados}
+          columns={columnsIntentos(handleCellClick)}
+          paginationMode="client"
+          processRowUpdate={processRowUpdate}
+          onProcessRowUpdateError={handleProcessRowUpdateError}
+        />
+      )}
+
 
       <ValidoIntentoModal
         open={openValidoModal}

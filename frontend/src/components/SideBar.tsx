@@ -23,13 +23,13 @@ type TabItem = { label: string; icon: React.ReactNode; route: string }
 type HeaderComponentProps = { tabs: TabItem[] }
 
 function readPrimary(): string {
-  if (typeof window === 'undefined') return '#0dc985'
+  if (typeof window === 'undefined') return '#FF9800'
   try {
     const raw = localStorage.getItem('gym_settings')
     const parsed = raw ? JSON.parse(raw) : null
-    return parsed?.colors?.primary || '#0dc985'
+    return parsed?.colors?.primary || '#FF9800'
   } catch {
-    return '#0dc985'
+    return '#FF9800'
   }
 }
 

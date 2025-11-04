@@ -12,7 +12,8 @@ import {
   useMediaQuery,
   useTheme,
   Button,
-  Stack
+  Stack,
+  CircularProgress
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
@@ -241,7 +242,7 @@ export default function CargadoresPage() {
     // Obtener el peso del intento seleccionado
     const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
       ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-    
+
     let peso = 0
     if (intento === 1) {
       peso = params.row[`primer_intento_${ejercicioKey}`] || 0
@@ -339,42 +340,25 @@ export default function CargadoresPage() {
 
   const columns = [
     {
-      field: 'nombre',
-      headerName: 'Nombre',
-      flex: 0.12,
-      align: 'center',
-      headerAlign: 'center',
-      hide: true,
-      renderCell: (params) => capitalizeWords(params.value)
-    },
-    {
       field: 'apellido',
       headerName: 'Apellido',
-      flex: 0.2,
+      flex: 0.06,
       minWidth: 100,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => capitalizeWords(params.value)
     },
     {
-      field: 'tanda_id',
-      headerName: 'Tanda',
-      flex: 0.08,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params) => `T${params.value}`
-    },
-    {
       field: 'categoria',
       headerName: 'Categoría',
-      flex: 0.12,
+      flex: 0.04,
       align: 'center',
       headerAlign: 'center'
     },
     {
       field: 'intento1',
       headerName: '1°',
-      flex: 0.15,
+      flex: 0.06,
       minWidth: 80,
       align: 'center',
       headerAlign: 'center',
@@ -431,7 +415,7 @@ export default function CargadoresPage() {
     {
       field: 'intento2',
       headerName: '2°',
-      flex: 0.15,
+      flex: 0.06,
       minWidth: 80,
       align: 'center',
       headerAlign: 'center',
@@ -488,7 +472,7 @@ export default function CargadoresPage() {
     {
       field: 'intento3',
       headerName: '3°',
-      flex: 0.15,
+      flex: 0.06,
       minWidth: 80,
       align: 'center',
       headerAlign: 'center',
@@ -566,6 +550,7 @@ export default function CargadoresPage() {
     <Box sx={{ p: 4, minHeight: '100vh', mx: 'auto' }}>
       <Box sx={{
         display: 'flex',
+        alignItems: 'center',
         flexDirection: { xs: 'column', md: 'row' },
         gap: 2,
         mb: 3
@@ -596,6 +581,14 @@ export default function CargadoresPage() {
             <MenuItem value={4}>Tanda 4</MenuItem>
           </Select>
         </FormControl>
+
+        {atletaSeleccionado && (
+          <Box backgroundColor='#ff6b35 ' sx={{ p: 2, width: '100%', textAlign: 'center', borderRadius: 1 }}>
+            <Typography variant="h5" fontWeight="bold" sx={{ color: 'white' }}>
+              {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)} {atletaSeleccionado.categoria}  T{atletaSeleccionado.tanda_id}
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       <Box sx={{
@@ -604,39 +597,45 @@ export default function CargadoresPage() {
         gap: 2
       }}>
 
-        {atletaSeleccionado && (
-          <Box backgroundColor='#ff6b35 ' sx={{ p: 2, textAlign: 'center', borderRadius: 1, mb: 2 }}>
-            <Typography variant="h5" fontWeight="bold" sx={{ color: 'white' }}>
-              {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)} {atletaSeleccionado.categoria}  T{atletaSeleccionado.tanda_id}
-            </Typography>
-          </Box>
-        )}
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, width: '100%', height: { xs: 'auto', md: 'calc(100vh - 200px)' } }} >
 
-        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, width: '100%', height: { xs: 'auto', md: 'calc(100vh - 250px)' } }} >
           <Box sx={{ flex: { xs: 1, md: 1 }, order: { xs: 2, md: 1 }, height: '100%' }}>
             <Box sx={{
               width: '100%',
               height: '100%'
             }}>
-              <GenericDataGrid
-                rows={atletas}
-                columns={columns}
-                loading={isLoading}
-                paginationMode="client"
-                onCellClick={handleCellClick}
-                processRowUpdate={processRowUpdate}
-                onProcessRowUpdateError={handleProcessRowUpdateError}
-                columnVisibilityModel={{
-                  nombre: !isMobile,
-                  tanda_id: !isMobile,
-                  categoria: !isMobile,
-                }}
-              />
+              {isLoading ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: 300,
+                  }}
+                >
+                  <CircularProgress size={50} sx={{ color: '#FF9800' }} />
+                </Box>
+              ) : (
+                <GenericDataGrid
+                  rows={atletas}
+                  columns={columns}
+                  paginationMode="client"
+                  onCellClick={handleCellClick}
+                  processRowUpdate={processRowUpdate}
+                  onProcessRowUpdateError={handleProcessRowUpdateError}
+                  columnVisibilityModel={{
+                    nombre: !isMobile,
+                    tanda_id: !isMobile,
+                    categoria: !isMobile,
+                  }}
+                />
+              )}
+
             </Box>
           </Box>
 
           <Box sx={{
-            width: { xs: '100%', md: '500px' },
+            width: { xs: '100%', md: '50vw' },
             order: { xs: 1, md: 2 },
             flexShrink: 0,
             height: '100%'
@@ -663,9 +662,9 @@ export default function CargadoresPage() {
                   {pesoActual > 0 ? (
                     discos.length > 0 ? (
                       <>
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
+                        <Typography
+                          variant="h4"
+                          sx={{
                             display: 'block',
                             textAlign: 'center',
                             fontWeight: 'bold',
@@ -676,47 +675,100 @@ export default function CargadoresPage() {
                           Discos por lado:
                         </Typography>
                         <Box sx={{ position: 'relative', display: 'inline-block', py: 2 }}>
-                          <Box sx={{ display: 'flex', gap: 0.5, position: 'relative', zIndex: 1 }}>
-                            {discos.map((disco, index) => (
-                              <Box
-                                key={index}
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.9rem',
-                                  height: '150px',
-                                  width: '30px',
-                                  backgroundColor:
-                                    disco === 25 ? '#f44336' :
-                                      disco === 20 ? '#2196f3' :
-                                        disco === 15 ? '#ffeb3b' :
-                                          disco === 10 ? '#4caf50' :
-                                            disco === 5 ? '#fff' :
-                                              disco === 2.5 ? '#000' :
-                                                disco === 1.25 ? '#C0C0C0' :
-                                                  disco === 0.5 ? '#9e9e9e' :
-                                                    '#9e9e9e',
-                                  color: disco === 15 || disco === 5 || disco === 1.25 || disco === 0.5 || disco === 0.25 ? '#000' : '#fff',
-                                  fontWeight: 'bold',
-                                  border: (disco === 5 || disco === 1.25) ? '2px solid #000' : 'none',
-                                  borderRadius: 1,
-                                  textOrientation: 'mixed'
-                                }}
-                              >
-                                {disco}
-                              </Box>
-                            ))}
+                          <Box
+                            sx={{
+                              py: 2,
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              justifyContent: 'center',
+                              alignItems: 'center', // 👈 centra verticalmente todo
+                              gap: 1.5,
+                            }}
+                          >
+                            {Object.entries(
+                              discos.reduce((acc, disco) => {
+                                acc[disco] = (acc[disco] || 0) + 1
+                                return acc
+                              }, {})
+                            )
+                              .sort((a, b) => b[0] - a[0])
+                              .map(([peso, cantidad]) => (
+                                <Box
+                                  key={peso}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 2,
+                                    px: '20px',
+                                    py: '100px',
+                                    fontSize: '100px',
+                                    width: '12vw',
+                                    fontWeight: 'bold',
+                                    color:
+                                      peso == 15 ||
+                                        peso == 5 ||
+                                        peso == 1.25 ||
+                                        peso == 0.5 ||
+                                        peso == 0.25
+                                        ? '#000'
+                                        : '#fff',
+                                    backgroundColor:
+                                      peso == 25
+                                        ? '#f44336'
+                                        : peso == 20
+                                          ? '#2196f3'
+                                          : peso == 15
+                                            ? '#ffeb3b'
+                                            : peso == 10
+                                              ? '#4caf50'
+                                              : peso == 5
+                                                ? '#fff'
+                                                : peso == 2.5
+                                                  ? '#000'
+                                                  : peso == 1.25
+                                                    ? '#C0C0C0'
+                                                    : '#9e9e9e',
+                                  }}
+                                >
+                                  <Box
+                                    sx={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    <div>{peso}</div>
+                                    <div style={{ fontSize: '28px' }}>x</div>
+                                    <div>{cantidad}</div>
+                                  </Box>
+                                </Box>
+                              ))}
+
+                            <Box
+                              key="tope-fijo"
+                              sx={{
+                                borderRadius: 1,
+                                width: '40px',
+                                height: '180px',
+                                backgroundColor: '#9e9e9e',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            />
                           </Box>
                         </Box>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
+                        <Typography
+                          variant="h4"
+                          sx={{
                             display: 'block',
                             textAlign: 'center',
                             color: '#6b7280',
                             fontStyle: 'italic',
-                            mt: 1
+                            mt: 1,
+                            variant: 'h4'
                           }}
                         >
                           Barra: 20kg + Topes: 5kg
@@ -724,12 +776,12 @@ export default function CargadoresPage() {
                       </>
                     ) : (
                       <>
-                        <Typography variant="body1" color="text.secondary" textAlign="center">
+                        <Typography variant="h3" color="text.secondary" textAlign="center">
                           Solo barra (20kg)
                         </Typography>
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
+                        <Typography
+                          variant="caption"
+                          sx={{
                             display: 'block',
                             textAlign: 'center',
                             color: '#6b7280',
@@ -749,7 +801,7 @@ export default function CargadoresPage() {
 
                   <Box sx={{ mt: 2, textAlign: 'center' }}>
                     <Typography
-                      variant="h4"
+                      variant="h2"
                       fontWeight="bold"
                       sx={{
                         color: estadoJueces?.corriendo ? '#1976d2' : '#9e9e9e',
@@ -758,7 +810,7 @@ export default function CargadoresPage() {
                       {estadoJueces?.tiempo_restante ?? 60}s
                     </Typography>
                     <Typography
-                      variant="caption"
+                      variant="h4"
                       sx={{
                         color: estadoJueces?.corriendo ? '#1976d2' : '#9e9e9e',
                       }}
@@ -767,6 +819,41 @@ export default function CargadoresPage() {
                     </Typography>
                   </Box>
 
+                  <Stack
+                    direction="row"
+                    spacing={3}
+                    justifyContent="center"
+                    sx={{ mb: 3, mt: 3 }}
+                  >
+                    {[estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map(
+                      (valido, index) => {
+                        const color =
+                          valido === true
+                            ? '#00e676'
+                            : valido === false
+                              ? '#ff1744'
+                              : '#2e2e2e'
+                        return (
+                          <Box
+                            key={index}
+                            sx={{
+                              width: 100,
+                              height: 100,
+                              borderRadius: 2,
+                              backgroundColor: color,
+                              boxShadow:
+                                valido === true
+                                  ? '0 0 20px 4px rgba(255,255,255,0.8)'
+                                  : valido === false
+                                    ? '0 0 20px 4px rgba(255,23,68,0.6)'
+                                    : 'inset 0 0 10px rgba(255,255,255,0.1)',
+                              transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+                            }}
+                          />
+                        )
+                      }
+                    )}
+                  </Stack>
                   <Box sx={{ mt: 3 }}>
                     <Stack direction="row" spacing={2}>
                       <Button
@@ -776,11 +863,11 @@ export default function CargadoresPage() {
                         disabled={estadoJueces?.corriendo}
                         sx={{
                           width: '100%',
-                          fontSize: 16,
+                          fontSize: '2rem',
                           fontWeight: 'bold'
                         }}
                       >
-                        Iniciar Timer
+                        Iniciar
                       </Button>
                       <Button
                         variant="contained"
@@ -789,11 +876,11 @@ export default function CargadoresPage() {
                         disabled={!estadoJueces?.corriendo}
                         sx={{
                           width: '100%',
-                          fontSize: 16,
+                          fontSize: '2rem',
                           fontWeight: 'bold'
                         }}
                       >
-                        Detener Timer
+                        Detener
                       </Button>
                     </Stack>
 
@@ -808,7 +895,7 @@ export default function CargadoresPage() {
                           sx={{
                             width: '100%',
                             height: 60,
-                            fontSize: 18,
+                            fontSize: 24,
                             fontWeight: 'bold',
                             backgroundColor: '#ffffff',
                             color: '#000000',
@@ -831,7 +918,7 @@ export default function CargadoresPage() {
                           sx={{
                             width: '100%',
                             height: 60,
-                            fontSize: 18,
+                            fontSize: 24,
                             fontWeight: 'bold',
                             backgroundColor: '#ff1744',
                             color: '#ffffff',
@@ -878,11 +965,9 @@ export default function CargadoresPage() {
               )}
             </Paper>
           </Box>
+
         </Box>
-
       </Box>
-
-
     </Box>
   )
 }

@@ -94,227 +94,152 @@ export default function VistaPublicaPage() {
                 my: 'auto',
             }}
         >
-            <Paper
-                elevation={8}
+            <Box
                 sx={{
-                    p: 4,
-                    mb: 4,
-                    backgroundColor: '#FFA500',
-                    color: 'black',
-                    textAlign: 'center',
-                    borderRadius: 2,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 3,
+                    mb: 5,
+                    width: '100%',
                 }}
             >
-                <Typography variant="h2" fontWeight="bold" sx={{ mb: 2 }}>
-                    {atletaActual.nombre?.toUpperCase()} {atletaActual.apellido?.toUpperCase()}
-                </Typography>
-                <Typography variant="h3" sx={{ mb: 1 }}>
-                    {obtenerNombreEjercicio(estadoCompetencia.ejercicio)}
-                </Typography>
-                <Typography variant="h4">
-                    Intento {estadoCompetencia.intento}
-                </Typography>
-            </Paper>
+                {/* 🕒 Tiempo */}
+                <Paper
+                    elevation={8}
+                    sx={{
+                        flex: 1,
+                        height: '28vh',
+                        backgroundColor: '#ff1744',
+                        color: 'white',
+                        borderRadius: 3,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        p: 2,
+                    }}
+                >
+                    <Typography variant="h2" fontWeight="bold">
+                        {estadoCompetencia?.tiempo_restante ?? 60}s
+                    </Typography>
+                    <Typography variant="h5">Tiempo</Typography>
+                </Paper>
+
+                {/* 🧍 Atleta */}
+                <Paper
+                    elevation={8}
+                    sx={{
+                        flex: 2,
+                        height: '28vh',
+                        backgroundColor: '#FFA500',
+                        color: 'black',
+                        borderRadius: 3,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        p: 3,
+                    }}
+                >
+                    <Typography variant="h2" fontWeight="bold" sx={{ mb: 1 }}>
+                        {atletaActual.nombre?.toUpperCase()} {atletaActual.apellido?.toUpperCase()}
+                    </Typography>
+                    <Typography variant="h4" sx={{ mb: 1 }}>
+                        {obtenerNombreEjercicio(estadoCompetencia.ejercicio)}
+                    </Typography>
+                    <Typography variant="h5">Intento {estadoCompetencia.intento}</Typography>
+                </Paper>
+
+                {/* 🏋️ Peso */}
+                <Paper
+                    elevation={8}
+                    sx={{
+                        flex: 1,
+                        height: '28vh',
+                        backgroundColor: '#00e676',
+                        color: 'black',
+                        borderRadius: 3,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        p: 2,
+                    }}
+                >
+                    <Typography variant="h2" fontWeight="bold">
+                        {estadoCompetencia?.peso ?? 0} kg
+                    </Typography>
+                    <Typography variant="h5">Peso</Typography>
+                </Paper>
+            </Box>
+
 
             <Paper
                 elevation={0}
                 sx={{
                     display: 'flex',
-                    maxHeight: '500px',
+                    maxHeight: '400px',
                     backgroundColor: '#000',
                     color: 'white',
                     border: 'none',
                     boxShadow: 'none',
                 }}
             >
-                <Box sx={{ display: 'flex', gap: 4, width: '50%' }}>
+
+                <Box sx={{ display: 'flex', gap: 3, flexDirection: 'row', width: '100%', height: '60vh', ml: 'auto', alignItems: 'center' }}>
+
                     <Paper
-                        className='aspect-square'
                         elevation={8}
+                        className='aspect-square flex justify-center'
                         sx={{
-                            p: 6,
-                            textAlign: 'center',
+                            backgroundColor: 'transparent',
                             height: '100%',
-                            backgroundColor: 'red',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Typography variant="h1" fontWeight="bold" sx={{ fontSize: '10rem', color: 'white' }}>
-                            {estadoCompetencia.peso || 0}
-                        </Typography>
-                        <Typography variant="h3" sx={{ color: 'white' }}>
-                            kg
-                        </Typography>
-                    </Paper>
-
-                    <Paper
-                        elevation={8}
-                        className='aspect-square'
-                        sx={{
-                            p: 6,
-                            textAlign: 'center',
-                            height: '100%',
-                            backgroundColor: 'rgba(255,255,255,0.1)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Typography
-                            variant="h1"
-                            fontWeight="bold"
-                            sx={{
-                                fontSize: '10rem',
-                                color: estadoCompetencia.corriendo
-                                    ? (estadoCompetencia.tiempo_restante <= 10 ? '#f44336' : '#4caf50')
-                                    : 'white',
-                            }}
-                        >
-                            {estadoCompetencia.tiempo_restante ?? 60}
-                        </Typography>
-                        <Typography variant="h3" sx={{ color: 'white' }}>
-                            segundos
-                        </Typography>
-                    </Paper>
-                </Box>
-
-                <Box sx={{ display: 'flex', gap: 3, flexDirection: 'column', width: '43%', ml: 'auto' }}>
-                    <Paper
-                        elevation={8}
-                        sx={{
-                            p: 1,
-                            backgroundColor: 'red',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            borderRadius: 1,
-                        }}
-                    >
-                        <Grid container spacing={3} alignItems="center" justifyContent="center">
-                            <Grid
-                                item
-                                xs={6}
-                                sm={3}
-                                sx={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                            </Grid>
-
-                            <Grid
-                                item
-                                xs={6}
-                                sm={3}
-                                sx={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-
-                                <Typography variant="h4" fontWeight="bold" sx={{ color: 'white', textAlign: 'center' }}>
-                                    {atletaActual.peso_corporal} kg
-                                </Typography>
-                            </Grid>
-
-                            <Grid
-                                item
-                                xs={6}
-                                sm={3}
-                                sx={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-
-                                <Typography variant="h4" fontWeight="bold" sx={{ color: 'white', textAlign: 'center' }}>
-                                    Tanda {atletaActual.tanda_id}
-                                </Typography>
-                            </Grid>
-
-                            <Grid
-                                item
-                                xs={6}
-                                sm={3}
-                                sx={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-
-                                <Typography variant="h4" fontWeight="bold" sx={{ color: 'white', textAlign: 'center' }}>
-                                    {atletaActual.modalidad}
-                                </Typography>
-                            </Grid>
-                        </Grid>
-
-                    </Paper>
-
-                    {/* DECISIÓN DE JUECES */}
-                    <Paper
-                        elevation={8}
-                        sx={{
-                            backgroundColor: 'rgba(255,255,255,0.1)',
-                            height: '480px',
+                            width: '100%',
                             display: 'flex',
                             flexDirection: 'column',
                             justifyContent: 'center',
                             borderRadius: 2,
-                            gap: 5,
+                            gap: 4,
                         }}
                     >
-                        <Typography variant="h4" fontWeight="bold" textAlign="center" sx={{ mb: 3, color: 'white' }}>
-                            DECISIÓN DE JUECES
-                        </Typography>
-                        <Grid container spacing={4} justifyContent="center">
+
+                        <div className="flex justify-center items-center w-full  gap-5">
                             {[1, 2, 3].map((num) => {
                                 const valor = estadoCompetencia[`juez${num}_valido`]
 
                                 const color =
                                     valor === true
-                                        ? '#ffffff'
+                                        ? '#ffff'
                                         : valor === false
                                             ? '#ff1744'
                                             : '#2e2e2e'
 
                                 const sombra =
                                     valor === true
-                                        ? '0 0 20px 4px rgba(255,255,255,0.8)'
+                                        ? 'shadow-[0_0_25px_6px_rgba(0,230,118,0.6)]'
                                         : valor === false
-                                            ? '0 0 20px 4px rgba(255,23,68,0.6)'
-                                            : 'inset 0 0 10px rgba(255,255,255,0.1)'
+                                            ? 'shadow-[0_0_25px_6px_rgba(255,23,68,0.6)]'
+                                            : 'shadow-inner shadow-white/10'
 
                                 return (
-                                    <Grid item xs={12} sm={4} key={num} display="flex" justifyContent="center">
-                                        <Paper
-                                            elevation={0}
-                                            sx={{
-                                                width: 200,
-                                                height: 200,
-                                                borderRadius: 2,
-                                                backgroundColor: color,
-                                                boxShadow: sombra,
-                                                transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
-                                            }}
-                                        />
-                                    </Grid>
+                                    <div
+                                        key={num}
+                                        className={`w-full h-full aspect-square  rounded-2xl transition-all duration-300 ${sombra}`}
+                                        style={{ backgroundColor: color, }}
+                                    />
                                 )
                             })}
-                        </Grid>
+                        </div>
+
+
 
 
                     </Paper>
+
                 </Box>
             </Paper>
         </Box>
