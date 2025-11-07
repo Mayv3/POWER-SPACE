@@ -237,7 +237,9 @@ export default function PublicoPage() {
   }
 
   const handleVerMas = (atleta) => {
-    setAtletaSeleccionado(atleta)
+    // Buscar el atleta con todos los datos calculados en el estado atletas
+    const atletaCompleto = atletas.find(a => a.id === atleta.id) || atleta
+    setAtletaSeleccionado(atletaCompleto)
     setOpenModal(true)
   }
 
