@@ -2,11 +2,8 @@
 
 import { Box, Stack, TextField, MenuItem, Typography, Divider } from '@mui/material'
 import { capitalizeWords } from '../../utils/textUtils'
+import categorias from '../../const/categorias/categorias'
 
-const categorias = {
-  M: ['59', '66', '74', '83', '93', '105', '120', '+120'],
-  F: ['47', '52', '57', '63', '69', '76', '84', '+84'],
-}
 
 const TANDAS = [
   { id: 1, nombre: 'Tanda 1' },
@@ -18,7 +15,7 @@ const TANDAS = [
 export function CreateAtletaForm({ atleta, onChange }) {
   const handleChange = (e) => {
     const { name, value } = e.target
-    
+
     // Capitalizar nombre y apellido
     if (name === 'nombre' || name === 'apellido') {
       onChange({ ...atleta, [name]: capitalizeWords(value) })
@@ -128,7 +125,7 @@ export function CreateAtletaForm({ atleta, onChange }) {
       >
         {categoriasDisponibles.map((cat) => (
           <MenuItem key={cat} value={cat}>
-            {cat} kg
+            {cat}
           </MenuItem>
         ))}
       </TextField>

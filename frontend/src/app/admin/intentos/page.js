@@ -9,32 +9,34 @@ import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoMod
 import { Calculate_DOTS } from '../../../utils/calcularDots'
 
 function calcularPuestos(atletas) {
-  const atletasPorTanda = {}
+  // Agrupar solo por categoría (sin tanda)
+  const grupos = {}
 
   atletas.forEach(atleta => {
-    if (!atletasPorTanda[atleta.tanda_id]) {
-      atletasPorTanda[atleta.tanda_id] = []
-    }
-    atletasPorTanda[atleta.tanda_id].push(atleta)
+    const key = atleta.categoria
+    if (!grupos[key]) grupos[key] = []
+    grupos[key].push(atleta)
   })
 
   const atletasConPuesto = []
 
-  Object.keys(atletasPorTanda).forEach(tandaId => {
-    const atletasDeTanda = atletasPorTanda[tandaId]
+  Object.keys(grupos).forEach(grupoKey => {
+    const atletasDelGrupo = grupos[grupoKey]
 
-    const atletasOrdenados = atletasDeTanda
+    // Ordenar solo los que tienen DOTS válidos
+    const conDots = atletasDelGrupo
       .filter(a => a.dots && a.dots > 0)
       .sort((a, b) => b.dots - a.dots)
 
-    atletasOrdenados.forEach((atleta, index) => {
+    conDots.forEach((atleta, index) => {
       atletasConPuesto.push({
         ...atleta,
         puesto: index + 1
       })
     })
 
-    atletasDeTanda
+    // Los que no tienen DOTS válidos quedan sin puesto
+    atletasDelGrupo
       .filter(a => !a.dots || a.dots <= 0)
       .forEach(atleta => {
         atletasConPuesto.push({
@@ -47,12 +49,14 @@ function calcularPuestos(atletas) {
   return atletasConPuesto
 }
 
+
 export default function IntentosPage() {
   const [atletas, setAtletas] = useState([])
   const [atletasFiltrados, setAtletasFiltrados] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [tandaSeleccionada, setTandaSeleccionada] = useState('todas')
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todas')
 
   const [openValidoModal, setOpenValidoModal] = useState(false)
   const [selectedIntento, setSelectedIntento] = useState(null)
@@ -132,6 +136,10 @@ export default function IntentosPage() {
       filtrados = filtrados.filter(atleta => atleta.tanda_id === parseInt(tandaSeleccionada))
     }
 
+    if (categoriaSeleccionada !== 'todas') {
+      filtrados = filtrados.filter(atleta => String(atleta.categoria) === String(categoriaSeleccionada))
+    }
+
     // Filtrar por búsqueda
     if (searchTerm.trim() !== '') {
       filtrados = filtrados.filter(atleta =>
@@ -141,7 +149,8 @@ export default function IntentosPage() {
     }
 
     setAtletasFiltrados(filtrados)
-  }, [tandaSeleccionada, searchTerm, atletas])
+  }, [tandaSeleccionada, categoriaSeleccionada, searchTerm, atletas])
+
 
   const handleTandaChange = (event) => {
     setTandaSeleccionada(event.target.value)
@@ -169,7 +178,8 @@ export default function IntentosPage() {
             atleta_id: newRow.id,
             movimiento_id: config.movimiento_id,
             intento_numero: config.intento_numero,
-            peso: parseFloat(newRow[campo])
+            peso: parseFloat(newRow[campo]),
+            valido: null // Establecer como null cuando se modifica el peso
           })
         }
       }
@@ -378,22 +388,44 @@ export default function IntentosPage() {
           </Typography>
         </Box>
 
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel id="tanda-select-label">Tanda</InputLabel>
-          <Select
-            labelId="tanda-select-label"
-            id="tanda-select"
-            value={tandaSeleccionada}
-            label="Tanda"
-            onChange={handleTandaChange}
-          >
-            <MenuItem value="todas">Todas las tandas</MenuItem>
-            <MenuItem value="1">Tanda 1</MenuItem>
-            <MenuItem value="2">Tanda 2</MenuItem>
-            <MenuItem value="3">Tanda 3</MenuItem>
-            <MenuItem value="4">Tanda 4</MenuItem>
-          </Select>
-        </FormControl>
+        <Stack direction="row" spacing={2}>
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel id="tanda-select-label">Tanda</InputLabel>
+            <Select
+              labelId="tanda-select-label"
+              id="tanda-select"
+              value={tandaSeleccionada}
+              label="Tanda"
+              onChange={handleTandaChange}
+            >
+              <MenuItem value="todas">Todas las tandas</MenuItem>
+              <MenuItem value="1">Tanda 1</MenuItem>
+              <MenuItem value="2">Tanda 2</MenuItem>
+              <MenuItem value="3">Tanda 3</MenuItem>
+              <MenuItem value="4">Tanda 4</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel id="categoria-select-label">Categoría</InputLabel>
+            <Select
+              labelId="categoria-select-label"
+              id="categoria-select"
+              value={categoriaSeleccionada}
+              label="Categoría"
+              onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+            >
+              <MenuItem value="todas">Todas las categorías</MenuItem>
+              {[...new Set(atletas.map(a => a.categoria))] // genera lista única
+                .sort((a, b) => a - b)
+                .map(cat => (
+                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                ))
+              }
+            </Select>
+          </FormControl>
+        </Stack>
+
       </Box>
 
       {/* Buscador */}

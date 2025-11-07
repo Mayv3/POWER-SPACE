@@ -2,12 +2,11 @@
 
 import { Box, Stack, TextField, MenuItem, Typography, Divider } from '@mui/material'
 import { capitalizeWords } from '../../utils/textUtils'
-
+import categorias from '../../const/categorias/categorias'
 export function EditAtletaForm({ atleta, onChange }) {
   const handleChange = (e) => {
     const { name, value } = e.target
-    
-    // Capitalizar nombre y apellido
+
     if (name === 'nombre' || name === 'apellido') {
       onChange({ ...atleta, [name]: capitalizeWords(value) })
     } else {
@@ -69,13 +68,23 @@ export function EditAtletaForm({ atleta, onChange }) {
           onKeyDown={handleKeyDown}
         />
         <TextField
+          select
           fullWidth
           name="categoria"
           label="Categoría"
           value={atleta.categoria || ''}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-        />
+          sx={{ mb: 2 }}
+        >
+          {[...(categorias.M || []), ...(categorias.F || [])].map((cat) => (
+            <MenuItem key={cat} value={cat}>
+              {cat}
+            </MenuItem>
+          ))}
+        </TextField>
+
+
       </Stack>
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
@@ -91,7 +100,7 @@ export function EditAtletaForm({ atleta, onChange }) {
           <MenuItem value="Classic Raw">Classic Raw</MenuItem>
           <MenuItem value="Equipado">Equipado</MenuItem>
         </TextField>
-        
+
         <TextField
           select
           fullWidth

@@ -121,7 +121,7 @@ export default function VistaPublicaPage() {
                         p: 2,
                     }}
                 >
-                    <Typography variant="h2" fontWeight="bold">
+                    <Typography variant="h1" fontWeight="bold">
                         {estadoCompetencia?.tiempo_restante ?? 60}s
                     </Typography>
                     <Typography variant="h5">Tiempo</Typography>
@@ -148,9 +148,8 @@ export default function VistaPublicaPage() {
                         {atletaActual.nombre?.toUpperCase()} {atletaActual.apellido?.toUpperCase()}
                     </Typography>
                     <Typography variant="h4" sx={{ mb: 1 }}>
-                        {obtenerNombreEjercicio(estadoCompetencia.ejercicio)}
+                        {obtenerNombreEjercicio(estadoCompetencia.ejercicio)} - INTENTO {estadoCompetencia.intento}
                     </Typography>
-                    <Typography variant="h5">Intento {estadoCompetencia.intento}</Typography>
                 </Paper>
 
                 {/* 🏋️ Peso */}
@@ -170,10 +169,10 @@ export default function VistaPublicaPage() {
                         p: 2,
                     }}
                 >
-                    <Typography variant="h2" fontWeight="bold">
-                        {estadoCompetencia?.peso ?? 0} kg
+                    <Typography variant="h1" fontWeight="bold">
+                        {estadoCompetencia?.peso ?? 0}
                     </Typography>
-                    <Typography variant="h5">Peso</Typography>
+                    <Typography variant="h5" fontWeight="bold">KG</Typography>
                 </Paper>
             </Box>
 

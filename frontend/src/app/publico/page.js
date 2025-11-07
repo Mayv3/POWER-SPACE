@@ -16,9 +16,10 @@ import {
   Modal,
   Card,
   CardContent,
-  CircularProgress,
+  Skeleton,
   TextField,
-  InputAdornment
+  InputAdornment,
+  LinearProgress
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
@@ -26,6 +27,7 @@ import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos'
 import { Calculate_DOTS } from '../../utils/calcularDots'
 import { supabase } from '../../lib/supabaseClient'
+import categorias from '../../const/categorias/categorias'
 
 // Import Swiper
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -46,19 +48,23 @@ export default function PublicoPage() {
   const [atletaEnVivo, setAtletaEnVivo] = useState(null)
   const [estadoCompetencia, setEstadoCompetencia] = useState(null)
   const [scrollPosition, setScrollPosition] = useState(0)
-
-  const categoriasMasculinas = [59, 66, 60, 74, 83, 93, 105, 120, 120.1]
-  const categoriasFemeninas = [47, 52, 57, 63, 69, 76, 84, 84.1]
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [isFirstLoad, setIsFirstLoad] = useState(true)
 
   useEffect(() => {
     const fetchAtletas = async () => {
-      setIsLoading(true)
+      if (isFirstLoad) setIsLoading(true)
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/atletas-con-intentos?tanda_id=todas`)
         const data = await res.json()
 
         const atletasConDatos = data.map((atleta) => {
-          // Usar solo intentos VÁLIDOS (true) para calcular los mejores levantamientos
+          console.log('Atleta:', atleta.nombre, {
+            valido_s1: atleta.valido_s1, tipo_s1: typeof atleta.valido_s1,
+            valido_s2: atleta.valido_s2, tipo_s2: typeof atleta.valido_s2,
+            valido_s3: atleta.valido_s3, tipo_s3: typeof atleta.valido_s3,
+          })
+
           const sentadillaValidos = [
             atleta.valido_s1 === true ? (atleta.primer_intento_sentadilla || 0) : 0,
             atleta.valido_s2 === true ? (atleta.segundo_intento_sentadilla || 0) : 0,
@@ -82,7 +88,6 @@ export default function PublicoPage() {
 
           const total = mejorSentadilla + mejorBanco + mejorPesoMuerto
 
-          // Calcular DOTS solo si tiene al menos un intento válido en cada ejercicio
           const tieneSentadillaValida = atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true
           const tieneBancoValido = atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true
           const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
@@ -109,12 +114,47 @@ export default function PublicoPage() {
       } catch (err) {
         console.error('Error al cargar atletas:', err)
       } finally {
-        setIsLoading(false)
+        if (isFirstLoad) {
+          setIsLoading(false)
+          setIsFirstLoad(false)
+        }
       }
     }
 
     fetchAtletas()
+
+    const channelIntentos = supabase
+      .channel('public:intentos_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'intentos'
+        },
+        () => {
+          // Recargar atletas cuando hay cambios en intentos
+          setIsUpdating(true)
+          fetchAtletas().finally(() => {
+            setTimeout(() => setIsUpdating(false), 500)
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channelIntentos)
+    }
   }, [])
+
+  useEffect(() => {
+    if (atletaSeleccionado && atletas.length > 0) {
+      const atletaActualizado = atletas.find(a => a.id === atletaSeleccionado.id)
+      if (atletaActualizado) {
+        setAtletaSeleccionado(atletaActualizado)
+      }
+    }
+  }, [atletas])
 
   useEffect(() => {
     const fetchAtletaEnVivo = async () => {
@@ -181,9 +221,9 @@ export default function PublicoPage() {
       const sexoAbreviado = sexoSeleccionado === 'Masculino' ? 'M' : 'F'
       filtrados = filtrados.filter(a => a.sexo === sexoAbreviado)
 
-      // Filtrar por categoría
+      // Filtrar por categoría (comparar el texto completo como "F - A1")
       if (categoriaSeleccionada !== 'todas') {
-        filtrados = filtrados.filter(a => parseFloat(a.categoria) === parseFloat(categoriaSeleccionada))
+        filtrados = filtrados.filter(a => a.categoria === categoriaSeleccionada)
       }
     }
 
@@ -191,8 +231,8 @@ export default function PublicoPage() {
   }, [atletas, busqueda, sexoSeleccionado, categoriaSeleccionada])
 
   const getCategoriasDisponibles = () => {
-    if (sexoSeleccionado === 'Masculino') return categoriasMasculinas
-    if (sexoSeleccionado === 'Femenino') return categoriasFemeninas
+    if (sexoSeleccionado === 'Masculino') return categorias.M
+    if (sexoSeleccionado === 'Femenino') return categorias.F
     return []
   }
 
@@ -241,21 +281,21 @@ export default function PublicoPage() {
   }, {})
 
   const categoriasOrdenadas = Object.entries(categoriasAgrupadas).sort(([catA], [catB]) => {
-    const numA = parseFloat(catA)
-    const numB = parseFloat(catB)
+    const getCategoriaBase = (cat) => {
+      const match = cat.match(/([A-C][12])/)
+      return match ? match[1] : cat
+    }
 
-    const esMaxCatMasculina = (cat) => categoriasMasculinas.includes(parseFloat(cat))
-    const esMaxCatFemenina = (cat) => categoriasFemeninas.includes(parseFloat(cat))
+    const baseA = getCategoriaBase(catA)
+    const baseB = getCategoriaBase(catB)
 
-    const aEsMasculina = esMaxCatMasculina(catA)
-    const bEsMasculina = esMaxCatMasculina(catB)
+    const aEsMasculina = catA.startsWith('M')
+    const bEsMasculina = catB.startsWith('M')
 
-    // Si uno es masculino y otro femenino, masculino va primero
     if (aEsMasculina && !bEsMasculina) return -1
     if (!aEsMasculina && bEsMasculina) return 1
 
-    // Si son del mismo género, ordenar por número
-    return numA - numB
+    return baseA.localeCompare(baseB)
   })
 
 
@@ -263,328 +303,397 @@ export default function PublicoPage() {
     <Box sx={{ minHeight: '100vh', backgroundColor: '#1a1a1a', display: 'flex', justifyContent: 'center' }}>
       <Box sx={{ width: '100%', maxWidth: '600px', p: 4 }}>
         {/* Banner EN VIVO */}
-        {atletaEnVivo && (
-          <Box
-            onClick={() => handleVerMas(atletaEnVivo)}
-            sx={{
-              backgroundColor: '#FFD700',
-              color: '#000',
-              p: 2,
-              borderRadius: 2,
-              mb: 3,
-              textAlign: 'center',
-              boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
-              animation: 'pulse 2s infinite',
-              cursor: 'pointer',
-              '&:hover': {
-                boxShadow: '0 4px 20px rgba(255, 215, 0, 0.8)',
-                transform: 'translateY(-2px)',
-                transition: 'all 0.2s'
-              },
-              '@keyframes pulse': {
-                '0%': { boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)' },
-                '50%': { boxShadow: '0 4px 20px rgba(255, 215, 0, 0.8)' },
-                '100%': { boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)' }
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-              <Box
-                sx={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: '50%',
-                  backgroundColor: '#ff0000',
-                  animation: 'blink 1s infinite',
-                  '@keyframes blink': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.3 }
-                  }
-                }}
-              />
-              <Typography variant="overline" fontWeight="bold" sx={{ fontSize: '0.9rem', letterSpacing: 1 }}>
-                EN VIVO
+        {isFirstLoad && isLoading ? (
+          <Skeleton
+            variant="rectangular"
+            height={120}
+            sx={{ bgcolor: '#2a2a2a', borderRadius: 2, mb: 3 }}
+          />
+        ) : (
+          atletaEnVivo && (
+            <Box
+              onClick={() => handleVerMas(atletaEnVivo)}
+              sx={{
+                backgroundColor: '#FFD700',
+                color: '#000',
+                p: 2,
+                borderRadius: 2,
+                mb: 3,
+                textAlign: 'center',
+                boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
+                animation: 'pulse 2s infinite',
+                cursor: 'pointer',
+                '&:hover': {
+                  boxShadow: '0 4px 20px rgba(255, 215, 0, 0.8)',
+                  transform: 'translateY(-2px)',
+                  transition: 'all 0.2s'
+                },
+                '@keyframes pulse': {
+                  '0%': { boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)' },
+                  '50%': { boxShadow: '0 4px 20px rgba(255, 215, 0, 0.8)' },
+                  '100%': { boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)' }
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: '#ff0000',
+                    animation: 'blink 1s infinite',
+                    '@keyframes blink': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.3 }
+                    }
+                  }}
+                />
+                <Typography variant="overline" fontWeight="bold" sx={{ fontSize: '0.9rem', letterSpacing: 1 }}>
+                  EN VIVO
+                </Typography>
+              </Box>
+              <Typography variant="h5" fontWeight="bold">
+                {atletaEnVivo.nombre} {atletaEnVivo.apellido}
+              </Typography>
+
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Categoría {atletaEnVivo.categoria} • Intento: {estadoCompetencia?.peso ?? 0} kg
               </Typography>
             </Box>
-            <Typography variant="h5" fontWeight="bold">
-              {atletaEnVivo.nombre} {atletaEnVivo.apellido}
-            </Typography>
-
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              Categoría {atletaEnVivo.categoria} kg • Intento:               {estadoCompetencia?.peso ?? 0} kg
-
-            </Typography>
-          </Box>
+          )
         )}
 
         {/* Próximos competidores */}
-        {atletaEnVivo && obtenerProximosCompetidores().length > 0 && (
-          <Box sx={{ mb: 3, position: 'relative' }}>
-            {scrollPosition > 0 && (
-              <IconButton
-                onClick={() => handleScrollProximos('left')}
-                sx={{
-                  position: 'absolute',
-                  left: -10,
-                  top: '40%',
-                  transform: 'translateY(-50%)',
-                  zIndex: 2,
-                  backgroundColor: '#FFD700',
-                  color: '#000',
-                  '&:hover': {
-                    backgroundColor: '#FFC700'
-                  },
-                  width: 20,
-                  height: 20
-                }}
-              >
-                <ArrowBackIosIcon sx={{ fontSize: 10, ml: 0.5 }} />
-              </IconButton>
-            )}
-
-            {/* Contenedor scroll */}
-            <Box
-              id="proximos-scroll"
-              onScroll={(e) => setScrollPosition(e.target.scrollLeft)}
-              sx={{
-                display: 'flex',
-                gap: 2,
-                overflowX: 'auto',
-                scrollBehavior: 'smooth',
-                '&::-webkit-scrollbar': {
-                  display: 'none'
-                },
-                msOverflowStyle: 'none',
-                scrollbarWidth: 'none',
-                pb: 1
-              }}
-            >
-              {obtenerProximosCompetidores().map((atleta) => (
-                <Paper
-                  key={atleta.id}
-                  onClick={() => handleVerMas(atleta)}
+        {isFirstLoad && isLoading ? (
+          <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+            {[1, 2, 3].map((i) => (
+              <Skeleton
+                key={i}
+                variant="rectangular"
+                width={150}
+                height={50}
+                sx={{ bgcolor: '#2a2a2a', borderRadius: 1 }}
+              />
+            ))}
+          </Box>
+        ) : (
+          atletaEnVivo && obtenerProximosCompetidores().length > 0 && (
+            <Box sx={{ mb: 3, position: 'relative' }}>
+              {scrollPosition > 0 && (
+                <IconButton
+                  onClick={() => handleScrollProximos('left')}
                   sx={{
-                    minWidth: '150px',
-                    maxWidth: '150px',
-                    p: 1,
-                    backgroundColor: '#2a2a2a',
-                    color: 'white',
-                    textAlign: 'center',
-                    border: '1px solid #444',
-                    flexShrink: 0,
-                    cursor: 'pointer',
+                    position: 'absolute',
+                    left: -10,
+                    top: '40%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 2,
+                    backgroundColor: '##f16511',
+                    color: '#000',
                     '&:hover': {
-                      borderColor: '#FFD700',
-                      transition: 'all 0.2s'
-                    }
+                      backgroundColor: '##f16511'
+                    },
+                    width: 20,
+                    height: 20
                   }}
                 >
-                  <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
-                    {atleta.nombre} {atleta.apellido}
-                  </Typography>
-                </Paper>
-              ))}
-            </Box>
+                  <ArrowBackIosIcon sx={{ fontSize: 10, ml: 0.5 }} />
+                </IconButton>
+              )}
 
-            {/* Flecha derecha */}
-            {obtenerProximosCompetidores().length > 2 && (
-              <IconButton
-                onClick={() => handleScrollProximos('right')}
+              {/* Contenedor scroll */}
+              <Box
+                id="proximos-scroll"
+                onScroll={(e) => setScrollPosition(e.target.scrollLeft)}
                 sx={{
-                  position: 'absolute',
-                  right: -10,
-                  top: '40%',
-                  transform: 'translateY(-50%)',
-                  zIndex: 2,
-                  backgroundColor: '#FFD700',
-                  color: '#000',
-                  '&:hover': {
-                    backgroundColor: '#FFC700'
+                  display: 'flex',
+                  gap: 2,
+                  overflowX: 'auto',
+                  scrollBehavior: 'smooth',
+                  '&::-webkit-scrollbar': {
+                    display: 'none'
                   },
-                  width: 20,
-                  height: 20
+                  msOverflowStyle: 'none',
+                  scrollbarWidth: 'none',
+                  pb: 1
                 }}
               >
-                <ArrowForwardIosIcon sx={{ fontSize: 10 }} />
-              </IconButton>
-            )}
-          </Box>
+                {obtenerProximosCompetidores().map((atleta) => (
+                  <Paper
+                    key={atleta.id}
+                    onClick={() => handleVerMas(atleta)}
+                    sx={{
+                      minWidth: '150px',
+                      maxWidth: '150px',
+                      p: 1,
+                      backgroundColor: '#2a2a2a',
+                      color: 'white',
+                      textAlign: 'center',
+                      border: '1px solid #444',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      '&:hover': {
+                        borderColor: '#f16511',
+                        transition: 'all 0.2s'
+                      }
+                    }}
+                  >
+                    <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
+                      {atleta.nombre} {atleta.apellido}
+                    </Typography>
+                  </Paper>
+                ))}
+              </Box>
+
+              {/* Flecha derecha */}
+              {obtenerProximosCompetidores().length > 2 && (
+                <IconButton
+                  onClick={() => handleScrollProximos('right')}
+                  sx={{
+                    position: 'absolute',
+                    right: -10,
+                    top: '40%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 2,
+                    backgroundColor: '#f16511',
+                    color: '#000',
+                    '&:hover': {
+                      backgroundColor: '#f16511'
+                    },
+                    width: 20,
+                    height: 20
+                  }}
+                >
+                  <ArrowForwardIosIcon sx={{ fontSize: 10 }} />
+                </IconButton>
+              )}
+            </Box>
+          )
         )}
 
         {/* Header */}
         <Box sx={{ mb: 4, textAlign: 'center' }}>
-          <Typography variant="h3" textAlign='center' fontWeight="bold" sx={{ mb: 3, color: 'white' }}>
-            Competidores
-          </Typography>
+          {isFirstLoad && isLoading ? (
+            <Skeleton
+              variant="text"
+              width="60%"
+              height={60}
+              sx={{ bgcolor: '#2a2a2a', mx: 'auto', mb: 3 }}
+            />
+          ) : (
+            <Typography variant="h3" textAlign='center' fontWeight="bold" sx={{ mb: 3, color: 'white' }}>
+              Competidores
+            </Typography>
+          )}
 
           {/* Buscador */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-            <TextField
-              placeholder="Buscar atleta por nombre..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              sx={{
-                width: '100%',
-                backgroundColor: '#2a2a2a',
-                borderRadius: 1,
-                '& .MuiOutlinedInput-root': {
-                  color: 'white',
-                  '& fieldset': {
-                    borderColor: '#444'
-                  },
-                  '&:hover fieldset': {
-                    borderColor: '#FFD700'
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#FFD700'
-                  }
-                },
-                '& .MuiInputBase-input::placeholder': {
-                  color: '#b0b0b0',
-                  opacity: 1
-                }
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#FFD700' }} />
-                  </InputAdornment>
-                )
-              }}
+          {isFirstLoad && isLoading ? (
+            <Skeleton
+              variant="rectangular"
+              height={56}
+              sx={{ bgcolor: '#2a2a2a', borderRadius: 1, mb: 2 }}
             />
-          </Box>
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <TextField
+                placeholder="Buscar atleta por nombre..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                sx={{
+                  width: '100%',
+                  backgroundColor: '#2a2a2a',
+                  borderRadius: 1,
+                  '& .MuiOutlinedInput-root': {
+                    color: 'white',
+                    '& fieldset': {
+                      borderColor: '#444'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#f16511'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#f16511'
+                    }
+                  },
+                  '& .MuiInputBase-input::placeholder': {
+                    color: '#b0b0b0',
+                    opacity: 1
+                  }
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#f16511' }} />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Box>
+          )}
 
           {/* Filtros */}
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-            {/* Selector de Sexo */}
-            <FormControl
-              sx={{
-                minWidth: 150,
-                backgroundColor: '#2a2a2a',
-                borderRadius: 1,
-                '& .MuiOutlinedInput-root': {
-                  color: 'white',
-                  '& fieldset': {
-                    borderColor: '#444'
+          {isFirstLoad && isLoading ? (
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+              <Skeleton
+                variant="rectangular"
+                width={150}
+                height={56}
+                sx={{ bgcolor: '#2a2a2a', borderRadius: 1 }}
+              />
+              <Skeleton
+                variant="rectangular"
+                width={150}
+                height={56}
+                sx={{ bgcolor: '#2a2a2a', borderRadius: 1 }}
+              />
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+              {/* Selector de Sexo */}
+              <FormControl
+                sx={{
+                  minWidth: 150,
+                  backgroundColor: '#2a2a2a',
+                  borderRadius: 1,
+                  '& .MuiOutlinedInput-root': {
+                    color: 'white',
+                    '& fieldset': {
+                      borderColor: '#444'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#FFD700'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#FFD700'
+                    }
                   },
-                  '&:hover fieldset': {
-                    borderColor: '#FFD700'
+                  '& .MuiInputLabel-root': {
+                    color: '#b0b0b0'
                   },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#FFD700'
+                  '& .MuiInputLabel-root.Mui-focused': {
+                    color: '#FFD700'
+                  },
+                  '& .MuiSvgIcon-root': {
+                    color: '#FFD700'
                   }
-                },
-                '& .MuiInputLabel-root': {
-                  color: '#b0b0b0'
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#FFD700'
-                },
-                '& .MuiSvgIcon-root': {
-                  color: '#FFD700'
-                }
-              }}
-            >
-              <InputLabel>Sexo</InputLabel>
-              <Select
-                value={sexoSeleccionado}
-                label="Sexo"
-                onChange={(e) => {
-                  setSexoSeleccionado(e.target.value)
-                  setCategoriaSeleccionada('todas')
                 }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      backgroundColor: '#2a2a2a',
-                      color: 'white',
-                      '& .MuiMenuItem-root': {
-                        '&:hover': {
-                          backgroundColor: '#3a3a3a'
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#FFD70033',
+              >
+                <InputLabel>Sexo</InputLabel>
+                <Select
+                  value={sexoSeleccionado}
+                  label="Sexo"
+                  onChange={(e) => {
+                    setSexoSeleccionado(e.target.value)
+                    setCategoriaSeleccionada('todas')
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        backgroundColor: '#2a2a2a',
+                        color: 'white',
+                        '& .MuiMenuItem-root': {
                           '&:hover': {
-                            backgroundColor: '#FFD70055'
+                            backgroundColor: '#3a3a3a'
+                          },
+                          '&.Mui-selected': {
+                            backgroundColor: '#FFD70033',
+                            '&:hover': {
+                              backgroundColor: '#FFD70055'
+                            }
                           }
                         }
                       }
                     }
-                  }
-                }}
-              >
-                <MenuItem value="Masculino">Masculino</MenuItem>
-                <MenuItem value="Femenino">Femenino</MenuItem>
-              </Select>
-            </FormControl>
+                  }}
+                >
+                  <MenuItem value="Masculino">Masculino</MenuItem>
+                  <MenuItem value="Femenino">Femenino</MenuItem>
+                </Select>
+              </FormControl>
 
-            {/* Selector de Categoría */}
-            <FormControl
-              sx={{
-                minWidth: 150,
-                backgroundColor: '#2a2a2a',
-                borderRadius: 1,
-                '& .MuiOutlinedInput-root': {
-                  color: 'white',
-                  '& fieldset': {
-                    borderColor: '#444'
+              {/* Selector de Categoría */}
+              <FormControl
+                sx={{
+                  minWidth: 150,
+                  backgroundColor: '#2a2a2a',
+                  borderRadius: 1,
+                  '& .MuiOutlinedInput-root': {
+                    color: 'white',
+                    '& fieldset': {
+                      borderColor: '#444'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#FFD700'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#FFD700'
+                    }
                   },
-                  '&:hover fieldset': {
-                    borderColor: '#FFD700'
+                  '& .MuiInputLabel-root': {
+                    color: '#b0b0b0'
                   },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#FFD700'
+                  '& .MuiInputLabel-root.Mui-focused': {
+                    color: '#FFD700'
+                  },
+                  '& .MuiSvgIcon-root': {
+                    color: '#FFD700'
                   }
-                },
-                '& .MuiInputLabel-root': {
-                  color: '#b0b0b0'
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#FFD700'
-                },
-                '& .MuiSvgIcon-root': {
-                  color: '#FFD700'
-                }
-              }}
-            >
-              <InputLabel>Categoría</InputLabel>
-              <Select
-                value={categoriaSeleccionada}
-                label="Categoría"
-                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      backgroundColor: '#2a2a2a',
-                      color: 'white',
-                      '& .MuiMenuItem-root': {
-                        '&:hover': {
-                          backgroundColor: '#3a3a3a'
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#FFD70033',
+                }}
+              >
+                <InputLabel>Categoría</InputLabel>
+                <Select
+                  value={categoriaSeleccionada}
+                  label="Categoría"
+                  onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        backgroundColor: '#2a2a2a',
+                        color: 'white',
+                        '& .MuiMenuItem-root': {
                           '&:hover': {
-                            backgroundColor: '#FFD70055'
+                            backgroundColor: '#3a3a3a'
+                          },
+                          '&.Mui-selected': {
+                            backgroundColor: '#FFD70033',
+                            '&:hover': {
+                              backgroundColor: '#FFD70055'
+                            }
                           }
                         }
                       }
                     }
-                  }
-                }}
-              >
-                <MenuItem value="todas">Todas las categorías</MenuItem>
-                {getCategoriasDisponibles().map((cat) => (
-                  <MenuItem key={cat} value={cat}>
-                    {cat} kg
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>      {/* Carruseles por categoría */}
-        {isLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 10 }}>
-            <CircularProgress sx={{ color: 'white' }} size={60} />
+                  }}
+                >
+                  <MenuItem value="todas">Todas las categorías</MenuItem>
+                  {getCategoriasDisponibles().map((cat) => (
+                    <MenuItem key={cat} value={cat}>
+                      {cat}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+        </Box>
+        {isFirstLoad && isLoading ? (
+          <Box>
+            {[1, 2, 3].map((i) => (
+              <Box key={i} sx={{ mb: 6 }}>
+                <Skeleton variant="text" width="60%" height={50} sx={{ bgcolor: '#3a3a3a', mx: 'auto', mb: 2 }} />
+                <Card sx={{ backgroundColor: '#2a2a2a' }}>
+                  <CardContent>
+                    <Skeleton variant="rectangular" height={20} sx={{ bgcolor: '#3a3a3a', mb: 2 }} />
+                    <Skeleton variant="text" height={30} sx={{ bgcolor: '#3a3a3a', mb: 1 }} />
+                    <Skeleton variant="text" height={20} sx={{ bgcolor: '#3a3a3a', mb: 1 }} />
+                    <Skeleton variant="text" height={20} sx={{ bgcolor: '#3a3a3a', mb: 2 }} />
+                    <Skeleton variant="rectangular" height={100} sx={{ bgcolor: '#3a3a3a', mb: 2 }} />
+                    <Skeleton variant="rectangular" height={40} sx={{ bgcolor: '#3a3a3a' }} />
+                  </CardContent>
+                </Card>
+              </Box>
+            ))}
           </Box>
         ) : Object.keys(categoriasAgrupadas).length === 0 ? (
           <Typography variant="h5" textAlign="center" sx={{ mt: 10, color: 'white' }}>
@@ -594,7 +703,7 @@ export default function PublicoPage() {
           categoriasOrdenadas.map(([categoria, atletas]) => (
             <Box key={categoria} sx={{ mb: 6 }}>
               <Typography variant="h4" fontWeight="bold" sx={{ mb: 2, color: 'white', textAlign: 'center' }}>
-                Categoría {categoria} kg
+                Categoría {categoria}
               </Typography>
 
               <Swiper
@@ -604,24 +713,39 @@ export default function PublicoPage() {
                 pagination={{ clickable: true }}
               >
                 {atletas.map((atleta, index) => {
-                  // Determinar color de medalla según posición
+                  // Verificar si tiene al menos un intento válido en cada ejercicio
+                  const tieneSentadillaValida = atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true
+                  const tieneBancoValido = atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true
+                  const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
+                  const tieneIntentosValidosCompletos = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
+
                   const puesto = index + 1
                   let colorMedalla = 'transparent'
                   let textoMedalla = ''
 
-                  if (puesto === 1) {
-                    colorMedalla = '#FFD700' // Oro
-                    textoMedalla = '🥇 1er Lugar'
-                  } else if (puesto === 2) {
-                    colorMedalla = '#C0C0C0' // Plata
-                    textoMedalla = '🥈 2do Lugar'
-                  } else if (puesto === 3) {
-                    colorMedalla = '#CD7F32' // Bronce
-                    textoMedalla = '🥉 3er Lugar'
+                  if (tieneIntentosValidosCompletos) {
+                    if (puesto === 1) {
+                      colorMedalla = '#FFD700'
+                      textoMedalla = '🥇 1er Puesto'
+                    } else if (puesto === 2) {
+                      colorMedalla = '#C0C0C0' // Plata
+                      textoMedalla = '🥈 2do Puesto'
+                    } else if (puesto === 3) {
+                      colorMedalla = '#CD7F32' // Bronce
+                      textoMedalla = '🥉 3er Puesto'
+                    } else {
+                      colorMedalla = 'orange'
+                      textoMedalla = `${puesto}° Lugar`
+                    }
+                  } else {
+                    // Si no tiene intentos válidos completos, mostrar posición tentativa
+                    colorMedalla = '#555'
+                    textoMedalla = `${puesto}° Lugar`
                   }
 
                   return (
-                    <SwiperSlide key={atleta.id}>
+                    <SwiperSlide key={atleta.id} 
+                    >
                       <Card
                         elevation={3}
                         sx={{
@@ -636,38 +760,52 @@ export default function PublicoPage() {
                           overflow: 'visible'
                         }}
                       >
-                        {/* Barra de medalla */}
-                        {puesto <= 3 && (
-                          <Box
+                        {isUpdating && (
+                          <LinearProgress
                             sx={{
                               position: 'absolute',
-                              top: 0,
+                              bottom: 0,
                               left: 0,
                               right: 0,
-                              height: '10px',
-                              backgroundColor: colorMedalla,
-                              zIndex: 1
+                              zIndex: 10,
+                              '& .MuiLinearProgress-bar': {
+                                backgroundColor: '#FFD700'
+                              },
+                              backgroundColor: 'rgba(255, 215, 0, 0.1)'
                             }}
                           />
                         )}
 
-                        <CardContent sx={{ flexGrow: 1, pt: puesto <= 3 ? 3 : 2 }}>
-                          {puesto <= 3 && (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                              <Box
-                                sx={{
-                                  backgroundColor: colorMedalla,
-                                  color: '#000',
-                                  padding: '4px 12px',
-                                  borderRadius: '12px',
-                                  fontWeight: 'bold',
-                                  fontSize: '0.75rem'
-                                }}
-                              >
-                                {textoMedalla}
-                              </Box>
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: '10px',
+                            borderTopLeftRadius: '5px',
+                            borderTopRightRadius: '5px',
+                            backgroundColor: colorMedalla,
+                            zIndex: 1
+                          }}
+                        />
+
+                        <CardContent sx={{ flexGrow: 1, pt: 3 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                            <Box
+                              sx={{
+                                backgroundColor: colorMedalla,
+                                color: tieneIntentosValidosCompletos ? '#000' : '#fff',
+                                padding: '4px 12px',
+                                borderRadius: '12px',
+
+                                fontWeight: 'bold',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              {textoMedalla}
                             </Box>
-                          )}
+                          </Box>
 
                           <Typography variant="h5" textAlign='center' fontWeight="bold" sx={{ mb: 1, color: 'white' }}>
                             {atleta.nombre} {atleta.apellido}
@@ -719,7 +857,7 @@ export default function PublicoPage() {
                             </Typography>
                           </Box>
 
-                          <Button variant="contained" fullWidth sx={{ mt: 2, backgroundColor: '#FFD700', color: '#000', fontWeight: 'bold', '&:hover': { backgroundColor: '#FFC700' } }} onClick={() => handleVerMas(atleta)}>
+                          <Button variant="contained" fullWidth sx={{ mt: 2, backgroundColor: '#f16511', color: 'white', fontWeight: 'bold', '&:hover': { backgroundColor: '#FFC700' } }} onClick={() => handleVerMas(atleta)}>
                             Ver más
                           </Button>
                         </CardContent>
@@ -747,7 +885,7 @@ export default function PublicoPage() {
 
                 <Grid container spacing={2} sx={{ mb: 2 }} justifyContent="center">
                   {[
-                    ['Categoría', `${atletaSeleccionado.categoria} kg`],
+                    ['Categoría', atletaSeleccionado.categoria],
                     ['Peso Corporal', `${atletaSeleccionado.peso_corporal} kg`],
                     ['Edad', atletaSeleccionado.edad || 'N/A'],
                     ['Modalidad', atletaSeleccionado.modalidad]

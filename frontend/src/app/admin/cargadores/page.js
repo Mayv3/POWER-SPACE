@@ -729,6 +729,7 @@ export default function CargadoresPage() {
                                                   : peso == 1.25
                                                     ? '#C0C0C0'
                                                     : '#9e9e9e',
+                                    border: peso == 5 ? '2px solid #d0d0d0' : 'none',
                                   }}
                                 >
                                   <Box
