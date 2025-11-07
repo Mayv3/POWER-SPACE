@@ -604,33 +604,20 @@ export default function CargadoresPage() {
               width: '100%',
               height: '100%'
             }}>
-              {isLoading ? (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    height: 300,
-                  }}
-                >
-                  <CircularProgress size={50} sx={{ color: '#FF9800' }} />
-                </Box>
-              ) : (
-                <GenericDataGrid
-                  rows={atletas}
-                  columns={columns}
-                  paginationMode="client"
-                  onCellClick={handleCellClick}
-                  processRowUpdate={processRowUpdate}
-                  onProcessRowUpdateError={handleProcessRowUpdateError}
-                  columnVisibilityModel={{
-                    nombre: !isMobile,
-                    tanda_id: !isMobile,
-                    categoria: !isMobile,
-                  }}
-                />
-              )}
-
+              <GenericDataGrid
+                rows={atletas}
+                columns={columns}
+                paginationMode="client"
+                loading={isLoading}
+                onCellClick={handleCellClick}
+                processRowUpdate={processRowUpdate}
+                onProcessRowUpdateError={handleProcessRowUpdateError}
+                columnVisibilityModel={{
+                  nombre: !isMobile,
+                  tanda_id: !isMobile,
+                  categoria: !isMobile,
+                }}
+              />
             </Box>
           </Box>
 
