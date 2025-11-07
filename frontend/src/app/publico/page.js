@@ -389,8 +389,8 @@ export default function PublicoPage() {
                     top: '40%',
                     transform: 'translateY(-50%)',
                     zIndex: 2,
-                    backgroundColor: '##f16511',
-                    color: '#000',
+                    backgroundColor: 'transparent',
+                    color: 'white',
                     '&:hover': {
                       backgroundColor: '##f16511'
                     },
@@ -408,7 +408,7 @@ export default function PublicoPage() {
                 onScroll={(e) => setScrollPosition(e.target.scrollLeft)}
                 sx={{
                   display: 'flex',
-                  gap: 2,
+                  gap: 1,
                   overflowX: 'auto',
                   scrollBehavior: 'smooth',
                   '&::-webkit-scrollbar': {
@@ -424,8 +424,8 @@ export default function PublicoPage() {
                     key={atleta.id}
                     onClick={() => handleVerMas(atleta)}
                     sx={{
-                      minWidth: '150px',
-                      maxWidth: '150px',
+                      minWidth: '100px',
+                      maxWidth: '100px',
                       p: 1,
                       backgroundColor: '#2a2a2a',
                       color: 'white',
@@ -439,8 +439,8 @@ export default function PublicoPage() {
                       }
                     }}
                   >
-                    <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
-                      {atleta.nombre} {atleta.apellido}
+                    <Typography fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
+                      {atleta.apellido}
                     </Typography>
                   </Paper>
                 ))}
@@ -456,8 +456,8 @@ export default function PublicoPage() {
                     top: '40%',
                     transform: 'translateY(-50%)',
                     zIndex: 2,
-                    backgroundColor: '#f16511',
-                    color: '#000',
+                    backgroundColor: 'transparent',
+                    color: 'white',
                     '&:hover': {
                       backgroundColor: '#f16511'
                     },
@@ -474,18 +474,7 @@ export default function PublicoPage() {
 
         {/* Header */}
         <Box sx={{ mb: 4, textAlign: 'center' }}>
-          {isFirstLoad && isLoading ? (
-            <Skeleton
-              variant="text"
-              width="60%"
-              height={60}
-              sx={{ bgcolor: '#2a2a2a', mx: 'auto', mb: 3 }}
-            />
-          ) : (
-            <Typography variant="h3" textAlign='center' fontWeight="bold" sx={{ mb: 3, color: 'white' }}>
-              Competidores
-            </Typography>
-          )}
+
 
           {/* Buscador */}
           {isFirstLoad && isLoading ? (
@@ -744,7 +733,7 @@ export default function PublicoPage() {
                   }
 
                   return (
-                    <SwiperSlide key={atleta.id} 
+                    <SwiperSlide key={atleta.id}
                     >
                       <Card
                         elevation={3}
@@ -820,46 +809,76 @@ export default function PublicoPage() {
 
                           <Divider sx={{ my: 2, borderColor: '#444' }} />
 
+
+                          <Box
+                         
+                          >
+                            
                           <Typography variant="subtitle2" textAlign='center' fontWeight="bold" sx={{ mb: 1, color: 'white' }}>
                             Mejores Levantamientos
                           </Typography>
+                            {[
+                              { label: 'Sentadilla', val: atleta.mejorSentadilla, color: '#5CCEFF' },
+                              { label: 'Banco', val: atleta.mejorBanco, color: '#FF5C5C' },
+                              { label: 'Peso Muerto', val: atleta.mejorPesoMuerto, color: '#FFA45C' },
+                            ].map(({ label, val, color, icon }) => (
+                              <Box key={label} sx={{ mb: 1.2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                                    {icon} {label}
+                                  </Typography>
+                                  <Typography variant="body1" fontWeight="bold" sx={{ color }}>
+                                    {val || 0} kg
+                                  </Typography>
+                                </Box>
+                                {/* Mini barra visual */}
+                                <Box
+                                  sx={{
+                                    height: 5,
+                                    borderRadius: 2,
+                                    background: color,
+                                    mt: 0.5,
+                                  }}
+                                />
+                              </Box>
+                            ))}
 
-                          {[
-                            ['Sentadilla', atleta.mejorSentadilla],
-                            ['Banco', atleta.mejorBanco],
-                            ['Peso Muerto', atleta.mejorPesoMuerto]
-                          ].map(([label, val]) => (
-                            <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="body2" sx={{ color: '#b0b0b0' }}>{label}:</Typography>
-                              <Typography variant="body2" fontWeight="bold" sx={{ color: 'white' }}>
-                                {val || 0} kg
+                            <Divider sx={{ my: 2, borderColor: '#555' }} />
+
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="h6" fontWeight="bold">
+                                Total
+                              </Typography>
+                              <Typography variant="h5" fontWeight="bold" sx={{ color: '#FFC700' }}>
+                                {atleta.total || 0} kg
                               </Typography>
                             </Box>
-                          ))}
 
-                          <Divider sx={{ my: 1, borderColor: '#444' }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                                DOTS
+                              </Typography>
+                              <Typography variant="body1" fontWeight="bold" color="secondary">
+                                {atleta.dots ? atleta.dots.toFixed(2) : 'N/A'}
+                              </Typography>
+                            </Box>
 
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body1" fontWeight="bold" sx={{ color: 'white' }}>
-                              Total:
-                            </Typography>
-                            <Typography variant="body1" fontWeight="bold" color="primary">
-                              {atleta.total || 0} kg
-                            </Typography>
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              sx={{
+                                mt: 2,
+                                background: 'linear-gradient(90deg, #f16511, #FFC700)',
+                                fontWeight: 'bold',
+                                borderRadius: 2,
+                                color: 'black',
+                                '&:hover': { background: 'linear-gradient(90deg, #FFC700, #f16511)' },
+                              }}
+                              onClick={() => handleVerMas(atleta)}
+                            >
+                              Ver más detalles
+                            </Button>
                           </Box>
-
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}>
-                              DOTS:
-                            </Typography>
-                            <Typography variant="body2" fontWeight="bold" color="secondary">
-                              {atleta.dots ? atleta.dots.toFixed(2) : 'N/A'}
-                            </Typography>
-                          </Box>
-
-                          <Button variant="contained" fullWidth sx={{ mt: 2, backgroundColor: '#f16511', color: 'white', fontWeight: 'bold', '&:hover': { backgroundColor: '#FFC700' } }} onClick={() => handleVerMas(atleta)}>
-                            Ver más
-                          </Button>
                         </CardContent>
                       </Card>
                     </SwiperSlide>
