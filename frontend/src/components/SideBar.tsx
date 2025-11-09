@@ -50,7 +50,13 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
 
   const handleNav = (route: string, index?: number) => {
     if (typeof index === 'number') setSelectedIndex(index)
-    router.push(route)
+    
+    // Si es la ruta de vista pública, abrir en nueva pestaña
+    if (route === '/publico/vista') {
+      window.open(route, '_blank')
+    } else {
+      router.push(route)
+    }
   }
 
 
