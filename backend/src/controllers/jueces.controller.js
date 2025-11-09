@@ -104,23 +104,30 @@ export async function stopIntento(_req, res) {
 
 // 🎯 Actualizar atleta actual
 export async function updateAtletaActual(req, res) {
-  const { atleta_id, ejercicio, intento, peso } = req.body;
+  const { atleta_id, ejercicio, intento, peso, orden_proximos } = req.body;
+
+  const updateData = {
+    atleta_id: atleta_id,
+    ejercicio: ejercicio,
+    intento: intento,
+    peso: peso,
+    corriendo: false,
+    tiempo_restante: 60,
+    juez1_valido: null,
+    juez2_valido: null,
+    juez3_valido: null,
+    intento_valido: null,
+    updated_at: new Date(),
+  };
+
+  // Si se proporciona el orden de los próximos atletas, guardarlo
+  if (orden_proximos && Array.isArray(orden_proximos)) {
+    updateData.orden_proximos = orden_proximos;
+  }
 
   const { error } = await supabase
     .from("estado_competencia")
-    .update({
-      atleta_id: atleta_id,
-      ejercicio: ejercicio,
-      intento: intento,
-      peso: peso,
-      corriendo: false,
-      tiempo_restante: 60,
-      juez1_valido: null,
-      juez2_valido: null,
-      juez3_valido: null,
-      intento_valido: null,
-      updated_at: new Date(),
-    })
+    .update(updateData)
     .eq("id", 1);
 
   if (error) return res.status(500).json({ error: error.message });

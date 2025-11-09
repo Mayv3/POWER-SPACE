@@ -257,21 +257,28 @@ export default function PublicoPage() {
   }
 
   const obtenerProximosCompetidores = () => {
-    if (!atletaEnVivo) return []
+    if (!atletaEnVivo || !estadoCompetencia) return []
 
+    // Si existe un orden guardado en el estado de competencia, usarlo
+    if (estadoCompetencia.orden_proximos && Array.isArray(estadoCompetencia.orden_proximos)) {
+      // Mapear los IDs a los objetos de atletas completos
+      return estadoCompetencia.orden_proximos
+        .map(id => atletas.find(a => a.id === id))
+        .filter(Boolean) // Filtrar los que no se encontraron
+    }
+
+    // Fallback: usar el array de atletas como viene del backend
+    // Filtrar solo los de la misma tanda
     const atletasMismaTanda = atletas.filter(a => a.tanda_id === atletaEnVivo.tanda_id)
 
-    const atletasOrdenados = atletasMismaTanda.sort((a, b) => {
-      const nombreA = `${a.nombre} ${a.apellido}`.toLowerCase()
-      const nombreB = `${b.nombre} ${b.apellido}`.toLowerCase()
-      return nombreA.localeCompare(nombreB)
-    })
+    // Encontrar el índice del atleta en vivo en el array filtrado
+    const indiceActual = atletasMismaTanda.findIndex(a => a.id === atletaEnVivo.id)
 
-    const indiceActual = atletasOrdenados.findIndex(a => a.id === atletaEnVivo.id)
+    // Si no se encuentra, no hay próximos
+    if (indiceActual === -1) return []
 
-    if (indiceActual === -1 || indiceActual === atletasOrdenados.length - 1) return []
-
-    return atletasOrdenados.slice(indiceActual + 1, indiceActual + 4)
+    // Retornar TODOS los atletas que siguen después del actual
+    return atletasMismaTanda.slice(indiceActual + 1)
   }
 
   const atletasOrdenados = [...atletasFiltrados].sort((a, b) => (b.dots || 0) - (a.dots || 0))

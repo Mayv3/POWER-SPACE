@@ -15,6 +15,8 @@ export function GenericDataGrid({
   onRowClick,
   onCellClick,
   columnVisibilityModel,
+  sortModel,
+  onSortModelChange,
 }) {
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
@@ -44,6 +46,8 @@ export function GenericDataGrid({
         onRowClick={onRowClick}
         onCellClick={onCellClick}
         columnVisibilityModel={columnVisibilityModel}
+        sortModel={sortModel}
+        onSortModelChange={onSortModelChange}
         {...(paginationMode === 'server' && {
           rowCount,
           paginationModel: { page: page, pageSize: pageSize },

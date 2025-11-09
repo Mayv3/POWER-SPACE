@@ -33,6 +33,8 @@ export default function CargadoresPage() {
   const [intentoSeleccionado, setIntentoSeleccionado] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [estadoJueces, setEstadoJueces] = useState(null)
+  const [sortModel, setSortModel] = useState([])
+  const [atletasOrdenados, setAtletasOrdenados] = useState([])
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -42,6 +44,7 @@ export default function CargadoresPage() {
       )
       const data = await res.json()
       setAtletas(data)
+      setAtletasOrdenados(data) // Inicialmente el orden es el del backend
     } catch (err) {
       console.error('Error al cargar atletas:', err)
     } finally {
@@ -52,6 +55,73 @@ export default function CargadoresPage() {
   useEffect(() => {
     fetchAtletas()
   }, [tandaFiltro])
+
+  // Actualizar el orden cuando cambia el sortModel o los atletas
+  useEffect(() => {
+    if (sortModel.length === 0) {
+      setAtletasOrdenados(atletas)
+      console.log('📋 Orden de atletas (sin ordenar):', atletas.map(a => `${a.apellido} (ID: ${a.id})`))
+      return
+    }
+
+    const sorted = [...atletas].sort((a, b) => {
+      const { field, sort } = sortModel[0]
+      
+      // Mapear los campos de las columnas a los campos reales del ejercicio
+      let fieldA, fieldB
+      
+      if (field === 'intento1') {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        fieldA = a[`primer_intento_${ejercicioKey}`]
+        fieldB = b[`primer_intento_${ejercicioKey}`]
+      } else if (field === 'intento2') {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        fieldA = a[`segundo_intento_${ejercicioKey}`]
+        fieldB = b[`segundo_intento_${ejercicioKey}`]
+      } else if (field === 'intento3') {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        fieldA = a[`tercer_intento_${ejercicioKey}`]
+        fieldB = b[`tercer_intento_${ejercicioKey}`]
+      } else {
+        fieldA = a[field]
+        fieldB = b[field]
+      }
+
+      // Manejar valores null/undefined (ponerlos al final)
+      const aValue = fieldA ?? -Infinity
+      const bValue = fieldB ?? -Infinity
+
+      if (aValue < bValue) return sort === 'asc' ? -1 : 1
+      if (aValue > bValue) return sort === 'asc' ? 1 : -1
+      return 0
+    })
+
+    setAtletasOrdenados(sorted)
+    console.log('📋 Orden de atletas actualizado:', {
+      columna: sortModel[0].field,
+      direccion: sortModel[0].sort,
+      atletas: sorted.map((a, idx) => {
+        const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
+          ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
+        
+        let valor = ''
+        if (sortModel[0].field === 'intento1') {
+          valor = a[`primer_intento_${ejercicioKey}`] || 'N/A'
+        } else if (sortModel[0].field === 'intento2') {
+          valor = a[`segundo_intento_${ejercicioKey}`] || 'N/A'
+        } else if (sortModel[0].field === 'intento3') {
+          valor = a[`tercer_intento_${ejercicioKey}`] || 'N/A'
+        } else {
+          valor = a[sortModel[0].field] || 'N/A'
+        }
+        
+        return `${idx}: "${a.apellido} (${valor})"`
+      })
+    })
+  }, [sortModel, atletas, ejercicioFiltro])
 
   useEffect(() => {
     const fetchEstadoInicial = async () => {
@@ -252,6 +322,24 @@ export default function CargadoresPage() {
       peso = params.row[`tercer_intento_${ejercicioKey}`] || 0
     }
 
+    // Obtener el índice del atleta seleccionado en el array ORDENADO VISUALMENTE
+    const indiceActual = atletasOrdenados.findIndex(a => a.id === params.row.id)
+    
+    // Obtener los IDs de TODOS los atletas que están VISUALMENTE debajo
+    const ordenProximos = indiceActual !== -1 
+      ? atletasOrdenados.slice(indiceActual + 1).map(a => a.id)
+      : []
+
+    console.log('🎯 ========== ATLETA SELECCIONADO ==========')
+    console.log('Atleta:', params.row.apellido, params.row.nombre)
+    console.log('ID:', params.row.id)
+    console.log('Índice en tabla ordenada:', indiceActual)
+    console.log('Total de atletas en la tabla:', atletasOrdenados.length)
+    console.log('Atletas que siguen (total):', ordenProximos.length)
+    console.log('Próximos atletas:', atletasOrdenados.slice(indiceActual + 1).map(a => `${a.apellido} (ID: ${a.id})`))
+    console.log('IDs enviados al backend:', ordenProximos)
+    console.log('==========================================')
+
     // Actualizar el atleta actual en el estado de competencia
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/atleta-actual`, {
@@ -261,7 +349,8 @@ export default function CargadoresPage() {
           atleta_id: params.row.id,
           ejercicio: ejercicioFiltro,
           intento: intento,
-          peso: peso
+          peso: peso,
+          orden_proximos: ordenProximos
         })
       })
     } catch (err) {
@@ -609,6 +698,8 @@ export default function CargadoresPage() {
                 columns={columns}
                 paginationMode="client"
                 loading={isLoading}
+                sortModel={sortModel}
+                onSortModelChange={(newSortModel) => setSortModel(newSortModel)}
                 onCellClick={handleCellClick}
                 processRowUpdate={processRowUpdate}
                 onProcessRowUpdateError={handleProcessRowUpdateError}
