@@ -169,7 +169,15 @@ export default function AtletasPage() {
         </Typography>
         <Button
           variant="contained"
-          sx={{ borderRadius: 1, textTransform: 'none', fontWeight: 600 }}
+          sx={{ 
+            borderRadius: 1, 
+            textTransform: 'none', 
+            fontWeight: 600,
+            backgroundColor: '#F57C00',
+            '&:hover': {
+              backgroundColor: '#FF9800'
+            }
+          }}
           onClick={() => setOpenCreate(true)}
         >
           Nuevo atleta
@@ -194,7 +202,7 @@ export default function AtletasPage() {
       {/* Tabla */}
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
-          <CircularProgress size={50} sx={{ color: '#FF9800' }} /> {/* Naranja */}
+          <CircularProgress size={50} sx={{ color: '#FF9800' }} />
         </Box>
       ) : (
         <GenericDataGrid

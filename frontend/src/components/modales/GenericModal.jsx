@@ -34,9 +34,14 @@ export function GenericModal({ open, title, children, onClose, onSave, loading =
         <Button 
           onClick={onSave} 
           variant="contained" 
-          color="primary"
           disabled={loading}
           startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+          sx={{
+            backgroundColor: '#F57C00',
+            '&:hover': {
+              backgroundColor: '#FF9800'
+            }
+          }}
         >
           {loading ? 'Guardando...' : 'Guardar'}
         </Button>

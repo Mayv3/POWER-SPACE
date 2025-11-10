@@ -95,7 +95,10 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     renderCell: (params) => (
       <Box>
         <Tooltip title="Editar">
-          <IconButton color="primary" onClick={() => handleEdit(params.row)}>
+          <IconButton 
+            onClick={() => handleEdit(params.row)}
+            sx={{ color: '#FF9800' }}
+          >
             <EditIcon />
           </IconButton>
         </Tooltip>

@@ -22,6 +22,11 @@ import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { supabase } from '../../../lib/supabaseClient'
 import { capitalizeWords } from '../../../utils/textUtils'
 
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon from '@mui/icons-material/Pause';
+import CheckIcon from '@mui/icons-material/Check';
+import BlockIcon from '@mui/icons-material/Block';
+
 export default function CargadoresPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -66,10 +71,10 @@ export default function CargadoresPage() {
 
     const sorted = [...atletas].sort((a, b) => {
       const { field, sort } = sortModel[0]
-      
+
       // Mapear los campos de las columnas a los campos reales del ejercicio
       let fieldA, fieldB
-      
+
       if (field === 'intento1') {
         const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
           ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
@@ -106,7 +111,7 @@ export default function CargadoresPage() {
       atletas: sorted.map((a, idx) => {
         const ejercicioKey = ejercicioFiltro === 'sentadilla' ? 'sentadilla' :
           ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-        
+
         let valor = ''
         if (sortModel[0].field === 'intento1') {
           valor = a[`primer_intento_${ejercicioKey}`] || 'N/A'
@@ -117,7 +122,7 @@ export default function CargadoresPage() {
         } else {
           valor = a[sortModel[0].field] || 'N/A'
         }
-        
+
         return `${idx}: "${a.apellido} (${valor})"`
       })
     })
@@ -324,9 +329,9 @@ export default function CargadoresPage() {
 
     // Obtener el índice del atleta seleccionado en el array ORDENADO VISUALMENTE
     const indiceActual = atletasOrdenados.findIndex(a => a.id === params.row.id)
-    
+
     // Obtener los IDs de TODOS los atletas que están VISUALMENTE debajo
-    const ordenProximos = indiceActual !== -1 
+    const ordenProximos = indiceActual !== -1
       ? atletasOrdenados.slice(indiceActual + 1).map(a => a.id)
       : []
 
@@ -623,16 +628,8 @@ export default function CargadoresPage() {
   const { discos } = calcularDiscos(pesoActual)
 
   const obtenerColorEjercicio = (ejercicio) => {
-    switch (ejercicio) {
-      case 'sentadilla':
-        return '#1976d2'
-      case 'banco':
-        return '#d32f2f'
-      case 'peso_muerto':
-        return '#388e3c'
-      default:
-        return '#1976d2'
-    }
+    // Todos los ejercicios usan el mismo color naranja
+    return '#F57C00'
   }
 
   return (
@@ -740,18 +737,6 @@ export default function CargadoresPage() {
                   {pesoActual > 0 ? (
                     discos.length > 0 ? (
                       <>
-                        <Typography
-                          variant="h4"
-                          sx={{
-                            display: 'block',
-                            textAlign: 'center',
-                            fontWeight: 'bold',
-                            color: '#374151',
-                            mb: 1
-                          }}
-                        >
-                          Discos por lado:
-                        </Typography>
                         <Box sx={{ position: 'relative', display: 'inline-block', py: 2 }}>
                           <Box
                             sx={{
@@ -759,7 +744,7 @@ export default function CargadoresPage() {
                               display: 'flex',
                               flexWrap: 'wrap',
                               justifyContent: 'center',
-                              alignItems: 'center', // 👈 centra verticalmente todo
+                              alignItems: 'center',
                               gap: 1.5,
                             }}
                           >
@@ -878,156 +863,142 @@ export default function CargadoresPage() {
                     </Typography>
                   )}
 
-                  <Box sx={{ mt: 2, textAlign: 'center' }}>
-                    <Typography
-                      variant="h2"
-                      fontWeight="bold"
-                      sx={{
-                        color: estadoJueces?.corriendo ? '#1976d2' : '#9e9e9e',
-                      }}
-                    >
-                      {estadoJueces?.tiempo_restante ?? 60}s
-                    </Typography>
-                    <Typography
-                      variant="h4"
-                      sx={{
-                        color: estadoJueces?.corriendo ? '#1976d2' : '#9e9e9e',
-                      }}
-                    >
-                      {estadoJueces?.corriendo ? 'En curso' : ' Detenido'}
-                    </Typography>
-                  </Box>
-
                   <Stack
                     direction="row"
                     spacing={3}
                     justifyContent="center"
                     sx={{ mb: 3, mt: 3 }}
                   >
-                    {[estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map(
-                      (valido, index) => {
-                        const color =
-                          valido === true
-                            ? '#00e676'
-                            : valido === false
-                              ? '#ff1744'
-                              : '#2e2e2e'
-                        return (
-                          <Box
-                            key={index}
-                            sx={{
-                              width: 100,
-                              height: 100,
-                              borderRadius: 2,
-                              backgroundColor: color,
-                              boxShadow:
-                                valido === true
-                                  ? '0 0 20px 4px rgba(255,255,255,0.8)'
-                                  : valido === false
-                                    ? '0 0 20px 4px rgba(255,23,68,0.6)'
-                                    : 'inset 0 0 10px rgba(255,255,255,0.1)',
-                              transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
-                            }}
-                          />
-                        )
-                      }
-                    )}
-                  </Stack>
-                  <Box sx={{ mt: 3 }}>
                     <Stack direction="row" spacing={2}>
                       <Button
                         variant="contained"
                         color="primary"
                         onClick={iniciarCronometro}
                         disabled={estadoJueces?.corriendo}
+                        className='aspect-square'
                         sx={{
-                          width: '100%',
+                          width: '60px',
+                          height: '60px',
                           fontSize: '2rem',
                           fontWeight: 'bold'
                         }}
                       >
-                        Iniciar
+                        <PlayArrowIcon sx={{ fontSize: '50px' }} />
                       </Button>
                       <Button
                         variant="contained"
                         color="error"
                         onClick={detenerCronometro}
                         disabled={!estadoJueces?.corriendo}
+                        className='aspect-square'
                         sx={{
-                          width: '100%',
+                          width: '60px',
+                          height: '60px',
                           fontSize: '2rem',
                           fontWeight: 'bold'
                         }}
                       >
-                        Detener
+                        <PauseIcon sx={{ fontSize: '50px' }} />
                       </Button>
                     </Stack>
 
+                    <Stack direction="row" spacing={1} alignItems="center">
 
 
-                    <Box sx={{ mt: 3, pt: 3, borderTop: '2px solid #e5e7eb' }}>
-                      <Stack direction="row" spacing={2}>
-                        <Button
-                          variant="contained"
-                          onClick={() => marcarIntento(true)}
-                          disabled={!atletaSeleccionado || !pesoActual}
-                          sx={{
-                            width: '100%',
-                            height: 60,
-                            fontSize: 24,
-                            fontWeight: 'bold',
-                            backgroundColor: '#ffffff',
-                            color: '#000000',
-                            border: '2px solid #000000',
-                            '&:hover': {
-                              backgroundColor: '#e0e0e0',
-                            },
-                            '&:disabled': {
-                              backgroundColor: '#f5f5f5',
-                              color: '#9e9e9e',
-                            }
-                          }}
-                        >
-                          ✅ VÁLIDO
-                        </Button>
-                        <Button
-                          variant="contained"
-                          onClick={() => marcarIntento(false)}
-                          disabled={!atletaSeleccionado || !pesoActual}
-                          sx={{
-                            width: '100%',
-                            height: 60,
-                            fontSize: 24,
-                            fontWeight: 'bold',
-                            backgroundColor: '#ff1744',
-                            color: '#ffffff',
-                            '&:hover': {
-                              backgroundColor: '#d50000',
-                            },
-                            '&:disabled': {
-                              backgroundColor: '#ffcdd2',
-                              color: '#9e9e9e',
-                            }
-                          }}
-                        >
-                          ❌ NULO
-                        </Button>
-                      </Stack>
-                      {(!atletaSeleccionado || !pesoActual) && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            mt: 1,
-                            display: 'block',
-                            textAlign: 'center',
-                            color: '#ef4444'
-                          }}
-                        >
-                          Selecciona un atleta e intento para marcar el resultado
-                        </Typography>
+
+                      {[estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map(
+                        (valido, index) => {
+                          const color =
+                            valido === true
+                              ? '#00e676'
+                              : valido === false
+                                ? '#ff1744'
+                                : '#2e2e2e'
+                          return (
+                            <Box
+                              key={index}
+                              sx={{
+                                width: 60,
+                                height: 60,
+                                borderRadius: 2,
+                                backgroundColor: color,
+                                boxShadow:
+                                  valido === true
+                                    ? '0 0 20px 4px rgba(255,255,255,0.8)'
+                                    : valido === false
+                                      ? '0 0 20px 4px rgba(255,23,68,0.6)'
+                                      : 'inset 0 0 10px rgba(255,255,255,0.1)',
+                                transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+                              }}
+                            />
+                          )
+                        }
                       )}
+                    </Stack>
+
+                    <Stack direction="row" spacing={2}>
+                      <Button
+                        variant="contained"
+                        onClick={() => marcarIntento(true)}
+                        disabled={!atletaSeleccionado || !pesoActual}
+                        className='aspect-square bg-green-500'
+                        sx={{
+                          width: '60px',
+                          height: '60px',
+                          fontSize: 24,
+                          fontWeight: 'bold',
+                          bgcolor: '#00e676',
+
+                        }}
+                      >
+                        <CheckIcon sx={{
+                          fontSize: '50px', bgcolor
+                            : 'transparent'
+                        }} />
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={() => marcarIntento(false)}
+                        disabled={!atletaSeleccionado || !pesoActual}
+                        className='aspect-square'
+                        sx={{
+                          width: '60px',
+                          height: '60px',
+                          fontSize: 24,
+                          fontWeight: 'bold',
+                          backgroundColor: '#ff1744',
+                          color: '#ffffff',
+                          '&:hover': {
+                            backgroundColor: '#d50000',
+                          },
+                          '&:disabled': {
+                            backgroundColor: '#ffcdd2',
+                            color: '#9e9e9e',
+                          }
+                        }}
+                      >
+                        <BlockIcon sx={{ fontSize: '50px' }} />
+                      </Button>
+                    </Stack>
+                    {(!atletaSeleccionado || !pesoActual) && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          mt: 1,
+                          display: 'block',
+                          textAlign: 'center',
+                          color: '#ef4444'
+                        }}
+                      >
+                        Selecciona un atleta e intento para marcar el resultado
+                      </Typography>
+                    )}
+
+
+                    <Box>
                     </Box>
-                  </Box>
+                  </Stack>
+
 
                 </>
               ) : (
