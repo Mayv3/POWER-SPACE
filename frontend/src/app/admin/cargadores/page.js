@@ -628,8 +628,7 @@ export default function CargadoresPage() {
   const { discos } = calcularDiscos(pesoActual)
 
   const obtenerColorEjercicio = (ejercicio) => {
-    // Todos los ejercicios usan el mismo color naranja
-    return '#F57C00'
+    return '#ff6b35'
   }
 
   return (
@@ -876,11 +875,14 @@ export default function CargadoresPage() {
                         onClick={iniciarCronometro}
                         disabled={estadoJueces?.corriendo}
                         className='aspect-square'
+
                         sx={{
                           width: '60px',
                           height: '60px',
                           fontSize: '2rem',
-                          fontWeight: 'bold'
+                          fontWeight: 'bold',
+                          bgcolor: '#ff6b35',
+
                         }}
                       >
                         <PlayArrowIcon sx={{ fontSize: '50px' }} />

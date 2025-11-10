@@ -110,7 +110,7 @@ export default function VistaPublicaPage() {
                     sx={{
                         flex: 1,
                         height: '28vh',
-                        backgroundColor: '#ff1744',
+                        backgroundColor: 'transparent',
                         color: 'white',
                         borderRadius: 3,
                         display: 'flex',
@@ -158,8 +158,8 @@ export default function VistaPublicaPage() {
                     sx={{
                         flex: 1,
                         height: '28vh',
-                        backgroundColor: '#00e676',
-                        color: 'black',
+                        backgroundColor: 'transparent',
+                        color: 'white',
                         borderRadius: 3,
                         display: 'flex',
                         flexDirection: 'column',
@@ -167,6 +167,7 @@ export default function VistaPublicaPage() {
                         justifyContent: 'center',
                         textAlign: 'center',
                         p: 2,
+                        
                     }}
                 >
                     <Typography variant="h1" fontWeight="bold">
