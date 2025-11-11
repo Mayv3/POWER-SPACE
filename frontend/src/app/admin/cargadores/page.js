@@ -758,10 +758,10 @@ export default function CargadoresPage() {
                       backgroundColor: obtenerColorEjercicio(ejercicioFiltro),
                       color: 'white',
                       textAlign: 'center',
-                      mb: 3
+                      mb: 1
                     }}
                   >
-                    <Typography variant="h3" fontWeight="bold">
+                    <Typography variant="h4" fontWeight="bold">
                       {pesoActual} kg
                     </Typography>
                   </Paper>
