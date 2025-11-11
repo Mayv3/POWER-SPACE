@@ -26,6 +26,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import CheckIcon from '@mui/icons-material/Check';
 import BlockIcon from '@mui/icons-material/Block';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
 export default function CargadoresPage() {
   const theme = useTheme()
@@ -210,6 +211,39 @@ export default function CargadoresPage() {
     } catch (err) {
       console.error('Error al marcar intento:', err)
       toast.error('Error al registrar el intento')
+    }
+  }
+
+  const restablecerIntento = async () => {
+    if (!atletaSeleccionado) {
+      toast.warning('Selecciona un atleta primero')
+      return
+    }
+
+    try {
+      const movimientoMap = {
+        'sentadilla': 1,
+        'banco': 2,
+        'peso_muerto': 3
+      }
+
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          atleta_id: atletaSeleccionado.id,
+          movimiento_id: movimientoMap[ejercicioFiltro],
+          intento_numero: intentoSeleccionado,
+          peso: null,
+          valido: null
+        })
+      })
+
+      await fetchAtletas()
+      toast.info('Intento restablecido')
+    } catch (err) {
+      console.error('Error al restablecer intento:', err)
+      toast.error('Error al restablecer el intento')
     }
   }
 
@@ -980,6 +1014,29 @@ export default function CargadoresPage() {
                         }}
                       >
                         <BlockIcon sx={{ fontSize: '50px' }} />
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={restablecerIntento}
+                        disabled={!atletaSeleccionado}
+                        className='aspect-square'
+                        sx={{
+                          width: '60px',
+                          height: '60px',
+                          fontSize: 24,
+                          fontWeight: 'bold',
+                          backgroundColor: '#FF9800',
+                          color: '#ffffff',
+                          '&:hover': {
+                            backgroundColor: '#F57C00',
+                          },
+                          '&:disabled': {
+                            backgroundColor: '#FFE0B2',
+                            color: '#9e9e9e',
+                          }
+                        }}
+                      >
+                        <RestartAltIcon sx={{ fontSize: '50px' }} />
                       </Button>
                     </Stack>
                     {(!atletaSeleccionado || !pesoActual) && (

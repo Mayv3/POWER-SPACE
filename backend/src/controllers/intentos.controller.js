@@ -267,9 +267,10 @@ export async function upsertIntentoAtleta(req, res) {
 
     if (searchError && searchError.code !== 'PGRST116') throw searchError;
 
+    // Permitir null como valor válido para restablecer
     const updateData = {};
-    if (peso !== undefined && peso !== null) updateData.peso = peso;
-    if (valido !== undefined && valido !== null) updateData.valido = valido;
+    if (peso !== undefined) updateData.peso = peso; // Acepta null
+    if (valido !== undefined) updateData.valido = valido; // Acepta null
 
     if (existingIntento) {
       const { data, error } = await supabase
@@ -292,8 +293,8 @@ export async function upsertIntentoAtleta(req, res) {
           atleta_id,
           movimiento_id,
           intento_numero,
-          peso: peso || null,
-          valido: valido !== undefined ? valido : true
+          peso: peso !== undefined ? peso : null,
+          valido: valido !== undefined ? valido : null
         }])
         .select()
         .single();

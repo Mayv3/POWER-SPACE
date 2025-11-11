@@ -33,6 +33,30 @@ export function GenericDataGrid({
           '& .MuiDataGrid-row': {
             cursor: onRowClick || onCellClick ? 'pointer' : 'default',
           },
+          // Colores para Sentadilla (S1, S2, S3)
+          '& .header-sentadilla': {
+            backgroundColor: '#BBDEFB !important',
+            fontWeight: 'bold',
+          },
+          '& .cell-sentadilla': {
+            backgroundColor: '#E3F2FD',
+          },
+          // Colores para Banco (B1, B2, B3)
+          '& .header-banco': {
+            backgroundColor: '#FFCDD2 !important',
+            fontWeight: 'bold',
+          },
+          '& .cell-banco': {
+            backgroundColor: '#FFEBEE',
+          },
+          // Colores para Peso Muerto (D1, D2, D3)
+          '& .header-peso-muerto': {
+            backgroundColor: '#C8E6C9 !important',
+            fontWeight: 'bold',
+          },
+          '& .cell-peso-muerto': {
+            backgroundColor: '#E8F5E9',
+          },
         }}
         checkboxSelection={false}
         hideFooterSelectedRowCount

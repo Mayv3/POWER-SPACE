@@ -23,13 +23,13 @@ type TabItem = { label: string; icon: React.ReactNode; route: string }
 type HeaderComponentProps = { tabs: TabItem[] }
 
 function readPrimary(): string {
-  if (typeof window === 'undefined') return '#FF9800'
+  if (typeof window === 'undefined') return '#F57C00'
   try {
     const raw = localStorage.getItem('gym_settings')
     const parsed = raw ? JSON.parse(raw) : null
-    return parsed?.colors?.primary || '#FF9800'
+    return parsed?.colors?.primary || '#F57C00'
   } catch {
-    return '#FF9800'
+    return '#F57C00'
   }
 }
 
@@ -51,7 +51,6 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
   const handleNav = (route: string, index?: number) => {
     if (typeof index === 'number') setSelectedIndex(index)
     
-    // Si es la ruta de vista pública, abrir en nueva pestaña
     if (route === '/publico/vista') {
       window.open(route, '_blank')
     } else {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, Button, Box, Typography, TextField, IconButton, Divider } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
+import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import CloseIcon from '@mui/icons-material/Close'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 
@@ -29,6 +30,11 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
     const pesoNumerico = parseFloat(peso)
     if (isNaN(pesoNumerico) || pesoNumerico < 0 || pesoNumerico > 500) return
     onConfirm(false, pesoNumerico)
+    onClose()
+  }
+
+  const handleRestablecer = () => {
+    onConfirm(null, null)
     onClose()
   }
 
@@ -144,7 +150,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             autoFocus
           />
 
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 2 }}>
             <Button
               variant="contained"
               color="success"
@@ -194,6 +200,30 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               Nulo
             </Button>
           </Box>
+
+          <Button
+            variant="outlined"
+            color="warning"
+            size="large"
+            fullWidth
+            startIcon={<RestartAltIcon sx={{ fontSize: 24 }} />}
+            onClick={handleRestablecer}
+            sx={{ 
+              py: 2,
+              fontWeight: 'bold',
+              fontSize: '1rem',
+              borderRadius: 2,
+              textTransform: 'uppercase',
+              borderWidth: 2,
+              '&:hover': {
+                borderWidth: 2,
+                transform: 'translateY(-2px)',
+                transition: 'all 0.2s'
+              }
+            }}
+          >
+            Restablecer
+          </Button>
         </Box>
       </DialogContent>
     </Dialog>

@@ -134,6 +134,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-sentadilla',
+    cellClassName: 'cell-sentadilla',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -153,6 +155,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-sentadilla',
+    cellClassName: 'cell-sentadilla',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -172,6 +176,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-sentadilla',
+    cellClassName: 'cell-sentadilla',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -191,6 +197,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-banco',
+    cellClassName: 'cell-banco',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -210,6 +218,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-banco',
+    cellClassName: 'cell-banco',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -229,6 +239,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-banco',
+    cellClassName: 'cell-banco',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -248,6 +260,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-peso-muerto',
+    cellClassName: 'cell-peso-muerto',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -267,6 +281,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-peso-muerto',
+    cellClassName: 'cell-peso-muerto',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -286,6 +302,8 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
+    headerClassName: 'header-peso-muerto',
+    cellClassName: 'cell-peso-muerto',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed

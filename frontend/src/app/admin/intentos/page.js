@@ -281,6 +281,7 @@ export default function IntentosPage() {
     if (!selectedIntento) return
 
     try {
+      // Si valido es null, significa que se quiere restablecer (volver a null)
       const bodyData = {
         atleta_id: selectedIntento.atleta.id,
         movimiento_id: selectedIntento.movimiento_id,
@@ -288,6 +289,7 @@ export default function IntentosPage() {
         valido: valido
       }
 
+      // Solo incluir peso si no es null
       if (nuevoPeso !== null && nuevoPeso !== undefined) {
         bodyData.peso = nuevoPeso
       }
@@ -416,7 +418,7 @@ export default function IntentosPage() {
               onChange={(e) => setCategoriaSeleccionada(e.target.value)}
             >
               <MenuItem value="todas">Todas las categorías</MenuItem>
-              {[...new Set(atletas.map(a => a.categoria))] // genera lista única
+              {[...new Set(atletas.map(a => a.categoria))]
                 .sort((a, b) => a - b)
                 .map(cat => (
                   <MenuItem key={cat} value={cat}>{cat}</MenuItem>
