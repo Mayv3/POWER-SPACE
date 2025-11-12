@@ -207,7 +207,7 @@ export default function VistaPublicaPage() {
                         }}
                     >
 
-                        <div className="flex justify-center items-center w-full  gap-10">
+                        <div className="flex justify-center items-center w-full  gap-15">
                             {(() => {
                                 // Verificar si todos los jueces han votado
                                 const todosVotaron = 
