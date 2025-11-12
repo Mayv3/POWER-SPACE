@@ -20,9 +20,9 @@ export default function JuecesPage() {
   const [snackbarMessage, setSnackbarMessage] = useState('')
 
   const jueces = [
-    { id: 1, nombre: 'Juez 1', color: '#1976d2' },
-    { id: 2, nombre: 'Juez 2', color: '#388e3c' },
-    { id: 3, nombre: 'Juez 3', color: '#d32f2f' }
+    { id: 1, nombre: 'Juez Secundario 1', color: '#1976d2' },
+    { id: 2, nombre: 'Juez Principal', color: '#388e3c' },
+    { id: 3, nombre: 'Juez Secundario 3', color: '#d32f2f' }
   ]
 
   const getJuezUrl = (id) => {
