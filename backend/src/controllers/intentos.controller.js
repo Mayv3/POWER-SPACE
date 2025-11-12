@@ -253,61 +253,29 @@ export async function upsertIntentoAtleta(req, res) {
   try {
     const { atleta_id, movimiento_id, intento_numero, peso, valido } = req.body;
 
-    if (!atleta_id || !movimiento_id || !intento_numero) {
-      return res.status(400).json({ error: "Faltan campos obligatorios" });
-    }
-
-    const { data: existingIntento, error: searchError } = await supabase
+    const { data, error } = await supabase
       .from("intentos")
-      .select("*")
-      .eq("atleta_id", atleta_id)
-      .eq("movimiento_id", movimiento_id)
-      .eq("intento_numero", intento_numero)
-      .maybeSingle();
+      .upsert({
+        atleta_id,
+        movimiento_id,
+        intento_numero,
+        peso: peso ?? null,
+        valido: valido ?? null
+      }, {
+        onConflict: "atleta_id,movimiento_id,intento_numero"
+      })
+      .select()
+      .single();
 
-    if (searchError && searchError.code !== 'PGRST116') throw searchError;
+    if (error) throw error;
 
-    // Permitir null como valor válido para restablecer
-    const updateData = {};
-    if (peso !== undefined) updateData.peso = peso; // Acepta null
-    if (valido !== undefined) updateData.valido = valido; // Acepta null
+    return res.status(200).json({
+      message: "Intento registrado",
+      intento: data
+    });
 
-    if (existingIntento) {
-      const { data, error } = await supabase
-        .from("intentos")
-        .update(updateData)
-        .eq("id", existingIntento.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return res.status(200).json({
-        message: "Intento actualizado correctamente",
-        intento: data
-      });
-    } else {
-      const { data, error } = await supabase
-        .from("intentos")
-        .insert([{
-          atleta_id,
-          movimiento_id,
-          intento_numero,
-          peso: peso !== undefined ? peso : null,
-          valido: valido !== undefined ? valido : null
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return res.status(201).json({
-        message: "Intento creado correctamente",
-        intento: data
-      });
-    }
   } catch (err) {
-    console.error("Error al crear/actualizar intento:", err.message);
-    res.status(500).json({ error: "Error al crear/actualizar intento" });
+    console.error("Error en upsert:", err);
+    res.status(500).json({ error: "Error en upsert" });
   }
 }

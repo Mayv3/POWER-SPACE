@@ -207,32 +207,39 @@ export default function VistaPublicaPage() {
                         }}
                     >
 
-                        <div className="flex justify-center items-center w-full  gap-5">
-                            {[1, 2, 3].map((num) => {
-                                const valor = estadoCompetencia[`juez${num}_valido`]
+                        <div className="flex justify-center items-center w-full  gap-10">
+                            {(() => {
+                                // Verificar si todos los jueces han votado
+                                const todosVotaron = 
+                                    estadoCompetencia?.juez1_valido !== null && estadoCompetencia?.juez1_valido !== undefined &&
+                                    estadoCompetencia?.juez2_valido !== null && estadoCompetencia?.juez2_valido !== undefined &&
+                                    estadoCompetencia?.juez3_valido !== null && estadoCompetencia?.juez3_valido !== undefined
 
-                                const color =
-                                    valor === true
-                                        ? '#ffff'
-                                        : valor === false
-                                            ? '#ff1744'
-                                            : '#2e2e2e'
+                                return [1, 2, 3].map((num) => {
+                                    const valor = estadoCompetencia[`juez${num}_valido`]
 
-                                const sombra =
-                                    valor === true
-                                        ? 'shadow-[0_0_25px_6px_rgba(0,230,118,0.6)]'
-                                        : valor === false
-                                            ? 'shadow-[0_0_25px_6px_rgba(255,23,68,0.6)]'
-                                            : 'shadow-inner shadow-white/10'
+                                    // Si no todos han votado, mostrar gris
+                                    const color = !todosVotaron
+                                        ? '#2e2e2e'
+                                        : valor === true
+                                            ? '#ffff'
+                                            : '#ff1744'
 
-                                return (
-                                    <div
-                                        key={num}
-                                        className={`w-full h-full aspect-square  rounded-2xl transition-all duration-300 ${sombra}`}
-                                        style={{ backgroundColor: color, }}
-                                    />
-                                )
-                            })}
+                                    const sombra = !todosVotaron
+                                        ? 'shadow-inner shadow-white/10'
+                                        : valor === true
+                                            ? 'shadow-[0_0_25px_6px_rgba(0,230,118,0.6)]'
+                                            : 'shadow-[0_0_25px_6px_rgba(255,23,68,0.6)]'
+
+                                    return (
+                                        <div
+                                            key={num}
+                                            className={`w-full h-full aspect-square  rounded-2xl transition-all duration-300 ${sombra}`}
+                                            style={{ backgroundColor: color, }}
+                                        />
+                                    )
+                                })
+                            })()}
                         </div>
 
 

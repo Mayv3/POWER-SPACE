@@ -95,34 +95,49 @@ export default function JuezPage() {
       </Typography>
 
       <Stack direction="row" spacing={4} justifyContent="center" width="350px">
-        {[estado?.juez1_valido, estado?.juez2_valido, estado?.juez3_valido].map(
-          (valido, index) => {
-            const color =
-              valido === true
-                ? '#ffffff'
-                : valido === false
-                  ? '#ff1744'
-                  : '#2e2e2e'
-            return (
-              <Box
-                key={index}
-                sx={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 2,
-                  backgroundColor: color,
-                  boxShadow:
-                    valido === true
-                      ? '0 0 20px 4px rgba(255,255,255,0.8)'
-                      : valido === false
-                        ? '0 0 20px 4px rgba(255,23,68,0.6)'
-                        : 'inset 0 0 10px rgba(255,255,255,0.1)',
-                  transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
-                }}
-              />
-            )
-          }
-        )}
+        {(() => {
+          // Verificar si todos los jueces han votado
+          const todosVotaron = 
+            estado?.juez1_valido !== null && estado?.juez1_valido !== undefined &&
+            estado?.juez2_valido !== null && estado?.juez2_valido !== undefined &&
+            estado?.juez3_valido !== null && estado?.juez3_valido !== undefined
+
+          return [estado?.juez1_valido, estado?.juez2_valido, estado?.juez3_valido].map(
+            (valido, index) => {
+              const juezNumero = index + 1
+              const esEsteJuez = juezNumero === parseInt(String(id))
+              
+              // Mostrar el voto del juez actual siempre, los demás solo si todos votaron
+              const mostrarVoto = esEsteJuez || todosVotaron
+              
+              const color = !mostrarVoto
+                ? '#2e2e2e'
+                : valido === true
+                  ? '#ffffff'
+                  : valido === false
+                    ? '#ff1744'
+                    : '#2e2e2e'
+
+              return (
+                <Box
+                  key={index}
+                  sx={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 2,
+                    backgroundColor: color,
+                    boxShadow: !mostrarVoto || (valido !== true && valido !== false)
+                      ? 'inset 0 0 10px rgba(255,255,255,0.1)'
+                      : valido === true
+                        ? '0 0 20px 4px rgba(255,255,255,0.8)'
+                        : '0 0 20px 4px rgba(255,23,68,0.6)',
+                    transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+                  }}
+                />
+              )
+            }
+          )
+        })()}
       </Stack>
 
       <Stack direction="row" spacing={3} mt={3} width="350px">

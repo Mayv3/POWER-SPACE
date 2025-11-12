@@ -946,36 +946,42 @@ export default function CargadoresPage() {
 
                     <Stack direction="row" spacing={1} alignItems="center">
 
+                      {(() => {
+                        // Verificar si todos los jueces han votado
+                        const todosVotaron = 
+                          estadoJueces?.juez1_valido !== null && estadoJueces?.juez1_valido !== undefined &&
+                          estadoJueces?.juez2_valido !== null && estadoJueces?.juez2_valido !== undefined &&
+                          estadoJueces?.juez3_valido !== null && estadoJueces?.juez3_valido !== undefined
 
+                        return [estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map(
+                          (valido, index) => {
+                            // Si no todos han votado, mostrar gris
+                            const color = !todosVotaron
+                              ? '#2e2e2e'
+                              : valido === true
+                                ? '#00e676'
+                                : '#ff1744'
 
-                      {[estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map(
-                        (valido, index) => {
-                          const color =
-                            valido === true
-                              ? '#00e676'
-                              : valido === false
-                                ? '#ff1744'
-                                : '#2e2e2e'
-                          return (
-                            <Box
-                              key={index}
-                              sx={{
-                                width: 60,
-                                height: 60,
-                                borderRadius: 2,
-                                backgroundColor: color,
-                                boxShadow:
-                                  valido === true
-                                    ? '0 0 20px 4px rgba(255,255,255,0.8)'
-                                    : valido === false
-                                      ? '0 0 20px 4px rgba(255,23,68,0.6)'
-                                      : 'inset 0 0 10px rgba(255,255,255,0.1)',
-                                transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
-                              }}
-                            />
-                          )
-                        }
-                      )}
+                            return (
+                              <Box
+                                key={index}
+                                sx={{
+                                  width: 60,
+                                  height: 60,
+                                  borderRadius: 2,
+                                  backgroundColor: color,
+                                  boxShadow: !todosVotaron
+                                    ? 'inset 0 0 10px rgba(255,255,255,0.1)'
+                                    : valido === true
+                                      ? '0 0 20px 4px rgba(255,255,255,0.8)'
+                                      : '0 0 20px 4px rgba(255,23,68,0.6)',
+                                  transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+                                }}
+                              />
+                            )
+                          }
+                        )
+                      })()}
                     </Stack>
 
                     <Stack direction="row" spacing={2}>
