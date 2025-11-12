@@ -4,19 +4,19 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import { capitalizeWords } from '../../utils/textUtils'
 
 export const columnsAtletas = (handleEdit, handleDelete) => [
-  { 
-    field: 'nombre', 
-    headerName: 'Nombre', 
-    flex: 0.15, 
-    align: 'center', 
+  {
+    field: 'nombre',
+    headerName: 'Nombre',
+    flex: 0.15,
+    align: 'center',
     headerAlign: 'center',
     renderCell: (params) => capitalizeWords(params.value)
   },
-  { 
-    field: 'apellido', 
-    headerName: 'Apellido', 
-    flex: 0.15, 
-    align: 'center', 
+  {
+    field: 'apellido',
+    headerName: 'Apellido',
+    flex: 0.15,
+    align: 'center',
     headerAlign: 'center',
     renderCell: (params) => capitalizeWords(params.value)
   },
@@ -78,6 +78,25 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     renderCell: (params) => params.value ?? '-',
   },
   {
+    field: 'altura_rack_sentadilla',
+    headerName: 'A-S',
+    flex: 0.08,
+    align: 'center',
+    headerAlign: 'center',
+    type: 'number',
+    renderCell: (params) => params.value ?? '-',
+  },
+
+  {
+    field: 'altura_rack_banco',
+    headerName: 'A-P',
+    flex: 0.08,
+    align: 'center',
+    headerAlign: 'center',
+    type: 'number',
+    renderCell: (params) => params.value ?? '-',
+  },
+  {
     field: 'primer_intento_peso_muerto',
     headerName: 'Peso muerto',
     flex: 0.14,
@@ -95,7 +114,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     renderCell: (params) => (
       <Box>
         <Tooltip title="Editar">
-          <IconButton 
+          <IconButton
             onClick={() => handleEdit(params.row)}
             sx={{ color: '#FF9800' }}
           >

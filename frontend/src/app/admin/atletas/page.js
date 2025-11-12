@@ -41,6 +41,8 @@ export default function AtletasPage() {
     primer_intento_banco: null,
     primer_intento_peso_muerto: null,
     sexo: '',
+    altura_rack_sentadilla: null,
+    altura_rack_banco: null,
   })
 
 
@@ -128,6 +130,8 @@ export default function AtletasPage() {
         primer_intento_banco: null,
         primer_intento_peso_muerto: null,
         sexo: '',
+        altura_rack_sentadilla: null,
+        altura_rack_banco: null,
       })
     } catch (err) {
       console.error('Error al crear atleta:', err)

@@ -120,6 +120,46 @@ export function EditAtletaForm({ atleta, onChange }) {
       <Divider sx={{ my: 3 }} />
 
       <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+        Altura de rack
+      </Typography>
+
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
+        <TextField
+          select
+          fullWidth
+          name="altura_rack_sentadilla"
+          label="Sentadilla"
+          value={atleta.altura_rack_sentadilla || ''}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+        >
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
+            <MenuItem key={num} value={num}>
+              {num}
+            </MenuItem>
+          ))}
+        </TextField>
+
+        <TextField
+          select
+          fullWidth
+          name="altura_rack_banco"
+          label="Press de banco"
+          value={atleta.altura_rack_banco || ''}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+        >
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
+            <MenuItem key={num} value={num}>
+              {num}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Stack>
+
+      <Divider sx={{ my: 3 }} />
+
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
         Primeros Intentos
       </Typography>
 

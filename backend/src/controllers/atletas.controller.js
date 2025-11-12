@@ -115,7 +115,9 @@ export async function createAtleta(req, res) {
             primer_intento_sentadilla,
             primer_intento_banco,
             primer_intento_peso_muerto,
-            sexo
+            sexo,
+            altura_rack_sentadilla,
+            altura_rack_banco
         } = req.body;
 
         console.log(req.body);
@@ -148,6 +150,8 @@ export async function createAtleta(req, res) {
             primer_intento_banco,
             primer_intento_peso_muerto,
             sexo,
+            altura_rack_sentadilla,
+            altura_rack_banco,
             created_at: new Date()
         };
 
@@ -191,7 +195,9 @@ export async function updateAtleta(req, res) {
             primer_intento_peso_muerto,
             segundo_intento_peso_muerto,
             tercer_intento_peso_muerto,
-            sexo
+            sexo,
+            altura_rack_sentadilla,
+            altura_rack_banco
         } = req.body;
 
         const updatedData = {
@@ -213,7 +219,9 @@ export async function updateAtleta(req, res) {
             primer_intento_peso_muerto,
             segundo_intento_peso_muerto,
             tercer_intento_peso_muerto,
-            sexo
+            sexo,
+            altura_rack_sentadilla,
+            altura_rack_banco
         };
 
         const { data, error } = await supabase

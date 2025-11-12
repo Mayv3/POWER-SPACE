@@ -704,7 +704,8 @@ export default function CargadoresPage() {
         {atletaSeleccionado && (
           <Box backgroundColor='#ff6b35 ' sx={{ p: 2, width: '100%', textAlign: 'center', borderRadius: 1 }}>
             <Typography variant="h5" fontWeight="bold" sx={{ color: 'white' }}>
-              {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)} {atletaSeleccionado.categoria}  T{atletaSeleccionado.tanda_id}
+              {capitalizeWords(atletaSeleccionado.nombre)}  {capitalizeWords(atletaSeleccionado.apellido)} - {atletaSeleccionado.categoria} - Peso del tiro: {pesoActual} kg
+
             </Typography>
           </Box>
         )}
@@ -751,21 +752,26 @@ export default function CargadoresPage() {
             <Paper elevation={2} sx={{ p: 3, height: '100%', overflow: 'auto' }}>
               {atletaSeleccionado ? (
                 <>
-                  <Paper
-                    elevation={2}
-                    sx={{
-                      p: 3,
-                      backgroundColor: obtenerColorEjercicio(ejercicioFiltro),
-                      color: 'white',
-                      textAlign: 'center',
-                      mb: 1
-                    }}
-                  >
-                    <Typography variant="h4" fontWeight="bold">
-                      {pesoActual} kg
-                    </Typography>
-                  </Paper>
-
+                  {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') && (
+                    <Paper
+                      elevation={1}
+                      sx={{
+                        p: 2,
+                        mb: 2,
+                        backgroundColor: '#FFF3E0',
+                        textAlign: 'center',
+                        border: '2px solid #FF9800'
+                      }}
+                    >
+                      <Typography variant="h5" fontWeight="bold" color="#FF9800">
+                        Altura del Rack: {
+                          ejercicioFiltro === 'sentadilla' 
+                            ? (atletaSeleccionado.altura_rack_sentadilla || 'No configurada')
+                            : (atletaSeleccionado.altura_rack_banco || 'No configurada')
+                        }
+                      </Typography>
+                    </Paper>
+                  )}
 
                   {pesoActual > 0 ? (
                     discos.length > 0 ? (
