@@ -80,7 +80,7 @@ export default function JuezPage() {
       }}
     >
       <Typography variant="h4" fontWeight="bold" color="white">
-        Juez {id}
+        {id === '2' ? 'Juez Principal' : `Juez Secundario ${id}`}
       </Typography>
 
       <Typography
