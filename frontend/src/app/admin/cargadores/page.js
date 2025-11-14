@@ -794,60 +794,83 @@ export default function CargadoresPage() {
                               }, {})
                             )
                               .sort((a, b) => b[0] - a[0])
-                              .map(([peso, cantidad]) => (
-                                <Box
-                                  key={peso}
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderRadius: 2,
-                                    px: '20px',
-                                    py: '100px',
-                                    fontSize: '100px',
-                                    width: '12vw',
-                                    fontWeight: 'bold',
-                                    color:
-                                      peso == 15 ||
-                                        peso == 5 ||
-                                        peso == 1.25 ||
-                                        peso == 0.5 ||
-                                        peso == 0.25
-                                        ? '#000'
-                                        : '#fff',
-                                    backgroundColor:
-                                      peso == 25
-                                        ? '#f44336'
-                                        : peso == 20
-                                          ? '#2196f3'
-                                          : peso == 15
-                                            ? '#ffeb3b'
-                                            : peso == 10
-                                              ? '#4caf50'
-                                              : peso == 5
-                                                ? '#fff'
-                                                : peso == 2.5
-                                                  ? '#000'
-                                                  : peso == 1.25
-                                                    ? '#C0C0C0'
-                                                    : '#9e9e9e',
-                                    border: peso == 5 ? '2px solid #d0d0d0' : 'none',
-                                  }}
-                                >
+                              .map(([peso, cantidad]) => {
+                                // Calcular altura según el peso del disco
+                                const getAltura = (peso) => {
+                                  if (peso >= 25) return '100px'
+                                  if (peso >= 20) return '95px'
+                                  if (peso >= 15) return '90px'
+                                  if (peso >= 10) return '85px'
+                                  if (peso >= 5) return '80px'
+                                  if (peso >= 2.5) return '75px'
+                                  if (peso >= 1.25) return '70px'
+                                  return '65px'
+                                }
+
+                                const tiposDeDiscos = Object.keys(
+                                  discos.reduce((acc, disco) => {
+                                    acc[disco] = true
+                                    return acc
+                                  }, {})
+                                ).length
+
+                                const ancho = tiposDeDiscos > 3 ? '9vw' : '12vw'
+
+                                return (
                                   <Box
+                                    key={peso}
                                     sx={{
                                       display: 'flex',
-                                      flexDirection: 'column',
                                       alignItems: 'center',
-                                      lineHeight: 1,
+                                      justifyContent: 'center',
+                                      borderRadius: 2,
+                                      px: '20px',
+                                      py: getAltura(peso),
+                                      fontSize: '100px',
+                                      width: ancho,
+                                      fontWeight: 'bold',
+                                      color:
+                                        peso == 15 ||
+                                          peso == 5 ||
+                                          peso == 1.25 ||
+                                          peso == 0.5 ||
+                                          peso == 0.25
+                                          ? '#000'
+                                          : '#fff',
+                                      backgroundColor:
+                                        peso == 25
+                                          ? '#f44336'
+                                          : peso == 20
+                                            ? '#2196f3'
+                                            : peso == 15
+                                              ? '#ffeb3b'
+                                              : peso == 10
+                                                ? '#4caf50'
+                                                : peso == 5
+                                                  ? '#fff'
+                                                  : peso == 2.5
+                                                    ? '#000'
+                                                    : peso == 1.25
+                                                      ? '#C0C0C0'
+                                                      : '#9e9e9e',
+                                      border: peso == 5 ? '2px solid #d0d0d0' : 'none',
                                     }}
                                   >
-                                    <div>{peso}</div>
-                                    <div style={{ fontSize: '28px' }}>x</div>
-                                    <div>{cantidad}</div>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        lineHeight: 1,
+                                      }}
+                                    >
+                                      <div>{peso}</div>
+                                      <div style={{ fontSize: '28px' }}>x</div>
+                                      <div>{cantidad}</div>
+                                    </Box>
                                   </Box>
-                                </Box>
-                              ))}
+                                )
+                              })}
 
                             <Box
                               key="tope-fijo"
