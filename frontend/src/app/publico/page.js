@@ -363,7 +363,7 @@ export default function PublicoPage() {
                 </Typography>
               </Box>
               <Typography variant="h5" fontWeight="bold">
-                {atletaEnVivo.nombre} {atletaEnVivo.apellido}
+                {atletaEnVivo.nombre?.split(' ').join(' ')} {atletaEnVivo.apellido?.split(' ').join(' ')}
               </Typography>
 
               <Typography variant="body2" sx={{ mt: 0.5 }}>
