@@ -327,7 +327,7 @@ export default function PublicoPage() {
                 color: '#000',
                 p: 2,
                 borderRadius: 2,
-                mb: 3,
+                mb: 2,
                 textAlign: 'center',
                 boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
                 animation: 'pulse 2s infinite',
@@ -375,7 +375,7 @@ export default function PublicoPage() {
 
         {/* Próximos competidores */}
         {isFirstLoad && isLoading ? (
-          <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+          <Box sx={{ mb: 1.5, display: 'flex', gap: 2 }}>
             {[1, 2, 3].map((i) => (
               <Skeleton
                 key={i}
@@ -385,10 +385,31 @@ export default function PublicoPage() {
                 sx={{ bgcolor: '#2a2a2a', borderRadius: 1 }}
               />
             ))}
+      
           </Box>
+
         ) : (
           atletaEnVivo && obtenerProximosCompetidores().length > 0 && (
-            <Box sx={{ mb: 3, position: 'relative' }}>
+            <>
+              <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                <Box sx={{ flex: 1, height: '1px', backgroundColor: '#f16511', opacity: 0.3 }} />
+                <Typography 
+                  variant="overline" 
+                  sx={{ 
+                    color: '#f16511', 
+                    fontWeight: '600',
+                    letterSpacing: 2,
+                    fontSize: '0.7rem',
+                    opacity: 0.9,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Próximos atletas
+                </Typography>
+                <Box sx={{ flex: 1, height: '1px', backgroundColor: '#f16511', opacity: 0.3 }} />
+              </Box>
+              <Box sx={{ mb: 3, position: 'relative' }}>
+
               {scrollPosition > 0 && (
                 <IconButton
                   onClick={() => handleScrollProximos('left')}
@@ -478,6 +499,7 @@ export default function PublicoPage() {
                 </IconButton>
               )}
             </Box>
+            </>
           )
         )}
 
@@ -820,12 +842,12 @@ export default function PublicoPage() {
 
 
                           <Box
-                         
+
                           >
-                            
-                          <Typography variant="subtitle2" textAlign='center' fontWeight="bold" sx={{ mb: 1, color: 'white' }}>
-                            Mejores Levantamientos
-                          </Typography>
+
+                            <Typography variant="subtitle2" textAlign='center' fontWeight="bold" sx={{ mb: 1, color: 'white' }}>
+                              Mejores Levantamientos
+                            </Typography>
                             {[
                               { label: 'Sentadilla', val: atleta.mejorSentadilla, color: '#5CCEFF' },
                               { label: 'Banco', val: atleta.mejorBanco, color: '#FF5C5C' },
