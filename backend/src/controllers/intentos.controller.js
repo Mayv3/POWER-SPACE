@@ -57,7 +57,8 @@ export async function getIntentosByTanda(req, res) {
 export async function getAtletasConIntentos(req, res) {
   try {
     const { tanda_id } = req.query;
-    
+    console.log("[getAtletasConIntentos] tanda_id:", tanda_id);
+
     let atletasQuery = supabase
       .from("atletas")
       .select("*")
@@ -73,6 +74,7 @@ export async function getAtletasConIntentos(req, res) {
     }
 
     const { data: atletas, error: atletasError } = await atletasQuery;
+    console.log("[getAtletasConIntentos] atletas count:", atletas?.length, "| error:", atletasError?.message);
     if (atletasError) throw atletasError;
 
     const atletasIds = atletas.map(a => a.id);
@@ -81,7 +83,7 @@ export async function getAtletasConIntentos(req, res) {
       .from("intentos")
       .select("*")
       .in("atleta_id", atletasIds);
-    
+    console.log("[getAtletasConIntentos] intentos count:", intentos?.length, "| error:", intentosError?.message);
     if (intentosError) throw intentosError;
 
     const atletasConIntentos = atletas.map(atleta => {
@@ -173,8 +175,8 @@ export async function getAtletasConIntentos(req, res) {
 
     res.status(200).json(atletasConIntentos);
   } catch (err) {
-    console.error("Error al obtener atletas con intentos:", err.message);
-    res.status(500).json({ error: "Error al obtener atletas con intentos" });
+    console.error("[getAtletasConIntentos] ERROR:", err.message, "| stack:", err.stack);
+    res.status(500).json({ error: "Error al obtener atletas con intentos", detail: err.message });
   }
 }
 
