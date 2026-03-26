@@ -9,7 +9,12 @@
       "Bash(curl -v \"https://avnpdlzjhyompycjbedu.supabase.co\")",
       "Bash(npx skills:*)",
       "Bash(find /c/Users/nicop/OneDrive/Desktop/POWER-SPACE -type f \\\\\\(-name *.sql -o -name schema* -o -name migration* \\\\\\))",
-      "Bash(find /c/Users/nicop/OneDrive/Desktop/POWER-SPACE -type f -name README* -o -name *.md)"
+      "Bash(find /c/Users/nicop/OneDrive/Desktop/POWER-SPACE -type f -name README* -o -name *.md)",
+      "Bash(npm show:*)",
+      "Bash(node -e \"const v=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const versions=JSON.parse\\(v\\); const v15=versions.filter\\(x=>x.startsWith\\(''''15.''''\\)\\); console.log\\(v15[v15.length-1]\\);\")",
+      "Bash(npm install:*)",
+      "Bash(npm audit:*)",
+      "Bash(node -e \"const d=JSON.parse\\(require\\(''''fs''''\\).readFileSync\\(0,''''utf8''''\\)\\); Object.values\\(d.vulnerabilities\\).forEach\\(v=>console.log\\(v.severity, v.name, v.range\\)\\)\")"
     ]
   }
 }
