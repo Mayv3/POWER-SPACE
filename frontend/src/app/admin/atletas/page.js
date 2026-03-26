@@ -1,21 +1,26 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Box, Typography, Button, Stack, TextField, InputAdornment, CircularProgress } from '@mui/material'
+import {
+  Box, Typography, Button, Stack, TextField, InputAdornment,
+  CircularProgress, Paper, Divider,
+} from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
+import PersonAddIcon from '@mui/icons-material/PersonAdd'
+import GroupIcon from '@mui/icons-material/Group'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { EditAtletaForm } from '../../../components/modales/EditAtletaForm'
 import { DeleteConfirmModal } from '../../../components/modales/DeleteConfirmModal'
 import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
+import { useDarkMode } from '../../../context/ThemeContext'
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])
   const [atletasFiltrados, setAtletasFiltrados] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [total, setTotal] = useState(0)
 
   const [openEdit, setOpenEdit] = useState(false)
   const [selectedAtleta, setSelectedAtleta] = useState({})
@@ -45,7 +50,9 @@ export default function AtletasPage() {
     altura_rack_banco: null,
   })
 
-
+  const { isDark } = useDarkMode()
+  const surface = isDark ? '#1a1a1a' : '#ffffff'
+  const border = isDark ? '#2a2a2a' : '#e0e0e0'
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -54,8 +61,6 @@ export default function AtletasPage() {
       const data = await res.json()
       setAtletas(data)
       setAtletasFiltrados(data)
-      console.log(data)
-      setTotal(data.length)
     } catch (err) {
       console.error('Error al cargar atletas:', err)
     } finally {
@@ -63,26 +68,23 @@ export default function AtletasPage() {
     }
   }
 
-  useEffect(() => {
-    fetchAtletas()
-  }, [])
+  useEffect(() => { fetchAtletas() }, [])
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setAtletasFiltrados(atletas)
     } else {
-      const filtered = atletas.filter(atleta =>
-        atleta.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        atleta.apellido?.toLowerCase().includes(searchTerm.toLowerCase())
+      const q = searchTerm.toLowerCase()
+      setAtletasFiltrados(
+        atletas.filter(a =>
+          a.nombre?.toLowerCase().includes(q) ||
+          a.apellido?.toLowerCase().includes(q)
+        )
       )
-      setAtletasFiltrados(filtered)
     }
   }, [searchTerm, atletas])
 
-  const handleEdit = (atleta) => {
-    setSelectedAtleta(atleta)
-    setOpenEdit(true)
-  }
+  const handleEdit = (atleta) => { setSelectedAtleta(atleta); setOpenEdit(true) }
 
   const handleSaveEdit = async () => {
     if (loadingEdit) return
@@ -93,7 +95,7 @@ export default function AtletasPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(selectedAtleta),
       })
-      if (!res.ok) throw new Error('Error al actualizar atleta')
+      if (!res.ok) throw new Error()
       await fetchAtletas()
       setOpenEdit(false)
     } catch (err) {
@@ -112,26 +114,15 @@ export default function AtletasPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAtleta),
       })
-
-      if (!res.ok) throw new Error('Error al crear atleta')
+      if (!res.ok) throw new Error()
       await fetchAtletas()
       setOpenCreate(false)
       setNewAtleta({
-        nombre: '',
-        apellido: '',
-        dni: '',
-        fecha_nacimiento: '',
-        edad: '',
-        categoria: '',
-        peso_corporal: '',
-        modalidad: '',
-        tanda_id: null,
-        primer_intento_sentadilla: null,
-        primer_intento_banco: null,
-        primer_intento_peso_muerto: null,
-        sexo: '',
-        altura_rack_sentadilla: null,
-        altura_rack_banco: null,
+        nombre: '', apellido: '', dni: '', fecha_nacimiento: '', edad: '',
+        categoria: '', peso_corporal: '', modalidad: '', tanda_id: null,
+        primer_intento_sentadilla: null, primer_intento_banco: null,
+        primer_intento_peso_muerto: null, sexo: '',
+        altura_rack_sentadilla: null, altura_rack_banco: null,
       })
     } catch (err) {
       console.error('Error al crear atleta:', err)
@@ -141,10 +132,7 @@ export default function AtletasPage() {
     }
   }
 
-  const handleDelete = (atleta) => {
-    setDeleteAtleta(atleta)
-    setOpenDelete(true)
-  }
+  const handleDelete = (atleta) => { setDeleteAtleta(atleta); setOpenDelete(true) }
 
   const confirmDelete = async () => {
     if (loadingDelete) return
@@ -153,7 +141,7 @@ export default function AtletasPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${deleteAtleta.id}`, {
         method: 'DELETE',
       })
-      if (!res.ok) throw new Error('Error al eliminar atleta')
+      if (!res.ok) throw new Error()
       await fetchAtletas()
       setOpenDelete(false)
     } catch (err) {
@@ -165,63 +153,90 @@ export default function AtletasPage() {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
+
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h4" fontWeight={700}>
-          Atletas
-        </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box>
+          <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+            Atletas
+          </Typography>
+          <Stack direction="row" alignItems="center" gap={0.75} sx={{ mt: 0.5 }}>
+            <GroupIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="body2" color="text.secondary">
+              {atletasFiltrados.length} {atletasFiltrados.length === 1 ? 'atleta' : 'atletas'}
+              {searchTerm && ` encontrados`}
+            </Typography>
+          </Stack>
+        </Box>
         <Button
           variant="contained"
-          sx={{ 
-            borderRadius: 1, 
-            textTransform: 'none', 
+          startIcon={<PersonAddIcon />}
+          onClick={() => setOpenCreate(true)}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
             fontWeight: 600,
             backgroundColor: '#F57C00',
-            '&:hover': {
-              backgroundColor: '#FF9800'
-            }
+            '&:hover': { backgroundColor: '#E65100' },
+            px: 2.5,
           }}
-          onClick={() => setOpenCreate(true)}
         >
           Nuevo atleta
         </Button>
       </Stack>
 
-      <TextField
-        fullWidth
-        placeholder="Buscar por nombre o apellido..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        sx={{ mb: 3 }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ),
+      {/* Buscador + Tabla */}
+      <Paper
+        elevation={0}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          border: `1px solid ${border}`,
+          borderRadius: 3,
+          overflow: 'hidden',
+          backgroundColor: surface,
         }}
-      />
-
-      {/* Tabla */}
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
-          <CircularProgress size={50} sx={{ color: '#FF9800' }} />
+      >
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Buscar por nombre o apellido..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              sx: { borderRadius: 2 },
+            }}
+          />
         </Box>
-      ) : (
-        <GenericDataGrid
-          rows={atletasFiltrados}
-          columns={columnsAtletas(handleEdit, handleDelete)}
-          paginationMode="client"
-          rowCount={total}
-          loading={isLoading}
-          initialState={{
-            sorting: {
-              sortModel: [{ field: 'tanda_id', sort: 'asc' }]
-            }
-          }}
-        />
-      )}
+
+        <Divider sx={{ borderColor: border }} />
+
+        <Box sx={{ flex: 1, minHeight: 0 }}>
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+              <CircularProgress size={40} sx={{ color: '#FF9800' }} />
+            </Box>
+          ) : (
+            <GenericDataGrid
+              rows={atletasFiltrados}
+              columns={columnsAtletas(handleEdit, handleDelete)}
+              paginationMode="client"
+              rowCount={atletasFiltrados.length}
+              getRowClassName={(params) => params.row.tanda_id ? `row-tanda-${params.row.tanda_id}` : ''}
+              loading={isLoading}
+            />
+          )}
+        </Box>
+      </Paper>
 
       {/* Modal editar */}
       <GenericModal

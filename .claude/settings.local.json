@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc:*)",
+      "Bash(node -e \"import\\(''''./src/controllers/intentos.controller.js''''\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://avnpdlzjhyompycjbedu.supabase.co/rest/v1/\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://supabase.com\")",
+      "Bash(curl -v \"https://avnpdlzjhyompycjbedu.supabase.co\")",
+      "Bash(npx skills:*)",
+      "Bash(find /c/Users/nicop/OneDrive/Desktop/POWER-SPACE -type f \\\\\\(-name *.sql -o -name schema* -o -name migration* \\\\\\))",
+      "Bash(find /c/Users/nicop/OneDrive/Desktop/POWER-SPACE -type f -name README* -o -name *.md)"
+    ]
+  }
+}

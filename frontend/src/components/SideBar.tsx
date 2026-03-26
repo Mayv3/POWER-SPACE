@@ -11,13 +11,15 @@ import {
   Paper,
   useMediaQuery,
   Tooltip,
-  Typography,
   Divider,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import LogoutIcon from '@mui/icons-material/Logout'
+import DarkModeIcon from '@mui/icons-material/DarkMode'
+import LightModeIcon from '@mui/icons-material/LightMode'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { useDarkMode } from '../context/ThemeContext'
 
 type TabItem = { label: string; icon: React.ReactNode; route: string }
 type HeaderComponentProps = { tabs: TabItem[] }
@@ -47,17 +49,17 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
   const pathname = usePathname()
 
   const [sidebarBg, setSidebarBg] = useState<string>(() => readPrimary())
+  const { isDark, toggle } = useDarkMode()
 
   const handleNav = (route: string, index?: number) => {
     if (typeof index === 'number') setSelectedIndex(index)
-    
+
     if (route === '/publico/vista') {
       window.open(route, '_blank')
     } else {
       router.push(route)
     }
   }
-
 
   useEffect(() => {
     const idx = tabs.findIndex(t => t.route === pathname)
@@ -76,6 +78,39 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
 
   if (!mounted) return null
 
+  const darkModeButton = (
+    <ListItemButton
+      disableRipple
+      onClick={toggle}
+      sx={{
+        borderRadius: 2,
+        height: 48,
+        px: 1.45,
+        width: '100%',
+        bgcolor: 'transparent',
+        '&:hover': { bgcolor: 'rgba(255,255,255,0.10)' },
+      }}
+    >
+      <ListItemIcon sx={{ color: 'white', minWidth: 0, mr: isExpanded ? 1.5 : 0 }}>
+        {isDark ? <LightModeIcon /> : <DarkModeIcon />}
+      </ListItemIcon>
+      <Box
+        sx={{
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          opacity: isExpanded ? 1 : 0,
+          width: isExpanded ? 'auto' : 0,
+          transition: 'opacity .25s ease, width .25s ease',
+        }}
+      >
+        <ListItemText
+          primary={isDark ? 'Modo claro' : 'Modo oscuro'}
+          primaryTypographyProps={{ color: 'white' }}
+        />
+      </Box>
+    </ListItemButton>
+  )
+
   const desktopSidebar = (
     <Box
       onMouseEnter={() => setIsHovered(true)}
@@ -88,8 +123,8 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
         width: isExpanded ? 240 : 80,
         transition: 'opacity .25s ease, width .25s ease, background-color .0s',
         display: 'flex',
-        flexDirection: 'row',
-        justifyContent: 'flex-center',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         alignItems: 'center',
         position: 'fixed',
         p: 2,
@@ -97,9 +132,8 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
         overflowX: 'hidden',
       }}
     >
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.18)', mb: 1 }} />
-
       <List sx={{ color: 'white', py: 0, mt: 0, width: '100%' }}>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.18)', mb: 1 }} />
         {tabs.map((tab, index) => {
           const selected = selectedIndex === index
           const item = (
@@ -153,6 +187,17 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
           )
         })}
       </List>
+
+      <List sx={{ color: 'white', py: 0, width: '100%' }}>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.18)', mb: 1 }} />
+        {isExpanded ? (
+          darkModeButton
+        ) : (
+          <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'} placement="right">
+            {darkModeButton}
+          </Tooltip>
+        )}
+      </List>
     </Box>
   )
 
@@ -204,11 +249,19 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
               />
             ))}
             <BottomNavigationAction
-              value={21}
-              icon={<LogoutIcon />}
-              onClick={() => {
-                setSelectedIndex(21)
+              value={98}
+              icon={isDark ? <LightModeIcon /> : <DarkModeIcon />}
+              disableRipple
+              onClick={toggle}
+              sx={{
+                color: 'white',
+                '&.Mui-selected': { color: 'black', bgcolor: 'white !important' },
               }}
+            />
+            <BottomNavigationAction
+              value={99}
+              icon={<LogoutIcon />}
+              onClick={() => setSelectedIndex(99)}
               sx={{
                 color: 'white',
                 '&.Mui-selected': { color: 'black', bgcolor: 'white !important' },

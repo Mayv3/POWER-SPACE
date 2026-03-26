@@ -67,6 +67,11 @@ export async function getAtletasConIntentos(req, res) {
       atletasQuery = atletasQuery.eq("tanda_id", parseInt(tanda_id));
     }
 
+    const { atleta_id } = req.query;
+    if (atleta_id) {
+      atletasQuery = atletasQuery.eq("id", parseInt(atleta_id));
+    }
+
     const { data: atletas, error: atletasError } = await atletasQuery;
     if (atletasError) throw atletasError;
 
@@ -277,5 +282,34 @@ export async function upsertIntentoAtleta(req, res) {
   } catch (err) {
     console.error("Error en upsert:", err);
     res.status(500).json({ error: "Error en upsert" });
+  }
+}
+
+export async function upsertBatchIntentos(req, res) {
+  try {
+    const { intentos } = req.body;
+    if (!Array.isArray(intentos) || intentos.length === 0) {
+      return res.status(400).json({ error: "Se requiere un array de intentos" });
+    }
+
+    const { data, error } = await supabase
+      .from("intentos")
+      .upsert(
+        intentos.map(i => ({
+          atleta_id: i.atleta_id,
+          movimiento_id: i.movimiento_id,
+          intento_numero: i.intento_numero,
+          peso: i.peso ?? null,
+          valido: i.valido ?? null
+        })),
+        { onConflict: "atleta_id,movimiento_id,intento_numero" }
+      )
+      .select();
+
+    if (error) throw error;
+    return res.status(200).json({ message: "Intentos registrados", intentos: data });
+  } catch (err) {
+    console.error("Error en upsert batch:", err);
+    res.status(500).json({ error: "Error en upsert batch" });
   }
 }

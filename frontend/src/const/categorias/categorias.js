@@ -1,6 +1,6 @@
 const categorias = {
-  M: ['M - A1', 'M - A2', 'M - B1', 'M - B2', 'M - C1', 'M - C2'],
-  F: ['F - A1', 'F - A2', 'F - B1', 'F - B2', 'F - C1', 'F - C2'],
+  M: ['M - 59kg', 'M - 66kg', 'M - 74kg', 'M - 83kg', 'M - 93kg', 'M - 105kg', 'M - 120kg', 'M - +120kg'],
+  F: ['F - 47kg', 'F - 52kg', 'F - 57kg', 'F - 63kg', 'F - 69kg', 'F - 76kg', 'F - 84kg', 'F - +84kg'],
 }
 
 export default categorias

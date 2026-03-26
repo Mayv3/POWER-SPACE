@@ -1,16 +1,20 @@
-/* Custom Swiper pagination styles */
 .swiper-pagination {
-  margin-top: 20px !important;
+  margin-top: 16px !important;
   position: relative !important;
   bottom: 0 !important;
 }
 
 .swiper-pagination-bullet {
-  background-color: #FFD700 !important;
-  opacity: 0.5 !important;
+  background-color: #333333 !important;
+  opacity: 1 !important;
+  width: 7px !important;
+  height: 7px !important;
 }
 
 .swiper-pagination-bullet-active {
-  background-color: #FFD700 !important;
+  background-color: #d4a843 !important;
   opacity: 1 !important;
+  width: 20px !important;
+  border-radius: 4px !important;
+  transition: width 0.2s ease !important;
 }

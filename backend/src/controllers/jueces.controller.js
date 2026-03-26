@@ -1,7 +1,5 @@
 import { supabase } from "../services/supabaseClient.js";
 
-let cronometro = null; // referencia global al setInterval activo
-
 // 🟢 Obtener estado actual
 export async function getEstadoCompetencia(_req, res) {
   const { data, error } = await supabase
@@ -17,13 +15,18 @@ export async function getEstadoCompetencia(_req, res) {
 // 🔴 Actualizar decisión de juez
 export async function updateDecisionJuez(req, res) {
   const { juezId } = req.params;
-  const { valido } = req.body;
+  const { valido, tipo } = req.body;
 
-  const col = `juez${juezId}_valido`;
+  const colValido = `juez${juezId}_valido`;
+  const colTipo = `juez${juezId}_tipo`;
+
+  const updateData = { [colValido]: valido, updated_at: new Date() };
+  if (!valido && tipo !== undefined) updateData[colTipo] = tipo;
+  else if (valido) updateData[colTipo] = null;
 
   const { error } = await supabase
     .from("estado_competencia")
-    .update({ [col]: valido, updated_at: new Date() })
+    .update(updateData)
     .eq("id", 1);
 
   if (error) return res.status(500).json({ error: error.message });
@@ -41,50 +44,15 @@ export async function startIntento(_req, res) {
       juez1_valido: null,
       juez2_valido: null,
       juez3_valido: null,
+      juez1_tipo: null,
+      juez2_tipo: null,
+      juez3_tipo: null,
       intento_valido: null,
       updated_at: new Date(),
     })
     .eq("id", 1);
 
   if (error) return res.status(500).json({ error: error.message });
-
-  if (cronometro) clearInterval(cronometro);
-
-  cronometro = setInterval(async () => {
-    const { data, error } = await supabase
-      .from("estado_competencia")
-      .select("tiempo_restante, corriendo")
-      .eq("id", 1)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Error al leer tiempo:", error.message);
-      clearInterval(cronometro);
-      return;
-    }
-
-    if (!data?.corriendo) {
-      clearInterval(cronometro);
-      return;
-    }
-
-    const nuevoTiempo = (data.tiempo_restante ?? 60) - 1;
-
-    if (nuevoTiempo <= 0) {
-      await supabase
-        .from("estado_competencia")
-        .update({ corriendo: false, tiempo_restante: 0 })
-        .eq("id", 1);
-
-      clearInterval(cronometro);
-      return;
-    }
-
-    await supabase
-      .from("estado_competencia")
-      .update({ tiempo_restante: nuevoTiempo, updated_at: new Date() })
-      .eq("id", 1);
-  }, 1000);
 
   res.json({ ok: true });
 }
@@ -96,8 +64,6 @@ export async function stopIntento(_req, res) {
     .eq("id", 1);
 
   if (error) return res.status(500).json({ error: error.message });
-
-  if (cronometro) clearInterval(cronometro);
 
   res.json({ ok: true });
 }
@@ -116,6 +82,9 @@ export async function updateAtletaActual(req, res) {
     juez1_valido: null,
     juez2_valido: null,
     juez3_valido: null,
+    juez1_tipo: null,
+    juez2_tipo: null,
+    juez3_tipo: null,
     intento_valido: null,
     updated_at: new Date(),
   };
