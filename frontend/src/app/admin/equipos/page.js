@@ -8,7 +8,7 @@ import {
   Tabs, Tab, Accordion, AccordionSummary, AccordionDetails, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material'
-import { MagnifyingGlass as SearchIcon, UsersThree as GroupAddIcon, UsersThree as GroupsIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon, UserGear as SupervisorAccountIcon, CaretDown as ExpandIcon, Trophy as TrophyIcon, Info as InfoIcon } from '@phosphor-icons/react'
+import { Search as SearchIcon, GroupAdd as GroupAddIcon, Groups as GroupsIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon, SupervisorAccount as SupervisorAccountIcon, ExpandMore as ExpandIcon, EmojiEvents as TrophyIcon, Info as InfoIcon } from '@mui/icons-material'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { EquipoForm } from '../../../components/modales/EquipoForm'
 import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
@@ -26,7 +26,7 @@ function CardMenu({ onEdit, onDelete }) {
         onClick={(e) => { e.stopPropagation(); setAnchor(e.currentTarget) }}
         sx={{ color: '#fff', bgcolor: 'rgba(0,0,0,0.25)', '&:hover': { bgcolor: 'rgba(0,0,0,0.4)' } }}
       >
-        <MoreVertIcon size={20} />
+        <MoreVertIcon sx={{ fontSize: 20 }} />
       </IconButton>
       <Menu
         anchorEl={anchor}
@@ -37,12 +37,12 @@ function CardMenu({ onEdit, onDelete }) {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         <MenuItem onClick={() => { onEdit(); setAnchor(null) }}>
-          <ListItemIcon><EditIcon size={20} color="#FF9800" /></ListItemIcon>
+          <ListItemIcon><EditIcon sx={{ fontSize: 20 }} htmlColor="#FF9800" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Editar</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => { onDelete(); setAnchor(null) }}>
-          <ListItemIcon><DeleteIcon size={20} color="#d32f2f" /></ListItemIcon>
+          <ListItemIcon><DeleteIcon sx={{ fontSize: 20 }} htmlColor="#d32f2f" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: 'error.main' }}>Eliminar</ListItemText>
         </MenuItem>
       </Menu>
@@ -66,7 +66,7 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
   if (!premiacion || premiacion.length === 0) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 1, color: 'text.secondary' }}>
-        <TrophyIcon size={56} style={{ opacity: 0.4 }} />
+        <TrophyIcon sx={{ fontSize: 56 }} style={{ opacity: 0.4 }} />
         <Typography>No hay datos de premiación.</Typography>
       </Box>
     )
@@ -75,7 +75,7 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
   return (
     <Box sx={{ maxWidth: 980, mx: 'auto' }}>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, color: muted }}>
-        <InfoIcon size={16} />
+        <InfoIcon sx={{ fontSize: 16 }} />
         <Typography variant="caption">
           Puesto por ranking absoluto de IPF GL. Puntos por puesto: 1°=12, 2°=9, 3°=8, 4°=7 … 10°+=1. Suma de todos los atletas del equipo.
         </Typography>
@@ -97,20 +97,20 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
                 overflow: 'hidden', '&:before': { display: 'none' },
               }}
             >
-              <AccordionSummary expandIcon={<ExpandIcon size={20} />} sx={{ px: 2, py: 0.5 }}>
+              <AccordionSummary expandIcon={<ExpandIcon sx={{ fontSize: 20 }} />} sx={{ px: 2, py: 0.5 }}>
                 <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
                   {/* Posición */}
                   <Box sx={{
                     width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontWeight: 800, fontSize: 16,
-                    bgcolor: medal || (isDark ? '#2a2a2a' : '#eceff1'),
+                    bgcolor: medal || (isDark ? '#3a3a3a' : '#eceff1'),
                     color: medal ? '#000' : 'text.secondary',
                   }}>
                     {eq.posicion}
                   </Box>
                   <Avatar src={eq.foto || undefined} sx={{ width: 40, height: 40, bgcolor: color, flexShrink: 0 }}>
-                    <GroupsIcon size={22} />
+                    <GroupsIcon sx={{ fontSize: 22 }} />
                   </Avatar>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
@@ -204,8 +204,8 @@ export default function EquiposPage() {
   const [newEquipo, setNewEquipo] = useState(EMPTY_EQUIPO)
 
   const { isDark } = useDarkMode()
-  const surface = isDark ? '#1a1a1a' : '#ffffff'
-  const border = isDark ? '#2a2a2a' : '#e0e0e0'
+  const surface = isDark ? '#2a2a2a' : '#ffffff'
+  const border = isDark ? '#3a3a3a' : '#e0e0e0'
 
   const fetchEquipos = async () => {
     setIsLoading(true)
@@ -365,8 +365,8 @@ export default function EquiposPage() {
         onChange={(e, v) => setVista(v)}
         sx={{ borderBottom: `1px solid ${border}`, minHeight: 40, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, minHeight: 40 }, '& .Mui-selected': { color: '#F57C00 !important' }, '& .MuiTabs-indicator': { backgroundColor: '#F57C00' } }}
       >
-        <Tab value="equipos" label="Equipos" icon={<GroupsIcon size={18} />} iconPosition="start" />
-        <Tab value="premiacion" label="Premiación" icon={<TrophyIcon size={18} />} iconPosition="start" />
+        <Tab value="equipos" label="Equipos" icon={<GroupsIcon sx={{ fontSize: 18 }} />} iconPosition="start" />
+        <Tab value="premiacion" label="Premiación" icon={<TrophyIcon sx={{ fontSize: 18 }} />} iconPosition="start" />
       </Tabs>
 
       {vista === 'equipos' && (
@@ -380,7 +380,7 @@ export default function EquiposPage() {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon size={18} style={{ opacity: 0.6 }} />
+                <SearchIcon sx={{ fontSize: 18 }} style={{ opacity: 0.6 }} />
               </InputAdornment>
             ),
             sx: { borderRadius: 2, backgroundColor: surface },
@@ -397,7 +397,7 @@ export default function EquiposPage() {
           </Box>
         ) : equiposFiltrados.length === 0 ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 1, color: 'text.secondary' }}>
-            <GroupsIcon size={56} style={{ opacity: 0.4 }} />
+            <GroupsIcon sx={{ fontSize: 56 }} style={{ opacity: 0.4 }} />
             <Typography>No hay equipos cargados.</Typography>
           </Box>
         ) : (
@@ -434,7 +434,7 @@ export default function EquiposPage() {
                       src={eq.foto || undefined}
                       sx={{ width: 72, height: 72, bgcolor: color, border: `4px solid ${surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
                     >
-                      <GroupsIcon size={32} />
+                      <GroupsIcon sx={{ fontSize: 32 }} />
                     </Avatar>
                   </Box>
 
@@ -443,7 +443,7 @@ export default function EquiposPage() {
                       {capitalizeWords(eq.nombre)}
                     </Typography>
                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center" sx={{ mt: 1, color: 'text.secondary' }}>
-                      <SupervisorAccountIcon size={16} />
+                      <SupervisorAccountIcon sx={{ fontSize: 16 }} />
                       <Typography variant="body2">
                         {eq.coach?.nombre ? capitalizeWords(eq.coach.nombre) : 'Sin coach'}
                       </Typography>

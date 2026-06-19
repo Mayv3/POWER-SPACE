@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Box, Avatar, IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Divider } from '@mui/material'
-import { DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon, UsersThree as GroupsIcon } from '@phosphor-icons/react'
+import { MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon, Groups as GroupsIcon } from '@mui/icons-material'
 import { capitalizeWords } from '../../utils/textUtils'
 
 function ActionsMenu({ row, handleEdit, handleDelete }) {
@@ -12,7 +12,7 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
   return (
     <>
       <IconButton size="small" onClick={open}>
-        <MoreVertIcon size={20} />
+        <MoreVertIcon sx={{ fontSize: 20 }} />
       </IconButton>
       <Menu
         anchorEl={anchor}
@@ -23,12 +23,12 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         <MenuItem onClick={() => { handleEdit(row); close() }}>
-          <ListItemIcon><EditIcon size={20} color="#FF9800" /></ListItemIcon>
+          <ListItemIcon><EditIcon sx={{ fontSize: 20 }} htmlColor="#FF9800" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Editar</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => { handleDelete(row); close() }}>
-          <ListItemIcon><DeleteIcon size={20} color="#d32f2f" /></ListItemIcon>
+          <ListItemIcon><DeleteIcon sx={{ fontSize: 20 }} htmlColor="#d32f2f" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: 'error.main' }}>Eliminar</ListItemText>
         </MenuItem>
       </Menu>
@@ -49,7 +49,7 @@ export const columnsEquipos = (handleEdit, handleDelete) => [
         src={params.value || undefined}
         sx={{ width: 30, height: 30, bgcolor: params.row.color || '#bdbdbd' }}
       >
-        <GroupsIcon size={18} />
+        <GroupsIcon sx={{ fontSize: 18 }} />
       </Avatar>
     ),
   },

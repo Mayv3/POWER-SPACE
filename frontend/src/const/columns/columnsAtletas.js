@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Chip, Divider, Avatar } from '@mui/material'
-import { UsersThree as GroupsIcon, User as PersonIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon } from '@phosphor-icons/react'
+import { Groups as GroupsIcon, Person as PersonIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { capitalizeWords } from '../../utils/textUtils'
 import { colorCategoria } from '../../utils/colorCategoria'
 
@@ -13,7 +13,7 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
   return (
     <>
       <IconButton size="small" onClick={open}>
-        <MoreVertIcon size={20} />
+        <MoreVertIcon sx={{ fontSize: 20 }} />
       </IconButton>
       <Menu
         anchorEl={anchor}
@@ -24,12 +24,12 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         <MenuItem onClick={() => { handleEdit(row); close() }}>
-          <ListItemIcon><EditIcon size={20} color="#FF9800" /></ListItemIcon>
+          <ListItemIcon><EditIcon sx={{ fontSize: 20 }} htmlColor="#FF9800" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Editar</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => { handleDelete(row); close() }}>
-          <ListItemIcon><DeleteIcon size={20} color="#d32f2f" /></ListItemIcon>
+          <ListItemIcon><DeleteIcon sx={{ fontSize: 20 }} htmlColor="#d32f2f" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: 'error.main' }}>Eliminar</ListItemText>
         </MenuItem>
       </Menu>
@@ -57,7 +57,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     renderCell: (params) => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Avatar src={params.row.foto || undefined} sx={{ width: 28, height: 28 }}>
-          <PersonIcon size={16} />
+          <PersonIcon sx={{ fontSize: 16 }} />
         </Avatar>
         {capitalizeWords(params.value)}
       </Box>
@@ -122,7 +122,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
         <Chip
           avatar={
             <Avatar src={eq.foto || undefined} sx={{ bgcolor: eq.color || '#bdbdbd' }}>
-              <GroupsIcon size={14} />
+              <GroupsIcon sx={{ fontSize: 14 }} />
             </Avatar>
           }
           label={eq.nombre}

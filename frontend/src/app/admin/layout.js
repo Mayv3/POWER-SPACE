@@ -21,7 +21,7 @@ export default function AdminLayout({ children }) {
           marginLeft: isDesktop ? '80px' : '0px',
           width: isDesktop ? 'calc(100% - 80px)' : '100%',
           transition: 'margin 0.3s ease, background-color 0.3s ease',
-          backgroundColor: isDark ? '#0d0d0d' : '#f5f5f5',
+          backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5',
         }}
       >
         {children}

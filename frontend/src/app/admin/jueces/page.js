@@ -5,7 +5,7 @@ import {
   Box, Typography, Paper, Button, Grid,
   Snackbar, Alert, Stack, Divider, Chip,
 } from '@mui/material'
-import { Copy as ContentCopyIcon, ArrowSquareOut as OpenInNewIcon, Gavel as GavelIcon } from '@phosphor-icons/react'
+import { ContentCopy as ContentCopyIcon, OpenInNew as OpenInNewIcon, Gavel as GavelIcon } from '@mui/icons-material'
 import { useDarkMode } from '../../../context/ThemeContext'
 
 export default function JuecesPage() {
@@ -13,8 +13,8 @@ export default function JuecesPage() {
   const [snackbarMessage, setSnackbarMessage] = useState('')
   const { isDark } = useDarkMode()
 
-  const surface = isDark ? '#1a1a1a' : '#ffffff'
-  const border  = isDark ? '#2a2a2a' : '#e0e0e0'
+  const surface = isDark ? '#2a2a2a' : '#ffffff'
+  const border  = isDark ? '#3a3a3a' : '#e0e0e0'
 
   const jueces = [
     { id: 1, nombre: 'Juez Secundario 1', rol: 'Lateral izquierdo', color: '#1976d2' },
@@ -78,7 +78,7 @@ export default function JuecesPage() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
                     }}>
-                      <GavelIcon size={28} color={juez.color} />
+                      <GavelIcon sx={{ fontSize: 28 }} htmlColor={juez.color} />
                     </Box>
                     <Box>
                       <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
@@ -95,7 +95,7 @@ export default function JuecesPage() {
                   {/* URL */}
                   <Box sx={{
                     px: 1.5, py: 1, borderRadius: 1.5, mb: 2,
-                    backgroundColor: isDark ? '#111' : '#f5f5f5',
+                    backgroundColor: isDark ? '#262626' : '#f5f5f5',
                     fontFamily: 'monospace', fontSize: '0.8rem',
                     color: 'text.secondary', letterSpacing: 0.3,
                   }}>

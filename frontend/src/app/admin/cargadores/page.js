@@ -7,7 +7,7 @@ import {
   Button, Stack, CircularProgress, Divider, Chip, Avatar,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField,
 } from '@mui/material'
-import { UsersThree as GroupsIcon, User as PersonIcon, CheckCircle as CheckCircleIcon, XCircle as CancelIcon, Play as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, Prohibit as BlockIcon, ArrowsClockwise as RestartAltIcon, Barbell as FitnessCenterIcon } from '@phosphor-icons/react'
+import { Groups as GroupsIcon, Person as PersonIcon, CheckCircle as CheckCircleIcon, Cancel as CancelIcon, PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, Block as BlockIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
@@ -233,8 +233,8 @@ export default function CargadoresPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const { isDark } = useDarkMode()
 
-  const surface = isDark ? '#1a1a1a' : '#ffffff'
-  const border  = isDark ? '#2a2a2a' : '#e0e0e0'
+  const surface = isDark ? '#2a2a2a' : '#ffffff'
+  const border  = isDark ? '#3a3a3a' : '#e0e0e0'
 
   const [atletas, setAtletas] = useState([])
   const [atletaSeleccionado, setAtletaSeleccionado] = useState(null)
@@ -571,7 +571,7 @@ export default function CargadoresPage() {
           <Chip
             avatar={
               <Avatar src={params.row.equipo_foto || undefined} sx={{ bgcolor: params.row.equipo_color || '#bdbdbd' }}>
-                <GroupsIcon size={14} />
+                <GroupsIcon sx={{ fontSize: 14 }} />
               </Avatar>
             }
             label={nombre}
@@ -604,8 +604,8 @@ export default function CargadoresPage() {
         return (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
             <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
-            {valido === false && <CancelIcon size={18} color="#f44336" />}
+            {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
+            {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
           </Box>
         )
       },
@@ -629,8 +629,8 @@ export default function CargadoresPage() {
         return (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
             <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
-            {valido === false && <CancelIcon size={18} color="#f44336" />}
+            {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
+            {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
           </Box>
         )
       },
@@ -654,8 +654,8 @@ export default function CargadoresPage() {
         return (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
             <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
-            {valido === false && <CancelIcon size={18} color="#f44336" />}
+            {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
+            {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
           </Box>
         )
       },
@@ -855,7 +855,7 @@ export default function CargadoresPage() {
                     sx={{
                       px: 2.5, py: 1, borderRadius: 3,
                       border: `1px solid ${border}`,
-                      backgroundColor: isDark ? '#141414' : '#fafafa',
+                      backgroundColor: isDark ? '#242424' : '#fafafa',
                     }}
                   >
                     {/* Equipo */}
@@ -946,7 +946,7 @@ export default function CargadoresPage() {
                     </Box>
                   ) : (
                     <Box sx={{ textAlign: 'center' }}>
-                      <FitnessCenterIcon size={64} style={{ marginBottom: 8, opacity: 0.38 }} />
+                      <FitnessCenterIcon sx={{ fontSize: 64 }} style={{ marginBottom: 8, opacity: 0.38 }} />
                       <Typography variant="h4" color="text.secondary">Solo barra (20 kg)</Typography>
                     </Box>
                   )
@@ -971,11 +971,11 @@ export default function CargadoresPage() {
                 <Stack direction="row" spacing={1.5}>
                   <Button variant="contained" onClick={iniciarCronometro} disabled={estadoJueces?.corriendo}
                     sx={{ width: 68, height: 68, bgcolor: '#ff6b35', '&:hover': { bgcolor: '#e55a27' }, borderRadius: 2 }}>
-                    <PlayArrowIcon size={40} />
+                    <PlayArrowIcon sx={{ fontSize: 40 }} />
                   </Button>
                   <Button variant="contained" color="error" onClick={detenerCronometro} disabled={!estadoJueces?.corriendo}
                     sx={{ width: 68, height: 68, borderRadius: 2 }}>
-                    <PauseIcon size={40} />
+                    <PauseIcon sx={{ fontSize: 40 }} />
                   </Button>
                 </Stack>
 
@@ -1001,17 +1001,17 @@ export default function CargadoresPage() {
                   <Button variant="contained" onClick={() => marcarIntento(true)}
                     disabled={!atletaSeleccionado || !pesoActual}
                     sx={{ width: 68, height: 68, bgcolor: '#00e676', '&:hover': { bgcolor: '#00c853' }, borderRadius: 2 }}>
-                    <CheckIcon size={40} />
+                    <CheckIcon sx={{ fontSize: 40 }} />
                   </Button>
                   <Button variant="contained" onClick={() => marcarIntento(false)}
                     disabled={!atletaSeleccionado || !pesoActual}
                     sx={{ width: 68, height: 68, bgcolor: '#ff1744', '&:hover': { bgcolor: '#d50000' }, borderRadius: 2 }}>
-                    <BlockIcon size={40} />
+                    <BlockIcon sx={{ fontSize: 40 }} />
                   </Button>
                   <Button variant="contained" onClick={restablecerIntento}
                     disabled={!atletaSeleccionado}
                     sx={{ width: 68, height: 68, bgcolor: '#FF9800', '&:hover': { bgcolor: '#F57C00' }, borderRadius: 2 }}>
-                    <RestartAltIcon size={40} />
+                    <RestartAltIcon sx={{ fontSize: 40 }} />
                   </Button>
                 </Stack>
               </Stack>
@@ -1024,7 +1024,7 @@ export default function CargadoresPage() {
             </Box>
           ) : (
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 4 }}>
-              <FitnessCenterIcon size={72} style={{ opacity: 0.38 }} />
+              <FitnessCenterIcon sx={{ fontSize: 72 }} style={{ opacity: 0.38 }} />
               <Typography variant="h6" color="text.secondary" textAlign="center">
                 Selecciona un atleta de la tabla para ver los discos
               </Typography>

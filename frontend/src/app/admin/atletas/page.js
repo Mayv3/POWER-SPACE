@@ -5,7 +5,7 @@ import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
   CircularProgress, Paper, Divider,
 } from '@mui/material'
-import { MagnifyingGlass as SearchIcon, UserPlus as PersonAddIcon, Users as GroupIcon } from '@phosphor-icons/react'
+import { Search as SearchIcon, PersonAdd as PersonAddIcon, Group as GroupIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
 import { GenericModal } from '../../../components/modales/GenericModal'
@@ -53,8 +53,8 @@ export default function AtletasPage() {
   const [equipos, setEquipos] = useState([])
 
   const { isDark } = useDarkMode()
-  const surface = isDark ? '#1a1a1a' : '#ffffff'
-  const border = isDark ? '#2a2a2a' : '#e0e0e0'
+  const surface = isDark ? '#2a2a2a' : '#ffffff'
+  const border = isDark ? '#3a3a3a' : '#e0e0e0'
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -217,7 +217,7 @@ export default function AtletasPage() {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon size={18} style={{ opacity: 0.6 }} />
+                  <SearchIcon sx={{ fontSize: 18 }} style={{ opacity: 0.6 }} />
                 </InputAdornment>
               ),
               sx: { borderRadius: 2 },

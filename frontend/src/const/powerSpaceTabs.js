@@ -1,4 +1,4 @@
-import { PersonSimpleRun as SportsGymnasticsIcon, Barbell as FitnessCenterIcon, Television as TvIcon, Gavel as GavelIcon, Eye as VisibilityIcon, Database as StorageIcon, UsersThree as GroupsIcon, UserGear as SupervisorAccountIcon } from "@phosphor-icons/react"
+import { SportsGymnastics as SportsGymnasticsIcon, FitnessCenter as FitnessCenterIcon, Tv as TvIcon, Gavel as GavelIcon, Visibility as VisibilityIcon, Storage as StorageIcon, Groups as GroupsIcon, SupervisorAccount as SupervisorAccountIcon } from "@mui/icons-material"
 
 export const powerspaceTabs = [
   { label: "Atletas", icon: <SportsGymnasticsIcon />, route: "/admin/atletas" },

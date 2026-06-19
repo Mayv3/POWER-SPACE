@@ -1,5 +1,5 @@
 import { Box, Chip } from '@mui/material'
-import { CheckCircle as CheckCircleIcon, XCircle as CancelIcon, Trophy as EmojiEventsIcon } from '@phosphor-icons/react'
+import { CheckCircle as CheckCircleIcon, Cancel as CancelIcon, EmojiEvents as EmojiEventsIcon } from '@mui/icons-material'
 import { capitalizeWords } from '../../utils/textUtils'
 import { colorCategoria } from '../../utils/colorCategoria'
 
@@ -80,8 +80,8 @@ const renderIntentoCell = (params, field, validoField, onCellClick, ejercicio) =
       }}
     >
       <span>{peso}</span>
-      {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
-      {valido === false && <CancelIcon size={18} color="#f44336" />}
+      {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
+      {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
     </Box>
   )
 }

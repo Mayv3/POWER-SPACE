@@ -7,7 +7,7 @@ import {
   TextField, FormControlLabel, Checkbox, Alert, Snackbar, IconButton, Tooltip,
   Tabs, Tab, Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material'
-import { FloppyDisk as SaveIcon, Broom as CleaningServicesIcon, Eye as VisibilityIcon, Trash as DeleteIcon, Archive as InventoryIcon } from '@phosphor-icons/react'
+import { Save as SaveIcon, CleaningServices as CleaningServicesIcon, Visibility as VisibilityIcon, Delete as DeleteIcon, Inventory2 as InventoryIcon } from '@mui/icons-material'
 import { useDarkMode } from '../../../context/ThemeContext'
 
 const API = process.env.NEXT_PUBLIC_API_URL
@@ -35,8 +35,8 @@ export default function HistoricoPage() {
   const [verTab, setVerTab] = useState(0)
 
   const { isDark } = useDarkMode()
-  const surface = isDark ? '#1a1a1a' : '#ffffff'
-  const border = isDark ? '#2a2a2a' : '#e0e0e0'
+  const surface = isDark ? '#2a2a2a' : '#ffffff'
+  const border = isDark ? '#3a3a3a' : '#e0e0e0'
 
   const showToast = (msg, severity = 'success') => setToast({ open: true, msg, severity })
 
@@ -175,7 +175,7 @@ export default function HistoricoPage() {
         sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', border: `1px solid ${border}`, borderRadius: 3, overflow: 'hidden', backgroundColor: surface }}
       >
         <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <InventoryIcon size={18} style={{ opacity: 0.6 }} />
+          <InventoryIcon sx={{ fontSize: 18 }} style={{ opacity: 0.6 }} />
           <Typography variant="body2" color="text.secondary">
             {snapshots.length} {snapshots.length === 1 ? 'respaldo' : 'respaldos'}
           </Typography>
@@ -197,7 +197,7 @@ export default function HistoricoPage() {
                 <Paper
                   key={snap.id}
                   variant="outlined"
-                  sx={{ p: 2, borderRadius: 2, borderColor: border, backgroundColor: isDark ? '#222' : '#fafafa' }}
+                  sx={{ p: 2, borderRadius: 2, borderColor: border, backgroundColor: isDark ? '#2f2f2f' : '#fafafa' }}
                 >
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
                     <Box sx={{ minWidth: 0 }}>

@@ -6,7 +6,7 @@ import {
   CircularProgress, Card, CardContent, Avatar, IconButton,
   Menu, MenuItem, ListItemIcon, ListItemText, Divider,
 } from '@mui/material'
-import { MagnifyingGlass as SearchIcon, UserPlus as PersonAddIcon, UserGear as SupervisorAccountIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon } from '@phosphor-icons/react'
+import { Search as SearchIcon, PersonAdd as PersonAddIcon, SupervisorAccount as SupervisorAccountIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { CoachForm } from '../../../components/modales/CoachForm'
 import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
@@ -29,7 +29,7 @@ function CardMenu({ onEdit, onDelete }) {
   return (
     <>
       <IconButton size="small" onClick={(e) => { e.stopPropagation(); setAnchor(e.currentTarget) }}>
-        <MoreVertIcon size={20} />
+        <MoreVertIcon sx={{ fontSize: 20 }} />
       </IconButton>
       <Menu
         anchorEl={anchor}
@@ -40,12 +40,12 @@ function CardMenu({ onEdit, onDelete }) {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         <MenuItem onClick={() => { onEdit(); setAnchor(null) }}>
-          <ListItemIcon><EditIcon size={20} color="#FF9800" /></ListItemIcon>
+          <ListItemIcon><EditIcon sx={{ fontSize: 20 }} htmlColor="#FF9800" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Editar</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => { onDelete(); setAnchor(null) }}>
-          <ListItemIcon><DeleteIcon size={20} color="#d32f2f" /></ListItemIcon>
+          <ListItemIcon><DeleteIcon sx={{ fontSize: 20 }} htmlColor="#d32f2f" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: 'error.main' }}>Eliminar</ListItemText>
         </MenuItem>
       </Menu>
@@ -72,8 +72,8 @@ export default function CoachesPage() {
   const [newCoach, setNewCoach] = useState({ nombre: '', foto: null })
 
   const { isDark } = useDarkMode()
-  const surface = isDark ? '#1a1a1a' : '#ffffff'
-  const border = isDark ? '#2a2a2a' : '#e0e0e0'
+  const surface = isDark ? '#2a2a2a' : '#ffffff'
+  const border = isDark ? '#3a3a3a' : '#e0e0e0'
 
   const fetchCoaches = async () => {
     setIsLoading(true)
@@ -192,7 +192,7 @@ export default function CoachesPage() {
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <SearchIcon size={18} style={{ opacity: 0.6 }} />
+              <SearchIcon sx={{ fontSize: 18 }} style={{ opacity: 0.6 }} />
             </InputAdornment>
           ),
           sx: { borderRadius: 2, backgroundColor: surface },
@@ -206,7 +206,7 @@ export default function CoachesPage() {
           </Box>
         ) : coachesFiltrados.length === 0 ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 1, color: 'text.secondary' }}>
-            <SupervisorAccountIcon size={56} style={{ opacity: 0.4 }} />
+            <SupervisorAccountIcon sx={{ fontSize: 56 }} style={{ opacity: 0.4 }} />
             <Typography>No hay coaches cargados.</Typography>
           </Box>
         ) : (
@@ -241,7 +241,7 @@ export default function CoachesPage() {
                       {capitalizeWords(c.nombre)}
                     </Typography>
                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                      <SupervisorAccountIcon size={16} />
+                      <SupervisorAccountIcon sx={{ fontSize: 16 }} />
                       <Typography variant="body2">Coach</Typography>
                     </Stack>
                   </CardContent>
