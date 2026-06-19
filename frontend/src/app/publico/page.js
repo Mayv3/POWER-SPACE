@@ -420,11 +420,20 @@ export default function PublicoPage() {
                 </div>
 
                 <div style={{ padding: '18px 16px' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: T.txt3 }}>PLATAFORMA</div>
-                    <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 32, lineHeight: .95, color: '#f7f8fa', textTransform: 'uppercase', letterSpacing: '.01em', marginTop: 5 }}>{live.name}</div>
-                    <div style={{ fontSize: 13, color: T.txt2, marginTop: 6 }}>{live.cat}</div>
-                    <div style={{ fontFamily: FM, fontSize: 11, color: T.txt3, marginTop: 4 }}>{live.bw ?? '—'} kg BW · {live.age ?? '—'} años</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                    <div style={{ flex: 'none', width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: 'rgba(192,249,59,.12)', border: '2px solid rgba(192,249,59,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {liveA?.foto ? (
+                        <img src={liveA.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                      ) : (
+                        <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 26, color: T.lime }}>{(atletaEnVivo?.nombre?.[0] || '') + (atletaEnVivo?.apellido?.[0] || '')}</span>
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: T.txt3 }}>PLATAFORMA</div>
+                      <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 32, lineHeight: .95, color: '#f7f8fa', textTransform: 'uppercase', letterSpacing: '.01em', marginTop: 5 }}>{live.name}</div>
+                      <div style={{ fontSize: 13, color: T.txt2, marginTop: 6 }}>{live.cat}</div>
+                      <div style={{ fontFamily: FM, fontSize: 11, color: T.txt3, marginTop: 4 }}>{live.bw ?? '—'} kg BW · {live.age ?? '—'} años</div>
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'stretch', gap: 10, marginTop: 16 }}>
