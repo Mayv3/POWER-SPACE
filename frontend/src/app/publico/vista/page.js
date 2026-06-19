@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Box, Typography, Paper } from '@mui/material'
-import { supabase } from '../../../lib/supabaseClient'
+import { Box, Typography, Paper, Avatar } from '@mui/material'
+import { UsersThree as GroupsIcon, User as PersonIcon } from '@phosphor-icons/react'
+import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
+import { joinCompetenciaLive } from '../../../lib/competenciaLive'
 
 export default function VistaPublicaPage() {
     const [estadoCompetencia, setEstadoCompetencia] = useState(null)
@@ -12,6 +14,12 @@ export default function VistaPublicaPage() {
     const resultTimerRef = useRef(null)
     const dismissTimerRef = useRef(null)
     const corridoRef = useRef(false)
+
+    // Presentación animada del equipo + coach al seleccionar un atleta
+    const [presentacion, setPresentacion] = useState(null)
+    const [mostrarPresentacion, setMostrarPresentacion] = useState(false)
+    const presentIdRef = useRef(null)
+    const presentTimerRef = useRef(null)
 
     const iniciarTimerLocal = (segundosInicio) => {
         if (timerRef.current) clearInterval(timerRef.current)
@@ -28,6 +36,20 @@ export default function VistaPublicaPage() {
     }
 
     useEffect(() => {
+        // Aplica un cambio de estado. full=fila completa (postgres_changes); parcial=broadcast (merge).
+        const aplicarEstado = (incoming, full) => {
+            setEstadoCompetencia(prev => (full ? incoming : (prev ? { ...prev, ...incoming } : prev)))
+            if (incoming.corriendo !== undefined && incoming.corriendo !== null) {
+                if (incoming.corriendo && !corridoRef.current) {
+                    iniciarTimerLocal(incoming.tiempo_restante ?? 60)
+                } else if (!incoming.corriendo && corridoRef.current) {
+                    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+                    setTiempoLocal(incoming.tiempo_restante ?? 60)
+                }
+                corridoRef.current = incoming.corriendo
+            }
+        }
+
         const fetchEstado = async () => {
             const { data, error } = await supabase
                 .from('estado_competencia')
@@ -43,28 +65,22 @@ export default function VistaPublicaPage() {
         }
         fetchEstado()
 
+        // Autoritativo: reconcilia el estado real (puede llegar 300-700ms después)
         const channel = supabase
             .channel('public:estado_competencia_vista')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'estado_competencia', filter: 'id=eq.1' },
-                (payload) => {
-                    const nuevaData = payload.new
-                    setEstadoCompetencia(nuevaData)
-
-                    if (nuevaData.corriendo && !corridoRef.current) {
-                        iniciarTimerLocal(nuevaData.tiempo_restante ?? 60)
-                    } else if (!nuevaData.corriendo && corridoRef.current) {
-                        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-                        setTiempoLocal(nuevaData.tiempo_restante ?? 60)
-                    }
-                    corridoRef.current = nuevaData.corriendo
-                }
+                (payload) => aplicarEstado(payload.new, true)
             )
             .subscribe()
 
+        // Fast-path: luces de jueces / atleta / cronómetro al instante (~50-150ms)
+        const live = joinCompetenciaLive((parcial) => aplicarEstado(parcial, false))
+
         return () => {
             supabase.removeChannel(channel)
+            live.leave()
             if (timerRef.current) clearInterval(timerRef.current)
         }
     }, [])
@@ -89,6 +105,40 @@ export default function VistaPublicaPage() {
             clearTimeout(dismissTimerRef.current)
         }
     }, [todosVotaron])
+
+    // Al cambiar el atleta en curso: traer su equipo/coach y mostrar presentación animada
+    useEffect(() => {
+        const aid = estadoCompetencia?.atleta_id
+        if (!aid || presentIdRef.current === aid) return
+        presentIdRef.current = aid
+
+        let cancelado = false
+        ;(async () => {
+            try {
+                const rows = await fetchAtletasConIntentos({ atletaId: aid })
+                const a = rows?.[0]
+                if (cancelado) return
+                if (!a || (!a.foto && !a.equipo_nombre)) { setMostrarPresentacion(false); return }
+                setPresentacion({
+                    atletaNombre: `${a.nombre ?? ''} ${a.apellido ?? ''}`.trim(),
+                    atletaFoto: a.foto || null,
+                    equipoNombre: a.equipo_nombre || null,
+                    equipoColor: a.equipo_color || '#FFA500',
+                    equipoFoto: a.equipo_foto || null,
+                    coachNombre: a.equipo_coach_nombre || null,
+                    coachFoto: a.equipo_coach_foto || null,
+                })
+                setMostrarPresentacion(true)
+                clearTimeout(presentTimerRef.current)
+                presentTimerRef.current = setTimeout(() => setMostrarPresentacion(false), 3500)
+            } catch (err) {
+                console.error('Error al cargar presentación de equipo:', err)
+            }
+        })()
+        return () => { cancelado = true }
+    }, [estadoCompetencia?.atleta_id])
+
+    useEffect(() => () => clearTimeout(presentTimerRef.current), [])
 
     const obtenerNombreEjercicio = (ejercicio) => {
         switch (ejercicio) {
@@ -160,17 +210,18 @@ export default function VistaPublicaPage() {
                 </Paper>
             </Box>
 
-            <Paper elevation={0} sx={{ display: 'flex', maxHeight: '400px', backgroundColor: '#000', color: 'white', border: 'none', boxShadow: 'none' }}>
+            <Paper elevation={0} sx={{ display: 'flex', maxHeight: '760px', backgroundColor: '#000', color: 'white', border: 'none', boxShadow: 'none' }}>
                 <Box sx={{ display: 'flex', gap: 3, flexDirection: 'row', width: '100%', height: '60vh', ml: 'auto', alignItems: 'center' }}>
                     <Paper elevation={8} className='aspect-square flex justify-center' sx={{
                         backgroundColor: 'transparent', height: '100%', width: '100%',
                         display: 'flex', flexDirection: 'column', justifyContent: 'center',
                         borderRadius: 2, gap: 4,
                     }}>
-                        <div className="flex justify-center items-end w-full gap-15">
+                        <div className="flex justify-center items-stretch w-full gap-15" style={{ height: '100%' }}>
                             {[1, 2, 3].map((num) => {
                                 const valor = estadoCompetencia[`juez${num}_valido`]
                                 const tipo = estadoCompetencia[`juez${num}_tipo`]
+                                const haVotado = valor !== null && valor !== undefined
 
                                 let colorPrincipal, sombra, colorTipo, labelTipo
                                 if (!todosVotaron) {
@@ -189,21 +240,35 @@ export default function VistaPublicaPage() {
                                 }
 
                                 return (
-                                    <div key={num} className="flex flex-col items-center gap-3" style={{ width: '27%' }}>
-                                        <div
-                                            className={`w-full aspect-square rounded-full transition-all duration-300 ${sombra}`}
-                                            style={{ backgroundColor: colorPrincipal }}
-                                        />
+                                    <div key={num} className="flex flex-col items-center justify-between gap-3" style={{ width: '33%', height: '100%', paddingTop: '20px', paddingBottom: '20px' }}>
+                                        {/* Tarea 5: circulito blanco arriba de la luz cuando el referee ya voto (no revela resultado) */}
+                                        <div style={{ height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {haVotado && (
+                                                <div style={{
+                                                    width: '26px', height: '26px', borderRadius: '50%',
+                                                    backgroundColor: '#fff',
+                                                    boxShadow: '0 0 14px 4px rgba(255,255,255,0.7)',
+                                                }} />
+                                            )}
+                                        </div>
+                                        {/* Luz: se dimensiona por el alto disponible para no desbordar */}
+                                        <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+                                            <div
+                                                className={`rounded-full transition-all duration-300 ${sombra}`}
+                                                style={{ backgroundColor: colorPrincipal, height: '100%', maxHeight: '100%', maxWidth: '100%', aspectRatio: '1' }}
+                                            />
+                                        </div>
                                         {colorTipo ? (
                                             <div style={{
+                                                flexShrink: 0,
                                                 backgroundColor: colorTipo,
-                                                borderRadius: '8px',
-                                                width: '22%',
-                                                height: '44px',
-                                                boxShadow: `0 0 14px 4px ${colorTipo}99`,
+                                                borderRadius: '10px',
+                                                width: '28%',
+                                                height: '48px',
+                                                boxShadow: `0 0 16px 5px ${colorTipo}99`,
                                             }} />
                                         ) : (
-                                            <div style={{ height: '36px' }} />
+                                            <div style={{ height: '48px', flexShrink: 0 }} />
                                         )}
                                     </div>
                                 )
@@ -239,6 +304,87 @@ export default function VistaPublicaPage() {
                     {esValido ? 'VÁLIDO' : 'NULO'}
                 </Typography>
             </Box>
+
+            {/* Presentación animada del equipo + coach */}
+            {presentacion && (
+                <Box sx={{
+                    position: 'fixed', inset: 0, zIndex: 150,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5vh',
+                    background: `radial-gradient(circle at 50% 38%, ${presentacion.equipoColor}55 0%, #000 65%)`,
+                    backgroundColor: '#000',
+                    opacity: mostrarPresentacion ? 1 : 0,
+                    pointerEvents: 'none',
+                    transition: 'opacity 0.5s ease',
+                }}>
+                    <Box sx={{
+                        transform: mostrarPresentacion ? 'scale(1)' : 'scale(0.4)',
+                        opacity: mostrarPresentacion ? 1 : 0,
+                        transition: 'transform 0.6s cubic-bezier(0.34,1.4,0.64,1) 0.15s, opacity 0.5s ease 0.15s',
+                    }}>
+                        <Avatar src={presentacion.atletaFoto || undefined} sx={{
+                            width: '44vh', height: '44vh', bgcolor: presentacion.equipoColor,
+                            boxShadow: `0 0 100px 20px ${presentacion.equipoColor}88`,
+                        }}>
+                            <PersonIcon color="#fff" style={{ width: '22vh', height: '22vh' }} />
+                        </Avatar>
+                    </Box>
+
+                    <Typography sx={{
+                        color: '#fff', fontWeight: 900, fontSize: '13vh', letterSpacing: 6, textAlign: 'center', lineHeight: 1,
+                        textShadow: `0 0 60px ${presentacion.equipoColor}aa`,
+                        opacity: mostrarPresentacion ? 1 : 0,
+                        transform: mostrarPresentacion ? 'translateY(0)' : 'translateY(40px)',
+                        transition: 'all 0.55s ease 0.3s',
+                    }}>
+                        {presentacion.atletaNombre?.toUpperCase()}
+                    </Typography>
+
+                    {(presentacion.equipoNombre || presentacion.coachNombre) && (
+                        <Box sx={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6vh', flexWrap: 'wrap',
+                            opacity: mostrarPresentacion ? 1 : 0,
+                            transform: mostrarPresentacion ? 'translateY(0)' : 'translateY(40px)',
+                            transition: 'all 0.55s ease 0.45s',
+                        }}>
+                            {presentacion.equipoNombre && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: '3vh' }}>
+                                    <Avatar src={presentacion.equipoFoto || undefined} sx={{
+                                        width: '17vh', height: '17vh', bgcolor: presentacion.equipoColor,
+                                    }}>
+                                        <GroupsIcon color="#fff" style={{ width: '8.5vh', height: '8.5vh' }} />
+                                    </Avatar>
+                                    <Box sx={{ textAlign: 'left' }}>
+                                        <Typography sx={{ color: presentacion.equipoColor, letterSpacing: 10, fontWeight: 700, fontSize: '2.4rem', lineHeight: 1 }}>
+                                            EQUIPO
+                                        </Typography>
+                                        <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '6.5vh', lineHeight: 1.1 }}>
+                                            {presentacion.equipoNombre.trim().toUpperCase()}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
+                            {presentacion.coachNombre && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: '3vh' }}>
+                                    <Avatar src={presentacion.coachFoto || undefined} sx={{
+                                        width: '17vh', height: '17vh', bgcolor: '#222',
+                                    }}>
+                                        <PersonIcon color="#fff" style={{ width: '8.5vh', height: '8.5vh' }} />
+                                    </Avatar>
+                                    <Box sx={{ textAlign: 'left' }}>
+                                        <Typography sx={{ color: presentacion.equipoColor, letterSpacing: 10, fontWeight: 700, fontSize: '2.4rem', lineHeight: 1 }}>
+                                            COACH
+                                        </Typography>
+                                        <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '6.5vh', lineHeight: 1.1 }}>
+                                            {presentacion.coachNombre.trim().toUpperCase()}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+                        </Box>
+                    )}
+                </Box>
+            )}
         </Box>
     )
 }

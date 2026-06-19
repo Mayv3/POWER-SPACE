@@ -35,9 +35,15 @@ export function GenericDataGrid({
           '& .MuiDataGrid-columnHeaders': { backgroundColor: bg },
           '& .MuiDataGrid-columnHeader': { backgroundColor: bg },
           '& .MuiDataGrid-columnHeadersInner': { backgroundColor: bg },
-          '& .MuiDataGrid-virtualScroller': { backgroundColor: bg },
+          '& .MuiDataGrid-virtualScroller': {
+            backgroundColor: bg,
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
+          },
           '& .MuiDataGrid-footerContainer': { backgroundColor: bg },
           '& .MuiDataGrid-cell': { fontSize: '0.9rem' },
+          // Celda de categoria pintada de borde a borde
+          '& .cat-cell': { padding: 0 },
           '& .MuiDataGrid-columnHeaderTitle': { fontSize: '0.9rem', fontWeight: 700 },
           '& .MuiDataGrid-row': {
             cursor: onRowClick || onCellClick ? 'pointer' : 'default',
@@ -74,6 +80,8 @@ export function GenericDataGrid({
         }}
         checkboxSelection={false}
         hideFooterSelectedRowCount
+        rowHeight={36}
+        columnHeaderHeight={40}
         rows={rows}
         columns={columns}
         disableColumnResize
@@ -96,10 +104,10 @@ export function GenericDataGrid({
         {...(paginationMode === 'client' && {
           initialState: {
             sorting: { sortModel: [{ field: 'nombre', sort: 'asc' }] },
-            pagination: { paginationModel: { page: 0, pageSize: 20 } },
+            pagination: { paginationModel: { page: 0, pageSize: 19 } },
           },
         })}
-        pageSizeOptions={[20]}
+        pageSizeOptions={[19]}
       />
     </Box>
   );

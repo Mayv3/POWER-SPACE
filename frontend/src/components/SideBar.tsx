@@ -14,9 +14,7 @@ import {
   Divider,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
-import LogoutIcon from '@mui/icons-material/Logout'
-import DarkModeIcon from '@mui/icons-material/DarkMode'
-import LightModeIcon from '@mui/icons-material/LightMode'
+import { SignOut as LogoutIcon, Moon as DarkModeIcon, Sun as LightModeIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useDarkMode } from '../context/ThemeContext'

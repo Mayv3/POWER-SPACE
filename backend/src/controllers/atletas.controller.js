@@ -4,7 +4,7 @@ export async function getAtletas(req, res) {
     try {
         const { data, error } = await supabase
             .from("atletas")
-            .select("*")
+            .select("*, equipo:equipos(id, nombre, color, foto)")
             .order("tanda_id", { ascending: true })
             .order("apellido", { ascending: true });
 
@@ -117,7 +117,9 @@ export async function createAtleta(req, res) {
             primer_intento_peso_muerto,
             sexo,
             altura_rack_sentadilla,
-            altura_rack_banco
+            altura_rack_banco,
+            equipo_id,
+            foto
         } = req.body;
 
         console.log(req.body);
@@ -152,16 +154,44 @@ export async function createAtleta(req, res) {
             sexo,
             altura_rack_sentadilla,
             altura_rack_banco,
+            equipo_id: equipo_id || null,
+            foto: foto || null,
             created_at: new Date()
         };
 
-        const { data, error } = await supabase
+        // Generar numero de Lot aleatorio (1-99) unico entre los atletas anotados
+        const { data: lotsUsados, error: lotError } = await supabase
             .from("atletas")
-            .insert([atleta])
-            .select()
-            .single();
+            .select("lot")
+            .not("lot", "is", null);
+        if (lotError) throw lotError;
 
-        if (error) throw error;
+        const ocupados = new Set((lotsUsados || []).map(a => a.lot));
+        const disponibles = [];
+        for (let n = 1; n <= 99; n++) {
+            if (!ocupados.has(n)) disponibles.push(n);
+        }
+        if (disponibles.length === 0) {
+            return res.status(409).json({ error: "No hay numeros de Lot disponibles (maximo 99 atletas)" });
+        }
+
+        // Intentar insertar reasignando el lot si otro proceso lo tomo (colision UNIQUE 23505)
+        let data = null;
+        let lastError = null;
+        const intentos = Math.min(disponibles.length, 10);
+        for (let i = 0; i < intentos; i++) {
+            const lot = disponibles[Math.floor(Math.random() * disponibles.length)];
+            const { data: inserted, error } = await supabase
+                .from("atletas")
+                .insert([{ ...atleta, lot }])
+                .select()
+                .single();
+
+            if (!error) { data = inserted; break; }
+            if (error.code === "23505") { lastError = error; continue; }
+            throw error;
+        }
+        if (!data) throw (lastError || new Error("No se pudo asignar el numero de Lot"));
 
         res.status(201).json({
             message: "Atleta creado correctamente",
@@ -197,7 +227,9 @@ export async function updateAtleta(req, res) {
             tercer_intento_peso_muerto,
             sexo,
             altura_rack_sentadilla,
-            altura_rack_banco
+            altura_rack_banco,
+            equipo_id,
+            foto
         } = req.body;
 
         const updatedData = {
@@ -221,7 +253,9 @@ export async function updateAtleta(req, res) {
             tercer_intento_peso_muerto,
             sexo,
             altura_rack_sentadilla,
-            altura_rack_banco
+            altura_rack_banco,
+            equipo_id: equipo_id || null,
+            foto: foto || null
         };
 
         const { data, error } = await supabase

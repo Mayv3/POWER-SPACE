@@ -5,9 +5,7 @@ import {
   Box, Typography, Paper, Button, Grid,
   Snackbar, Alert, Stack, Divider, Chip,
 } from '@mui/material'
-import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-import GavelIcon from '@mui/icons-material/Gavel'
+import { Copy as ContentCopyIcon, ArrowSquareOut as OpenInNewIcon, Gavel as GavelIcon } from '@phosphor-icons/react'
 import { useDarkMode } from '../../../context/ThemeContext'
 
 export default function JuecesPage() {
@@ -80,7 +78,7 @@ export default function JuecesPage() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
                     }}>
-                      <GavelIcon sx={{ fontSize: 28, color: juez.color }} />
+                      <GavelIcon size={28} color={juez.color} />
                     </Box>
                     <Box>
                       <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>

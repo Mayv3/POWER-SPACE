@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Box, Button, Typography, Stack, CircularProgress } from '@mui/material'
 import { supabase } from '../../../lib/supabaseClient'
+import { joinCompetenciaLive } from '../../../lib/competenciaLive'
 
 export default function JuezPage() {
   const { id } = useParams()
   const [estado, setEstado] = useState(null)
   const [loading, setLoading] = useState(true)
   const [mostrarTipos, setMostrarTipos] = useState(false)
+  const liveRef = useRef<{ send: (p: Record<string, unknown>) => void; leave: () => void } | null>(null)
 
   const fetchEstado = async () => {
     try {
@@ -41,18 +43,24 @@ export default function JuezPage() {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Canal de broadcast: emite el voto al instante a la vista pública.
+    liveRef.current = joinCompetenciaLive()
+
+    return () => { supabase.removeChannel(channel); liveRef.current?.leave() }
   }, [])
 
   const enviarDecision = async (valido: boolean, tipo?: number) => {
     setMostrarTipos(false)
     const colValido = `juez${id}_valido`
     const colTipo = `juez${id}_tipo`
-    const updateData: Record<string, unknown> = { [colValido]: valido, updated_at: new Date() }
-    if (!valido && tipo !== undefined) updateData[colTipo] = tipo
-    else updateData[colTipo] = null
-
-    const { error } = await supabase.from('estado_competencia').update(updateData).eq('id', 1)
+    const partial: Record<string, unknown> = {
+      [colValido]: valido,
+      [colTipo]: (!valido && tipo !== undefined) ? tipo : null,
+    }
+    // 1) Fast-path: la luz aparece en la vista en ~50-150ms (no espera al WAL).
+    liveRef.current?.send(partial)
+    // 2) Persistir (fuente autoritativa; postgres_changes reconcilia al resto).
+    const { error } = await supabase.from('estado_competencia').update({ ...partial, updated_at: new Date() }).eq('id', 1)
     if (error) console.error('Error al enviar decisión:', error)
   }
 

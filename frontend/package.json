@@ -10,9 +10,9 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
     "@mui/x-data-grid": "^8.14.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.76.1",
     "next": "^15.5.14",
     "react": "19.1.0",

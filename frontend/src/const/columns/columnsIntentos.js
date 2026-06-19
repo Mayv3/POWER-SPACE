@@ -1,8 +1,7 @@
 import { Box, Chip } from '@mui/material'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import CancelIcon from '@mui/icons-material/Cancel'
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import { CheckCircle as CheckCircleIcon, XCircle as CancelIcon, Trophy as EmojiEventsIcon } from '@phosphor-icons/react'
 import { capitalizeWords } from '../../utils/textUtils'
+import { colorCategoria } from '../../utils/colorCategoria'
 
 const getMejorIntento = (row, ejercicio) => {
   let intentos = []
@@ -81,16 +80,25 @@ const renderIntentoCell = (params, field, validoField, onCellClick, ejercicio) =
       }}
     >
       <span>{peso}</span>
-      {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
-      {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+      {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
+      {valido === false && <CancelIcon size={18} color="#f44336" />}
     </Box>
   )
 }
 
 export const columnsIntentos = (onCellClick) => [
-  { 
-    field: 'apellido', 
-    headerName: 'Atleta', 
+  {
+    field: 'lot',
+    headerName: 'Lot',
+    flex: 0.05,
+    align: 'center',
+    headerAlign: 'center',
+    type: 'number',
+    renderCell: (params) => params.value ?? '-',
+  },
+  {
+    field: 'apellido',
+    headerName: 'Atleta',
     flex: 0.15, 
     align: 'center', 
     headerAlign: 'center',
@@ -112,12 +120,22 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
   },
-  { 
-    field: 'categoria', 
-    headerName: 'Categoría', 
-    flex: 0.1, 
-    align: 'center', 
-    headerAlign: 'center' 
+  {
+    field: 'categoria',
+    headerName: 'Categoría',
+    flex: 0.1,
+    align: 'center',
+    headerAlign: 'center',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => (
+      <Box sx={{
+        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: params.value ? colorCategoria(params.value) : 'transparent',
+        color: params.value ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
+      }}>
+        {params.value || '-'}
+      </Box>
+    )
   },
   { 
     field: 'modalidad', 

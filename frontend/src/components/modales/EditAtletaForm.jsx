@@ -1,9 +1,17 @@
 'use client'
 
-import { Box, Stack, TextField, MenuItem, Typography, Divider } from '@mui/material'
+import { useState } from 'react'
+import {
+  Box, Stack, TextField, MenuItem, Typography, Divider,
+  Avatar, Button, CircularProgress, IconButton,
+} from '@mui/material'
+import { Camera as PhotoCameraIcon, User as PersonIcon, Trash as DeleteOutlineIcon } from '@phosphor-icons/react'
 import { capitalizeWords } from '../../utils/textUtils'
 import categorias from '../../const/categorias/categorias'
-export function EditAtletaForm({ atleta, onChange }) {
+import { supabase } from '../../lib/supabaseClient'
+export function EditAtletaForm({ atleta, onChange, equipos = [] }) {
+  const [uploading, setUploading] = useState(false)
+
   const handleChange = (e) => {
     const { name, value } = e.target
 
@@ -11,6 +19,27 @@ export function EditAtletaForm({ atleta, onChange }) {
       onChange({ ...atleta, [name]: capitalizeWords(value) })
     } else {
       onChange({ ...atleta, [name]: value })
+    }
+  }
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `atletas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage
+        .from('atletas')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (error) throw error
+      const { data } = supabase.storage.from('atletas').getPublicUrl(path)
+      onChange({ ...atleta, foto: data.publicUrl })
+    } catch (err) {
+      console.error('Error al subir foto:', err)
+      alert('No se pudo subir la foto.')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -28,6 +57,39 @@ export function EditAtletaForm({ atleta, onChange }) {
 
   return (
     <Box component="form" sx={{ width: '100%', mt: 1 }}>
+      {/* Foto (opcional) */}
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
+        <Avatar src={atleta.foto || undefined} sx={{ width: 72, height: 72 }}>
+          <PersonIcon />
+        </Avatar>
+        <Box>
+          <Button
+            component="label"
+            variant="outlined"
+            size="small"
+            startIcon={uploading ? <CircularProgress size={16} /> : <PhotoCameraIcon />}
+            disabled={uploading}
+            sx={{ textTransform: 'none' }}
+          >
+            {uploading ? 'Subiendo...' : (atleta.foto ? 'Cambiar foto' : 'Subir foto')}
+            <input hidden type="file" accept="image/*" onChange={handleFile} />
+          </Button>
+          {atleta.foto && (
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => onChange({ ...atleta, foto: null })}
+              sx={{ ml: 1 }}
+            >
+              <DeleteOutlineIcon size={20} />
+            </IconButton>
+          )}
+          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+            Opcional
+          </Typography>
+        </Box>
+      </Stack>
+
       <TextField
         fullWidth
         name="nombre"
@@ -116,6 +178,26 @@ export function EditAtletaForm({ atleta, onChange }) {
           <MenuItem value={4}>Tanda 4</MenuItem>
         </TextField>
       </Stack>
+
+      <TextField
+        select
+        fullWidth
+        name="equipo_id"
+        label="Equipo"
+        value={atleta.equipo_id || ''}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        sx={{ mb: 2 }}
+      >
+        <MenuItem value="">
+          <em>Sin equipo</em>
+        </MenuItem>
+        {equipos.map((eq) => (
+          <MenuItem key={eq.id} value={eq.id}>
+            {capitalizeWords(eq.nombre)}
+          </MenuItem>
+        ))}
+      </TextField>
 
       <Divider sx={{ my: 3 }} />
 

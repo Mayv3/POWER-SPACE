@@ -1,0 +1,331 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import {
+  Box, Typography, Button, Stack, TextField, InputAdornment,
+  CircularProgress, Card, CardContent, Avatar, IconButton,
+  Menu, MenuItem, ListItemIcon, ListItemText, Divider, Chip,
+} from '@mui/material'
+import { MagnifyingGlass as SearchIcon, UsersThree as GroupAddIcon, UsersThree as GroupsIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon, UserGear as SupervisorAccountIcon } from '@phosphor-icons/react'
+import { GenericModal } from '../../../components/modales/GenericModal'
+import { EquipoForm } from '../../../components/modales/EquipoForm'
+import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
+import { useDarkMode } from '../../../context/ThemeContext'
+import { capitalizeWords } from '../../../utils/textUtils'
+
+const EMPTY_EQUIPO = { nombre: '', foto: null, color: '#F57C00', coach_id: '' }
+
+function CardMenu({ onEdit, onDelete }) {
+  const [anchor, setAnchor] = useState(null)
+  return (
+    <>
+      <IconButton
+        size="small"
+        onClick={(e) => { e.stopPropagation(); setAnchor(e.currentTarget) }}
+        sx={{ color: '#fff', bgcolor: 'rgba(0,0,0,0.25)', '&:hover': { bgcolor: 'rgba(0,0,0,0.4)' } }}
+      >
+        <MoreVertIcon size={20} />
+      </IconButton>
+      <Menu
+        anchorEl={anchor}
+        open={Boolean(anchor)}
+        onClose={() => setAnchor(null)}
+        slotProps={{ paper: { elevation: 3, sx: { borderRadius: 2, minWidth: 140 } } }}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={() => { onEdit(); setAnchor(null) }}>
+          <ListItemIcon><EditIcon size={20} color="#FF9800" /></ListItemIcon>
+          <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Editar</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { onDelete(); setAnchor(null) }}>
+          <ListItemIcon><DeleteIcon size={20} color="#d32f2f" /></ListItemIcon>
+          <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: 'error.main' }}>Eliminar</ListItemText>
+        </MenuItem>
+      </Menu>
+    </>
+  )
+}
+
+export default function EquiposPage() {
+  const [equipos, setEquipos] = useState([])
+  const [equiposFiltrados, setEquiposFiltrados] = useState([])
+  const [coaches, setCoaches] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+
+  const [openEdit, setOpenEdit] = useState(false)
+  const [selectedEquipo, setSelectedEquipo] = useState({})
+  const [loadingEdit, setLoadingEdit] = useState(false)
+
+  const [openDelete, setOpenDelete] = useState(false)
+  const [equipoToDelete, setEquipoToDelete] = useState({})
+  const [loadingDelete, setLoadingDelete] = useState(false)
+
+  const [openCreate, setOpenCreate] = useState(false)
+  const [loadingCreate, setLoadingCreate] = useState(false)
+  const [newEquipo, setNewEquipo] = useState(EMPTY_EQUIPO)
+
+  const { isDark } = useDarkMode()
+  const surface = isDark ? '#1a1a1a' : '#ffffff'
+  const border = isDark ? '#2a2a2a' : '#e0e0e0'
+
+  const fetchEquipos = async () => {
+    setIsLoading(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos`)
+      const data = await res.json()
+      setEquipos(data)
+      setEquiposFiltrados(data)
+    } catch (err) {
+      console.error('Error al cargar equipos:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchCoaches = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/coaches`)
+      const data = await res.json()
+      setCoaches(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error al cargar coaches:', err)
+    }
+  }
+
+  useEffect(() => { fetchEquipos(); fetchCoaches() }, [])
+
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setEquiposFiltrados(equipos)
+    } else {
+      const q = searchTerm.toLowerCase()
+      setEquiposFiltrados(
+        equipos.filter(e =>
+          e.nombre?.toLowerCase().includes(q) ||
+          e.coach?.nombre?.toLowerCase().includes(q)
+        )
+      )
+    }
+  }, [searchTerm, equipos])
+
+  const handleEdit = (equipo) => {
+    setSelectedEquipo({ ...equipo, coach_id: equipo.coach_id || '' })
+    setOpenEdit(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (loadingEdit) return
+    if (!selectedEquipo.nombre?.trim()) { alert('El nombre es obligatorio.'); return }
+    setLoadingEdit(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos/${selectedEquipo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: selectedEquipo.nombre,
+          foto: selectedEquipo.foto,
+          color: selectedEquipo.color,
+          coach_id: selectedEquipo.coach_id || null,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      await fetchEquipos()
+      setOpenEdit(false)
+    } catch (err) {
+      console.error('Error al editar equipo:', err)
+    } finally {
+      setLoadingEdit(false)
+    }
+  }
+
+  const handleCreate = async () => {
+    if (loadingCreate) return
+    if (!newEquipo.nombre?.trim()) { alert('El nombre es obligatorio.'); return }
+    setLoadingCreate(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: newEquipo.nombre,
+          foto: newEquipo.foto,
+          color: newEquipo.color,
+          coach_id: newEquipo.coach_id || null,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      await fetchEquipos()
+      setOpenCreate(false)
+      setNewEquipo(EMPTY_EQUIPO)
+    } catch (err) {
+      console.error('Error al crear equipo:', err)
+      alert('No se pudo crear el equipo.')
+    } finally {
+      setLoadingCreate(false)
+    }
+  }
+
+  const handleDelete = (equipo) => { setEquipoToDelete(equipo); setOpenDelete(true) }
+
+  const confirmDelete = async () => {
+    if (loadingDelete) return
+    setLoadingDelete(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos/${equipoToDelete.id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error()
+      await fetchEquipos()
+      setOpenDelete(false)
+    } catch (err) {
+      console.error('Error al eliminar equipo:', err)
+      alert('Hubo un error al eliminar el equipo.')
+    } finally {
+      setLoadingDelete(false)
+    }
+  }
+
+  return (
+    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+          Equipos
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<GroupAddIcon />}
+          onClick={() => setOpenCreate(true)}
+          sx={{
+            borderRadius: 2, textTransform: 'none', fontWeight: 600,
+            backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' }, px: 2.5,
+          }}
+        >
+          Nuevo equipo
+        </Button>
+      </Stack>
+
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="Buscar por nombre o coach..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        sx={{ maxWidth: 420 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon size={18} style={{ opacity: 0.6 }} />
+            </InputAdornment>
+          ),
+          sx: { borderRadius: 2, backgroundColor: surface },
+        }}
+      />
+
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', pb: 2 }}>
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+            <CircularProgress size={40} sx={{ color: '#FF9800' }} />
+          </Box>
+        ) : equiposFiltrados.length === 0 ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 1, color: 'text.secondary' }}>
+            <GroupsIcon size={56} style={{ opacity: 0.4 }} />
+            <Typography>No hay equipos cargados.</Typography>
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' },
+              gap: 2.5,
+            }}
+          >
+            {equiposFiltrados.map((eq) => {
+              const color = eq.color || '#9e9e9e'
+              return (
+                <Card
+                  key={eq.id}
+                  elevation={0}
+                  sx={{
+                    borderRadius: 3, overflow: 'hidden', position: 'relative',
+                    border: `1px solid ${border}`, backgroundColor: surface,
+                    transition: 'transform .15s ease, box-shadow .15s ease',
+                    '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 10px 24px rgba(0,0,0,0.15)' },
+                  }}
+                >
+                  {/* Banner color */}
+                  <Box sx={{ height: 72, background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`, position: 'relative' }}>
+                    <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+                      <CardMenu onEdit={() => handleEdit(eq)} onDelete={() => handleDelete(eq)} />
+                    </Box>
+                  </Box>
+
+                  {/* Avatar superpuesto */}
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: '-36px' }}>
+                    <Avatar
+                      src={eq.foto || undefined}
+                      sx={{ width: 72, height: 72, bgcolor: color, border: `4px solid ${surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
+                    >
+                      <GroupsIcon size={32} />
+                    </Avatar>
+                  </Box>
+
+                  <CardContent sx={{ textAlign: 'center', pt: 1.5 }}>
+                    <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2 }}>
+                      {capitalizeWords(eq.nombre)}
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center" sx={{ mt: 1, color: 'text.secondary' }}>
+                      <SupervisorAccountIcon size={16} />
+                      <Typography variant="body2">
+                        {eq.coach?.nombre ? capitalizeWords(eq.coach.nombre) : 'Sin coach'}
+                      </Typography>
+                    </Stack>
+                    {eq.color && (
+                      <Chip
+                        label={eq.color}
+                        size="small"
+                        sx={{ mt: 1.5, bgcolor: color, color: '#fff', fontWeight: 600, fontSize: '0.7rem' }}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </Box>
+        )}
+      </Box>
+
+      <GenericModal
+        open={openEdit}
+        title="Editar equipo"
+        onClose={() => setOpenEdit(false)}
+        onSave={handleSaveEdit}
+        loading={loadingEdit}
+      >
+        <EquipoForm equipo={selectedEquipo} onChange={setSelectedEquipo} coaches={coaches} />
+      </GenericModal>
+
+      <GenericModal
+        open={openCreate}
+        title="Crear nuevo equipo"
+        onClose={() => setOpenCreate(false)}
+        onSave={handleCreate}
+        loading={loadingCreate}
+      >
+        <EquipoForm equipo={newEquipo} onChange={setNewEquipo} coaches={coaches} />
+      </GenericModal>
+
+      <DeleteGenericModal
+        open={openDelete}
+        title="Eliminar equipo"
+        nombre={equipoToDelete?.nombre}
+        descripcion={equipoToDelete?.coach?.nombre ? `Coach: ${equipoToDelete.coach.nombre}` : null}
+        onClose={() => setOpenDelete(false)}
+        onConfirm={confirmDelete}
+        loading={loadingDelete}
+      />
+    </Box>
+  )
+}

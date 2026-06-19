@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Chip, Divider } from '@mui/material'
-import MoreVertIcon from '@mui/icons-material/MoreVert'
-import EditIcon from '@mui/icons-material/Edit'
-import DeleteIcon from '@mui/icons-material/Delete'
+import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Chip, Divider, Avatar } from '@mui/material'
+import { UsersThree as GroupsIcon, User as PersonIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon } from '@phosphor-icons/react'
 import { capitalizeWords } from '../../utils/textUtils'
+import { colorCategoria } from '../../utils/colorCategoria'
 
 function ActionsMenu({ row, handleEdit, handleDelete }) {
   const [anchor, setAnchor] = useState(null)
@@ -14,7 +13,7 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
   return (
     <>
       <IconButton size="small" onClick={open}>
-        <MoreVertIcon fontSize="small" />
+        <MoreVertIcon size={20} />
       </IconButton>
       <Menu
         anchorEl={anchor}
@@ -25,12 +24,12 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         <MenuItem onClick={() => { handleEdit(row); close() }}>
-          <ListItemIcon><EditIcon fontSize="small" sx={{ color: '#FF9800' }} /></ListItemIcon>
+          <ListItemIcon><EditIcon size={20} color="#FF9800" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Editar</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => { handleDelete(row); close() }}>
-          <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          <ListItemIcon><DeleteIcon size={20} color="#d32f2f" /></ListItemIcon>
           <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: 'error.main' }}>Eliminar</ListItemText>
         </MenuItem>
       </Menu>
@@ -40,20 +39,29 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
 
 export const columnsAtletas = (handleEdit, handleDelete) => [
   {
-    field: 'nombre',
-    headerName: 'Nombre',
-    flex: 0.18,
-    align: 'left',
-    headerAlign: 'left',
-    renderCell: (params) => capitalizeWords(params.value),
+    field: 'lot',
+    headerName: 'Lot',
+    flex: 0.06,
+    align: 'center',
+    headerAlign: 'center',
+    type: 'number',
+    renderCell: (params) => params.value ?? '-',
   },
   {
-    field: 'apellido',
-    headerName: 'Apellido',
-    flex: 0.18,
+    field: 'nombre',
+    headerName: 'Nombre',
+    flex: 0.2,
     align: 'left',
     headerAlign: 'left',
-    renderCell: (params) => capitalizeWords(params.value),
+    valueGetter: (value, row) => `${row.nombre ?? ''} ${row.apellido ?? ''}`.trim(),
+    renderCell: (params) => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Avatar src={params.row.foto || undefined} sx={{ width: 28, height: 28 }}>
+          <PersonIcon size={16} />
+        </Avatar>
+        {capitalizeWords(params.value)}
+      </Box>
+    ),
   },
   {
     field: 'peso_corporal',
@@ -70,9 +78,16 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     flex: 0.15,
     align: 'center',
     headerAlign: 'center',
-    renderCell: (params) => params.value ? (
-      <Chip label={params.value} size="small" sx={{ fontWeight: 600, fontSize: '0.75rem' }} />
-    ) : '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => (
+      <Box sx={{
+        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: params.value ? colorCategoria(params.value) : 'transparent',
+        color: params.value ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
+      }}>
+        {params.value || '-'}
+      </Box>
+    ),
   },
   {
     field: 'tanda_id',
@@ -91,6 +106,37 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
           sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: color, color: '#fff', border: 'none' }}
         />
       ) : '-'
+    },
+  },
+  {
+    field: 'equipo',
+    headerName: 'Equipo',
+    flex: 0.15,
+    align: 'center',
+    headerAlign: 'center',
+    valueGetter: (value, row) => row.equipo?.nombre ?? '',
+    renderCell: (params) => {
+      const eq = params.row.equipo
+      if (!eq) return '-'
+      return (
+        <Chip
+          avatar={
+            <Avatar src={eq.foto || undefined} sx={{ bgcolor: eq.color || '#bdbdbd' }}>
+              <GroupsIcon size={14} />
+            </Avatar>
+          }
+          label={eq.nombre}
+          size="small"
+          sx={{
+            fontWeight: 600,
+            fontSize: '0.72rem',
+            bgcolor: eq.color || '#9e9e9e',
+            color: '#fff',
+            border: 'none',
+            '& .MuiChip-avatar': { color: '#fff' },
+          }}
+        />
+      )
     },
   },
   {

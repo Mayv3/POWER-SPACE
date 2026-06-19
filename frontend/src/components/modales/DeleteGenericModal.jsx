@@ -2,7 +2,6 @@
 
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Button,
@@ -13,7 +12,7 @@ import {
 } from '@mui/material'
 import { Warning as WarningAmberRoundedIcon } from '@phosphor-icons/react'
 
-export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading = false }) {
+export function DeleteGenericModal({ open, title = 'Eliminar', nombre, descripcion, onClose, onConfirm, loading = false }) {
   return (
     <Dialog
       open={open}
@@ -35,14 +34,14 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading =
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <WarningAmberRoundedIcon />
           <Typography variant="h6" fontWeight={700}>
-            Eliminar atleta
+            {title}
           </Typography>
         </Stack>
       </Box>
 
       <DialogContent sx={{ py: 3, px: 3 }}>
         <Typography variant="body1" sx={{ mb: 2 }}>
-          ¿Seguro que querés eliminar al siguiente atleta? Esta acción no se puede deshacer.
+          ¿Seguro que querés eliminar lo siguiente? Esta acción no se puede deshacer.
         </Typography>
 
         <Box
@@ -54,17 +53,15 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading =
           }}
         >
           <Typography variant="subtitle1" fontWeight={700} color="error.main">
-            {atleta?.nombre} {atleta?.apellido}
+            {nombre || '-'}
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            Categoría: {atleta?.categoria || '-'}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            DNI: {atleta?.dni || '-'}
-          </Typography>
+          {descripcion && (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {descripcion}
+            </Typography>
+          )}
         </Box>
       </DialogContent>
-
 
       <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
         <Button
@@ -72,11 +69,7 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading =
           variant="outlined"
           color="inherit"
           disabled={loading}
-          sx={{
-            borderRadius: 1,
-            textTransform: 'none',
-            fontWeight: 500,
-          }}
+          sx={{ borderRadius: 1, textTransform: 'none', fontWeight: 500 }}
         >
           Cancelar
         </Button>
@@ -87,12 +80,7 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading =
           color="error"
           disabled={loading}
           startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
-          sx={{
-            borderRadius: 1,
-            textTransform: 'none',
-            fontWeight: 600,
-            px: 3,
-          }}
+          sx={{ borderRadius: 1, textTransform: 'none', fontWeight: 600, px: 3 }}
         >
           {loading ? 'Eliminando...' : 'Eliminar'}
         </Button>

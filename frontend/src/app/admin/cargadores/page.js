@@ -1,25 +1,232 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback, memo } from 'react'
 import {
   Box, Typography, Paper, FormControl, InputLabel,
   Select, MenuItem, useMediaQuery, useTheme,
-  Button, Stack, CircularProgress, Divider, Chip,
+  Button, Stack, CircularProgress, Divider, Chip, Avatar,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
 } from '@mui/material'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import CancelIcon from '@mui/icons-material/Cancel'
-import PlayArrowIcon from '@mui/icons-material/PlayArrow'
-import PauseIcon from '@mui/icons-material/Pause'
-import CheckIcon from '@mui/icons-material/Check'
-import BlockIcon from '@mui/icons-material/Block'
-import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
+import { UsersThree as GroupsIcon, User as PersonIcon, CheckCircle as CheckCircleIcon, XCircle as CancelIcon, Play as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, Prohibit as BlockIcon, ArrowsClockwise as RestartAltIcon, Barbell as FitnessCenterIcon } from '@phosphor-icons/react'
 import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
-import { supabase } from '../../../lib/supabaseClient'
+import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
+import { joinCompetenciaLive } from '../../../lib/competenciaLive'
 import { capitalizeWords } from '../../../utils/textUtils'
+import { colorCategoria } from '../../../utils/colorCategoria'
 import { useDarkMode } from '../../../context/ThemeContext'
 import categorias from '../../../const/categorias/categorias'
+
+// ── Helpers puros a nivel módulo (refs estables -> columns memoizable) ──
+const MOVIMIENTO_MAP = { sentadilla: 1, banco: 2, peso_muerto: 3 }
+const PESO_FIELDS = {
+  sentadilla: ['primer_intento_sentadilla', 'segundo_intento_sentadilla', 'tercer_intento_sentadilla'],
+  banco: ['primer_intento_banco', 'segundo_intento_banco', 'tercer_intento_banco'],
+  peso_muerto: ['primer_intento_peso_muerto', 'segundo_intento_peso_muerto', 'tercer_intento_peso_muerto'],
+}
+const VALIDO_FIELDS = {
+  sentadilla: ['valido_s1', 'valido_s2', 'valido_s3'],
+  banco: ['valido_b1', 'valido_b2', 'valido_b3'],
+  peso_muerto: ['valido_d1', 'valido_d2', 'valido_d3'],
+}
+
+function calcularDiscos(pesoTotal) {
+  if (!pesoTotal) return { discos: [], total: 0 }
+  const pesoBarra = 20
+  const pesoTopes = 5
+  const pesoPorLado = (pesoTotal - pesoBarra - pesoTopes) / 2
+  if (pesoPorLado <= 0) return { discos: [], total: pesoTotal }
+  const discosDisponibles = [25, 20, 15, 10, 5, 2.5, 1.25, 0.5, 0.25]
+  let pesoRestante = pesoPorLado
+  const discosUsados = []
+  for (const disco of discosDisponibles) {
+    while (pesoRestante >= disco - 0.01) { discosUsados.push(disco); pesoRestante -= disco }
+  }
+  return { discos: discosUsados, total: pesoTotal }
+}
+
+function obtenerPesoSegunEjercicio(atleta, ejercicio, numeroIntento = 1) {
+  if (!atleta) return 0
+  const campos = PESO_FIELDS[ejercicio]
+  if (!campos) return 0
+  return atleta[campos[numeroIntento - 1]] || 0
+}
+
+function obtenerValidoSegunEjercicio(atleta, ejercicio, numeroIntento = 1) {
+  if (!atleta) return null
+  const campos = VALIDO_FIELDS[ejercicio]
+  if (!campos) return null
+  return atleta[campos[numeroIntento - 1]]
+}
+
+function getMejorIntento(atleta, ejercicio) {
+  if (!atleta) return null
+  let mejorNumero = null
+  let mejorPeso = 0
+  for (let n = 1; n <= 3; n++) {
+    const peso = obtenerPesoSegunEjercicio(atleta, ejercicio, n)
+    const valido = obtenerValidoSegunEjercicio(atleta, ejercicio, n)
+    if (peso && valido === true && peso > mejorPeso) { mejorPeso = peso; mejorNumero = n }
+  }
+  return mejorNumero
+}
+
+// Mejor levantamiento válido (misma lógica que el backend getAtletasConIntentos).
+function mejorLevantamiento(atleta, ejercicio) {
+  const pf = PESO_FIELDS[ejercicio], vf = VALIDO_FIELDS[ejercicio]
+  const p1 = atleta[pf[0]], p2 = atleta[pf[1]], p3 = atleta[pf[2]]
+  return Math.max(
+    (p1 && atleta[vf[0]] !== false) ? p1 : 0,
+    (p2 && atleta[vf[1]]) ? p2 : 0,
+    (p3 && atleta[vf[2]]) ? p3 : 0,
+  )
+}
+
+function calcularTotal(atleta) {
+  const t = mejorLevantamiento(atleta, 'sentadilla') + mejorLevantamiento(atleta, 'banco') + mejorLevantamiento(atleta, 'peso_muerto')
+  return t > 0 ? t : null
+}
+
+// Aplica un cambio de intento local y recalcula total (update optimista).
+function aplicarIntentoLocal(atleta, ejercicio, intentoNum, peso, valido) {
+  const pesoField = PESO_FIELDS[ejercicio][intentoNum - 1]
+  const validoField = VALIDO_FIELDS[ejercicio][intentoNum - 1]
+  const actualizado = { ...atleta, [pesoField]: peso ?? null, [validoField]: valido ?? null }
+  actualizado.total = calcularTotal(actualizado)
+  return actualizado
+}
+
+// Cronómetro aislado: el tick de 1s vive acá y NO re-renderiza el page/grid.
+// Antes el setInterval estaba en CargadoresPage y disparaba un re-render completo
+// (columns, rows, tinteRowSx, DataGrid) cada segundo.
+const Cronometro = memo(function Cronometro({ corriendo, tiempoInicial, onExpire }) {
+  const [segundos, setSegundos] = useState(tiempoInicial ?? 60)
+  const intervalRef = useRef(null)
+  const onExpireRef = useRef(onExpire)
+  onExpireRef.current = onExpire
+
+  useEffect(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+
+    if (!corriendo) { setSegundos(tiempoInicial ?? 60); return }
+
+    let s = tiempoInicial ?? 60
+    setSegundos(s)
+    intervalRef.current = setInterval(() => {
+      s -= 1
+      setSegundos(Math.max(0, s))
+      if (s <= 0) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+        onExpireRef.current?.()
+      }
+    }, 1000)
+
+    return () => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null } }
+  }, [corriendo, tiempoInicial])
+
+  return (
+    <Typography sx={{
+      minWidth: 56, textAlign: 'center', fontWeight: 900, fontSize: '1.6rem', lineHeight: 1,
+      color: !corriendo ? 'text.disabled' : segundos <= 10 ? '#ff1744' : '#00e676',
+    }}>
+      {segundos}s
+    </Typography>
+  )
+})
+
+// Modal "próximo peso": se abre al marcar el intento. Timer de 60s AISLADO (su tick no
+// re-renderiza el page). Muestra el peso sugerido (válido: +2.5 / nulo: mismo), editable,
+// con botón rápido +2.5. Si el timer llega a 0 sin confirmar, aplica el sugerido (auto).
+const ModalProximoPeso = memo(function ModalProximoPeso({ data, onConfirm, onClose }) {
+  const open = !!data
+  const [valor, setValor] = useState('')
+  const [segundos, setSegundos] = useState(60)
+  const intervalRef = useRef(null)
+  const dataRef = useRef(data)
+  dataRef.current = data
+  const onConfirmRef = useRef(onConfirm)
+  onConfirmRef.current = onConfirm
+
+  // `marca` (timestamp del parent) cambia en cada apertura -> reinicia el timer aunque
+  // sea el mismo atleta/intento.
+  const claveApertura = data ? `${data.atletaId}-${data.proximoIntento}-${data.marca}` : null
+  useEffect(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+    if (!claveApertura) return
+
+    setValor(String(dataRef.current.pesoSugerido ?? ''))
+    setSegundos(60)
+    let s = 60
+    intervalRef.current = setInterval(() => {
+      s -= 1
+      setSegundos(Math.max(0, s))
+      if (s <= 0) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+        const d = dataRef.current
+        if (d) onConfirmRef.current?.(d.atletaId, d.ejercicio, d.proximoIntento, d.pesoSugerido) // auto
+      }
+    }, 1000)
+    return () => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null } }
+  }, [claveApertura])
+
+  if (!open) return null
+
+  const color = data.ejercicioColor || '#ff6b35'
+  const urgente = segundos <= 10
+  const masDosCinco = () => setValor(String((parseFloat(dataRef.current.pesoActual) || 0) + 2.5))
+  const confirmar = () => {
+    const n = parseFloat(valor)
+    const d = dataRef.current
+    if (d && !isNaN(n) && n > 0) onConfirm(d.atletaId, d.ejercicio, d.proximoIntento, n)
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ pb: 0.5 }}>
+        <Typography component="div" sx={{ fontWeight: 800, fontSize: '1.15rem', lineHeight: 1.2 }}>
+          Próximo peso — {data.proximoIntento}° intento
+        </Typography>
+        <Typography component="div" sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
+          {data.atletaNombre} · {data.valido ? 'Intento VÁLIDO' : 'Intento NULO'}
+        </Typography>
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography sx={{ fontSize: '3rem', fontWeight: 900, lineHeight: 1, color: urgente ? '#ff1744' : color }}>
+              0:{String(segundos).padStart(2, '0')}
+            </Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+              Si no confirmás, se aplica <b>{data.pesoSugerido} kg</b>
+            </Typography>
+          </Box>
+
+          <Stack direction="row" spacing={1} alignItems="center">
+            <TextField
+              type="number" label="Peso (kg)" value={valor} autoFocus size="small" fullWidth
+              onChange={(e) => setValor(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmar() }}
+            />
+            <Button variant="outlined" onClick={masDosCinco} sx={{ whiteSpace: 'nowrap', borderColor: color, color }}>
+              +2.5 kg
+            </Button>
+          </Stack>
+          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+            Intento actual: {data.pesoActual} kg
+          </Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} color="inherit">Cerrar</Button>
+        <Button variant="contained" onClick={confirmar} sx={{ bgcolor: color, '&:hover': { bgcolor: color, filter: 'brightness(0.9)' } }}>
+          Confirmar
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+})
 
 export default function CargadoresPage() {
   const theme = useTheme()
@@ -38,118 +245,82 @@ export default function CargadoresPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [estadoJueces, setEstadoJueces] = useState(null)
   const [sortModel, setSortModel] = useState([])
-  const [atletasOrdenados, setAtletasOrdenados] = useState([])
-  const timerRef = useRef(null)
+  const [modalPeso, setModalPeso] = useState(null) // próximo peso: null = cerrado
   const autoMarcadoRef = useRef(false)
   const prevAtletaIdRef = useRef(null)
+  const liveRef = useRef(null)
 
-  const fetchAtletas = async () => {
+  const fetchAtletas = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/intentos/atletas-con-intentos?tanda_id=${tandaFiltro}`
-      )
-      const data = await res.json()
+      // Lectura directa desde la view (sin hop por Express).
+      const data = await fetchAtletasConIntentos({ tandaId: tandaFiltro })
       setAtletas(data)
-      setAtletasOrdenados(data)
     } catch (err) {
       console.error('Error al cargar atletas:', err)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [tandaFiltro])
 
-  useEffect(() => { fetchAtletas() }, [tandaFiltro])
+  useEffect(() => { fetchAtletas() }, [fetchAtletas])
 
-  useEffect(() => {
-    if (sortModel.length === 0) {
-      setAtletasOrdenados(atletas)
-      console.log('📋 Orden de atletas (sin ordenar):', atletas.map(a => `${a.apellido} (ID: ${a.id})`))
-      return
-    }
+  // Orden derivado (memo) en vez de state + effect + console.logs.
+  // Misma lógica: intento1/2/3 mapean al peso del ejercicio activo; desempate por lot.
+  const atletasOrdenados = useMemo(() => {
+    if (sortModel.length === 0) return atletas
 
-    const sorted = [...atletas].sort((a, b) => {
-      const { field, sort } = sortModel[0]
-      let fieldA, fieldB
+    const ek = ejercicioFiltro === 'banco' ? 'banco' : ejercicioFiltro === 'peso_muerto' ? 'peso_muerto' : 'sentadilla'
+    const { field, sort } = sortModel[0]
+    const fieldKey = field === 'intento1' ? `primer_intento_${ek}`
+      : field === 'intento2' ? `segundo_intento_${ek}`
+      : field === 'intento3' ? `tercer_intento_${ek}`
+      : field
 
-      if (field === 'intento1') {
-        const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-        fieldA = a[`primer_intento_${ek}`]
-        fieldB = b[`primer_intento_${ek}`]
-      } else if (field === 'intento2') {
-        const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-        fieldA = a[`segundo_intento_${ek}`]
-        fieldB = b[`segundo_intento_${ek}`]
-      } else if (field === 'intento3') {
-        const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-        fieldA = a[`tercer_intento_${ek}`]
-        fieldB = b[`tercer_intento_${ek}`]
-      } else {
-        fieldA = a[field]
-        fieldB = b[field]
-      }
-
-      const aValue = fieldA ?? -Infinity
-      const bValue = fieldB ?? -Infinity
+    return [...atletas].sort((a, b) => {
+      const aValue = a[fieldKey] ?? -Infinity
+      const bValue = b[fieldKey] ?? -Infinity
       if (aValue < bValue) return sort === 'asc' ? -1 : 1
       if (aValue > bValue) return sort === 'asc' ? 1 : -1
+      const lotA = a.lot ?? Infinity
+      const lotB = b.lot ?? Infinity
+      if (lotA !== lotB) return lotA - lotB
       return 0
-    })
-
-    setAtletasOrdenados(sorted)
-    console.log('📋 Orden de atletas actualizado:', {
-      columna: sortModel[0].field,
-      direccion: sortModel[0].sort,
-      atletas: sorted.map((a, idx) => {
-        const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-        let valor = ''
-        if (sortModel[0].field === 'intento1') valor = a[`primer_intento_${ek}`] || 'N/A'
-        else if (sortModel[0].field === 'intento2') valor = a[`segundo_intento_${ek}`] || 'N/A'
-        else if (sortModel[0].field === 'intento3') valor = a[`tercer_intento_${ek}`] || 'N/A'
-        else valor = a[sortModel[0].field] || 'N/A'
-        return `${idx}: "${a.apellido} (${valor})"`
-      })
     })
   }, [sortModel, atletas, ejercicioFiltro])
 
   useEffect(() => {
     const fetchEstadoInicial = async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces`)
-      const data = await res.json()
-      setEstadoJueces(data)
+      // Lectura directa (sin hop Express)
+      const { data } = await supabase.from('estado_competencia').select('*').eq('id', 1).maybeSingle()
+      if (data) setEstadoJueces(data)
     }
     fetchEstadoInicial()
 
+    // Autoritativo: reconcilia el estado real
     const channel = supabase
       .channel('public:estado_competencia')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'estado_competencia', filter: 'id=eq.1' },
-        (payload) => { console.log('Cambio detectado:', payload); setEstadoJueces(payload.new) }
+        (payload) => { setEstadoJueces(payload.new) }
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Fast-path: votos de jueces al instante -> luces + auto-marcado más rápidos.
+    // El merge parcial se reconcilia luego con postgres_changes (idempotente).
+    liveRef.current = joinCompetenciaLive((parcial) =>
+      setEstadoJueces(prev => prev ? { ...prev, ...parcial } : prev)
+    )
+
+    return () => { supabase.removeChannel(channel); liveRef.current?.leave() }
   }, [])
 
-  useEffect(() => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-
-    if (estadoJueces?.corriendo) {
-      let segundos = estadoJueces.tiempo_restante ?? 60
-      timerRef.current = setInterval(async () => {
-        segundos -= 1
-        setEstadoJueces(prev => prev ? { ...prev, tiempo_restante: segundos } : prev)
-        if (segundos <= 0) {
-          clearInterval(timerRef.current)
-          timerRef.current = null
-          await supabase.from('estado_competencia')
-            .update({ corriendo: false, tiempo_restante: 0, updated_at: new Date() })
-            .eq('id', 1)
-        }
-      }, 1000)
-    }
-
-    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null } }
-  }, [estadoJueces?.corriendo])
+  // Al llegar a 0 el cronómetro (child), apagar el estado en DB. Una sola escritura,
+  // no una por segundo. El page ya no re-renderiza con el tick.
+  const handleCronoExpire = useCallback(async () => {
+    await supabase.from('estado_competencia')
+      .update({ corriendo: false, tiempo_restante: 0, updated_at: new Date() })
+      .eq('id', 1)
+  }, [])
 
   // Auto-marcar intento cuando todos los jueces votan
   useEffect(() => {
@@ -177,109 +348,130 @@ export default function CargadoresPage() {
     marcarIntento(votosValidos >= 2)
   }, [estadoJueces])
 
-  const iniciarCronometro = async () => {
+  const iniciarCronometro = useCallback(async () => {
     try {
+      // Fast-path: la vista arranca el cronómetro al instante.
+      liveRef.current?.send({
+        corriendo: true, tiempo_restante: 60,
+        juez1_valido: null, juez2_valido: null, juez3_valido: null,
+        juez1_tipo: null, juez2_tipo: null, juez3_tipo: null, intento_valido: null,
+      })
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/start`, { method: 'POST' })
     } catch (err) { console.error('Error al iniciar cronómetro:', err) }
-  }
+  }, [])
 
-  const detenerCronometro = async () => {
+  const detenerCronometro = useCallback(async () => {
+    liveRef.current?.send({ corriendo: false }) // la vista frena al instante
     await supabase.from('estado_competencia')
       .update({ corriendo: false, updated_at: new Date() })
       .eq('id', 1)
-  }
+  }, [])
 
-  const marcarIntento = async (valido) => {
+  const marcarIntento = useCallback(async (valido) => {
     if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }
+    const atletaId = atletaSeleccionado.id
+    const peso = obtenerPesoSegunEjercicio(atletaSeleccionado, ejercicioFiltro, intentoSeleccionado)
+    // 1) UI instantánea (optimista). peso no cambia -> el resultado es idéntico al del backend, no hace falta refetch.
+    setAtletas(prev => prev.map(a => a.id === atletaId
+      ? aplicarIntentoLocal(a, ejercicioFiltro, intentoSeleccionado, peso, valido) : a))
+    if (valido) toast.success('Intento VÁLIDO registrado')
+    else toast.error('Intento NULO registrado')
+
+    // 2) Próximo peso (solo si hay intento siguiente)
+    if (intentoSeleccionado < 3) {
+      const pesoNum = parseFloat(peso) || 0
+      const proximoIntento = intentoSeleccionado + 1
+      if (valido) {
+        // Válido: abrir modal con timer 60s para confirmar/modificar (default +2.5).
+        setModalPeso({
+          atletaId,
+          atletaNombre: `${atletaSeleccionado.nombre ?? ''} ${atletaSeleccionado.apellido ?? ''}`.trim(),
+          ejercicio: ejercicioFiltro,
+          ejercicioColor: { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicioFiltro],
+          proximoIntento,
+          pesoActual: pesoNum,
+          pesoSugerido: pesoNum + 2.5,
+          valido,
+          marca: Date.now(),
+        })
+      } else {
+        // Nulo: mismo peso, automático, sin modal ni espera.
+        asignarProximoPeso(atletaId, ejercicioFiltro, proximoIntento, pesoNum)
+      }
+    }
+
+    // 3) Persistir en background (no bloquea la UI)
     try {
-      const movimientoMap = { 'sentadilla': 1, 'banco': 2, 'peso_muerto': 3 }
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          atleta_id: atletaSeleccionado.id,
-          movimiento_id: movimientoMap[ejercicioFiltro],
+          atleta_id: atletaId,
+          movimiento_id: MOVIMIENTO_MAP[ejercicioFiltro],
           intento_numero: intentoSeleccionado,
-          peso: pesoActual,
+          peso,
           valido,
         })
       })
       await detenerCronometro()
-      await fetchAtletas()
-      if (valido) toast.success('Intento VÁLIDO registrado')
-      else toast.error('Intento NULO registrado')
-    } catch (err) { console.error('Error al marcar intento:', err); toast.error('Error al registrar el intento') }
-  }
+    } catch (err) {
+      console.error('Error al marcar intento:', err)
+      toast.error('Error al registrar el intento')
+      fetchAtletas() // reconciliar si falló
+    }
+  }, [atletaSeleccionado, ejercicioFiltro, intentoSeleccionado, detenerCronometro, fetchAtletas])
 
-  const restablecerIntento = async () => {
+  const restablecerIntento = useCallback(async () => {
     if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }
+    const atletaId = atletaSeleccionado.id
+    // Optimista: limpiar el intento. (Para intento 1 el backend puede caer al valor de apertura,
+    // por eso reconciliamos con fetchAtletas después.)
+    setAtletas(prev => prev.map(a => a.id === atletaId
+      ? aplicarIntentoLocal(a, ejercicioFiltro, intentoSeleccionado, null, null) : a))
+    toast.info('Intento restablecido')
     try {
-      const movimientoMap = { 'sentadilla': 1, 'banco': 2, 'peso_muerto': 3 }
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          atleta_id: atletaSeleccionado.id,
-          movimiento_id: movimientoMap[ejercicioFiltro],
+          atleta_id: atletaId,
+          movimiento_id: MOVIMIENTO_MAP[ejercicioFiltro],
           intento_numero: intentoSeleccionado,
           peso: null,
           valido: null,
         })
       })
       await fetchAtletas()
-      toast.info('Intento restablecido')
     } catch (err) { console.error('Error al restablecer intento:', err); toast.error('Error al restablecer el intento') }
-  }
+  }, [atletaSeleccionado, ejercicioFiltro, intentoSeleccionado, fetchAtletas])
 
-  const calcularDiscos = (pesoTotal) => {
-    if (!pesoTotal) return { discos: [], total: 0 }
-    const pesoBarra = 20
-    const pesoTopes = 5
-    const pesoPorLado = (pesoTotal - pesoBarra - pesoTopes) / 2
-    if (pesoPorLado <= 0) return { discos: [], total: pesoTotal }
-    const discosDisponibles = [25, 20, 15, 10, 5, 2.5, 1.25, 0.5, 0.25]
-    let pesoRestante = pesoPorLado
-    const discosUsados = []
-    for (const disco of discosDisponibles) {
-      while (pesoRestante >= disco - 0.01) { discosUsados.push(disco); pesoRestante -= disco }
-    }
-    return { discos: discosUsados, total: pesoTotal }
-  }
+  const cerrarModalPeso = useCallback(() => setModalPeso(null), [])
 
-  const obtenerPesoSegunEjercicio = (atleta, ejercicio, numeroIntento = 1) => {
-    if (!atleta) return 0
-    const ek = ejercicio === 'sentadilla' ? 'sentadilla' : ejercicio === 'banco' ? 'banco' : 'peso_muerto'
-    if (numeroIntento === 1) return atleta[`primer_intento_${ek}`] || 0
-    if (numeroIntento === 2) return atleta[`segundo_intento_${ek}`] || 0
-    if (numeroIntento === 3) return atleta[`tercer_intento_${ek}`] || 0
-    return 0
-  }
+  // Asigna el peso del intento siguiente (confirmado o automático por timeout).
+  const asignarProximoPeso = useCallback(async (atletaId, ejercicio, proximoIntento, nuevoPeso) => {
+    setModalPeso(null)
+    const n = parseFloat(nuevoPeso)
+    if (isNaN(n) || n <= 0) return
+    // Optimista: cargar el peso del próximo intento (sin validar todavía).
+    setAtletas(prev => prev.map(a => a.id === atletaId
+      ? aplicarIntentoLocal(a, ejercicio, proximoIntento, n, null) : a))
+    toast.info(`${proximoIntento}° intento: ${n} kg`)
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          atleta_id: atletaId,
+          movimiento_id: MOVIMIENTO_MAP[ejercicio],
+          intento_numero: proximoIntento,
+          peso: n,
+          valido: null,
+        })
+      })
+    } catch (err) { console.error('Error al asignar próximo peso:', err); fetchAtletas() }
+  }, [fetchAtletas])
 
-  const obtenerValidoSegunEjercicio = (atleta, ejercicio, numeroIntento = 1) => {
-    if (!atleta) return null
-    const mapeoValido = {
-      'sentadilla': ['valido_s1', 'valido_s2', 'valido_s3'],
-      'banco': ['valido_b1', 'valido_b2', 'valido_b3'],
-      'peso_muerto': ['valido_d1', 'valido_d2', 'valido_d3'],
-    }
-    const campos = mapeoValido[ejercicio]
-    if (!campos) return null
-    return atleta[campos[numeroIntento - 1]]
-  }
-
-  const getMejorIntento = (atleta, ejercicio) => {
-    if (!atleta) return null
-    const intentos = [1, 2, 3].map(n => ({
-      peso: obtenerPesoSegunEjercicio(atleta, ejercicio, n),
-      valido: obtenerValidoSegunEjercicio(atleta, ejercicio, n),
-      numero: n,
-    }))
-    const intentosValidos = intentos.filter(i => i.peso && i.valido === true)
-    if (intentosValidos.length === 0) return null
-    return intentosValidos.reduce((max, cur) => cur.peso > max.peso ? cur : max).numero
-  }
-
-  const handleCellClick = async (params) => {
+  const handleCellClick = useCallback(async (params) => {
     let intento = 1
     if (params.field === 'intento1') intento = 1
     else if (params.field === 'intento2') intento = 2
@@ -300,17 +492,7 @@ export default function CargadoresPage() {
     const indiceActual = atletasVista.findIndex(a => a.id === params.row.id)
     const ordenProximos = indiceActual !== -1 ? atletasVista.slice(indiceActual + 1).map(a => a.id) : []
 
-    console.log('🎯 ========== ATLETA SELECCIONADO ==========')
-    console.log('Atleta:', params.row.apellido, params.row.nombre)
-    console.log('ID:', params.row.id)
-    console.log('Índice en tabla ordenada:', indiceActual)
-    console.log('Total de atletas en la tabla:', atletasVista.length)
-    console.log('Atletas que siguen (total):', ordenProximos.length)
-    console.log('Próximos atletas:', atletasVista.slice(indiceActual + 1).map(a => `${a.apellido} (ID: ${a.id})`))
-    console.log('IDs enviados al backend:', ordenProximos)
-    console.log('==========================================')
-
-    const { error } = await supabase.from('estado_competencia').update({
+    const nuevoEstado = {
       atleta_id: params.row.id,
       atleta_nombre: params.row.nombre,
       atleta_apellido: params.row.apellido,
@@ -323,42 +505,52 @@ export default function CargadoresPage() {
       juez1_tipo: null, juez2_tipo: null, juez3_tipo: null,
       intento_valido: null,
       orden_proximos: ordenProximos,
-      updated_at: new Date(),
-    }).eq('id', 1)
+    }
+    // Fast-path: la vista muestra el nuevo atleta/peso al instante.
+    liveRef.current?.send(nuevoEstado)
+
+    const { error } = await supabase.from('estado_competencia')
+      .update({ ...nuevoEstado, updated_at: new Date() })
+      .eq('id', 1)
 
     if (error) console.error('Error al actualizar atleta actual:', error)
-  }
+  }, [pesoFiltro, atletasOrdenados, ejercicioFiltro])
 
-  const processRowUpdate = async (newRow, oldRow) => {
+  const processRowUpdate = useCallback(async (newRow, oldRow) => {
     try {
-      const movimientoMap = { 'sentadilla': 1, 'banco': 2, 'peso_muerto': 3 }
-      const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
-      const campo1 = `primer_intento_${ek}`
-      const campo2 = `segundo_intento_${ek}`
-      const campo3 = `tercer_intento_${ek}`
+      const ek = ejercicioFiltro === 'banco' ? 'banco' : ejercicioFiltro === 'peso_muerto' ? 'peso_muerto' : 'sentadilla'
+      const campos = PESO_FIELDS[ek]
       const cambios = []
-      if (newRow[campo1] !== oldRow[campo1] && newRow[campo1] != null && newRow[campo1] !== '')
-        cambios.push({ atleta_id: newRow.id, movimiento_id: movimientoMap[ejercicioFiltro], intento_numero: 1, peso: parseFloat(newRow[campo1]), valido: null })
-      if (newRow[campo2] !== oldRow[campo2] && newRow[campo2] != null && newRow[campo2] !== '')
-        cambios.push({ atleta_id: newRow.id, movimiento_id: movimientoMap[ejercicioFiltro], intento_numero: 2, peso: parseFloat(newRow[campo2]), valido: null })
-      if (newRow[campo3] !== oldRow[campo3] && newRow[campo3] != null && newRow[campo3] !== '')
-        cambios.push({ atleta_id: newRow.id, movimiento_id: movimientoMap[ejercicioFiltro], intento_numero: 3, peso: parseFloat(newRow[campo3]), valido: null })
-
-      if (cambios.length > 0) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert-batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ intentos: cambios })
-        })
+      for (let i = 0; i < 3; i++) {
+        const campo = campos[i]
+        if (newRow[campo] !== oldRow[campo] && newRow[campo] != null && newRow[campo] !== '')
+          cambios.push({ atleta_id: newRow.id, movimiento_id: MOVIMIENTO_MAP[ejercicioFiltro], intento_numero: i + 1, peso: parseFloat(newRow[campo]), valido: null })
       }
-      await fetchAtletas()
+      if (cambios.length === 0) return newRow
+
+      // Optimista: aplicar localmente (peso no-null -> idéntico al backend, sin refetch bloqueante)
+      setAtletas(prev => prev.map(a => {
+        if (a.id !== newRow.id) return a
+        let upd = a
+        for (const c of cambios) upd = aplicarIntentoLocal(upd, ejercicioFiltro, c.intento_numero, c.peso, null)
+        return upd
+      }))
+
+      // Persistir en background
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intentos: cambios })
+      }).catch(err => { console.error('Error al actualizar peso:', err); fetchAtletas() })
+
       return newRow
     } catch (err) { console.error('Error al actualizar peso:', err); return oldRow }
-  }
+  }, [ejercicioFiltro, fetchAtletas])
 
-  const handleProcessRowUpdateError = (error) => { console.error('Error al procesar actualización:', error) }
+  const handleProcessRowUpdateError = useCallback((error) => { console.error('Error al procesar actualización:', error) }, [])
 
-  const columns = [
+  // Memoizado: solo se reconstruye al cambiar de ejercicio, no en cada render/tick.
+  const columns = useMemo(() => [
     {
       field: 'apellido', headerName: 'Apellido', flex: 0.06, minWidth: 100,
       align: 'center', headerAlign: 'center',
@@ -367,6 +559,31 @@ export default function CargadoresPage() {
     {
       field: 'categoria', headerName: 'Categoría', flex: 0.04,
       align: 'center', headerAlign: 'center',
+    },
+    {
+      field: 'equipo', headerName: 'Equipo', flex: 0.06, minWidth: 110,
+      align: 'center', headerAlign: 'center', sortable: false,
+      valueGetter: (value, row) => row.equipo_nombre ?? '',
+      renderCell: (params) => {
+        const nombre = params.row.equipo_nombre
+        if (!nombre) return '-'
+        return (
+          <Chip
+            avatar={
+              <Avatar src={params.row.equipo_foto || undefined} sx={{ bgcolor: params.row.equipo_color || '#bdbdbd' }}>
+                <GroupsIcon size={14} />
+              </Avatar>
+            }
+            label={nombre}
+            size="small"
+            sx={{
+              fontWeight: 600, fontSize: '0.72rem',
+              bgcolor: params.row.equipo_color || '#9e9e9e', color: '#fff', border: 'none',
+              '& .MuiChip-avatar': { color: '#fff' },
+            }}
+          />
+        )
+      },
     },
     {
       field: 'intento1', headerName: '1°', flex: 0.06, minWidth: 80,
@@ -387,8 +604,8 @@ export default function CargadoresPage() {
         return (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
             <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
-            {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+            {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
+            {valido === false && <CancelIcon size={18} color="#f44336" />}
           </Box>
         )
       },
@@ -412,8 +629,8 @@ export default function CargadoresPage() {
         return (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
             <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
-            {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+            {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
+            {valido === false && <CancelIcon size={18} color="#f44336" />}
           </Box>
         )
       },
@@ -437,13 +654,13 @@ export default function CargadoresPage() {
         return (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
             <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon sx={{ fontSize: 18, color: '#4caf50' }} />}
-            {valido === false && <CancelIcon sx={{ fontSize: 18, color: '#f44336' }} />}
+            {valido === true && <CheckCircleIcon size={18} color="#4caf50" />}
+            {valido === false && <CancelIcon size={18} color="#f44336" />}
           </Box>
         )
       },
     },
-  ]
+  ], [ejercicioFiltro])
 
   const pesoActual = atletaSeleccionado
     ? obtenerPesoSegunEjercicio(atletaSeleccionado, ejercicioFiltro, intentoSeleccionado)
@@ -454,9 +671,28 @@ export default function CargadoresPage() {
   const ejercicioColor = { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicioFiltro]
 
   const todasLasCategorias = [...categorias.M, ...categorias.F]
-  const atletasMostrados = pesoFiltro === 'todos'
+  const atletasMostrados = useMemo(() => pesoFiltro === 'todos'
     ? atletasOrdenados
-    : atletasOrdenados.filter(a => a.categoria === pesoFiltro)
+    : atletasOrdenados.filter(a => a.categoria === pesoFiltro), [atletasOrdenados, pesoFiltro])
+
+  // Tarea 8: cada fila se pinta con el color de su categoria (un solo color por fila),
+  // asi se identifica quien compite con quien.
+  const categoriasEnTanda = useMemo(
+    () => [...new Set(atletasMostrados.map(a => a.categoria).filter(Boolean))],
+    [atletasMostrados]
+  )
+  const tinteRowSx = useMemo(() => categoriasEnTanda.reduce((acc, cat, i) => {
+    const color = `${colorCategoria(cat)}59` // mismo color de la categoria, ~35% alpha
+    acc[`& .MuiDataGrid-row.catgrp-${i}`] = {
+      backgroundColor: color,
+      '&:hover': { backgroundColor: color },
+    }
+    return acc
+  }, {}), [categoriasEnTanda])
+  const getRowClassNameCategoria = useCallback((params) => {
+    const i = categoriasEnTanda.indexOf(params.row.categoria)
+    return i >= 0 ? `catgrp-${i}` : ''
+  }, [categoriasEnTanda])
 
   const todosVotaron =
     estadoJueces?.juez1_valido !== null && estadoJueces?.juez1_valido !== undefined &&
@@ -479,25 +715,6 @@ export default function CargadoresPage() {
           </Stack>
         </Box>
       </Stack>
-
-      {/* Atleta seleccionado */}
-      {atletaSeleccionado && (
-        <Box sx={{
-          px: 3, py: 1.5, borderRadius: 2,
-          background: `linear-gradient(135deg, #ff6b35, #ff9a00)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1,
-        }}>
-          <Typography variant="h6" fontWeight={700} sx={{ color: '#fff' }}>
-            {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
-          </Typography>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Chip label={atletaSeleccionado.categoria} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.25)', color: '#fff', fontWeight: 700 }} />
-            <Typography variant="h6" fontWeight={800} sx={{ color: '#fff' }}>
-              {pesoActual} kg — Intento {intentoSeleccionado}°
-            </Typography>
-          </Stack>
-        </Box>
-      )}
 
       {/* Cuerpo principal */}
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
@@ -549,7 +766,7 @@ export default function CargadoresPage() {
 
           <Divider sx={{ borderColor: border }} />
 
-          <Box sx={{ flex: 1, minHeight: 0 }}>
+          <Box sx={{ flex: 1, minHeight: 0, ...tinteRowSx }}>
             {isLoading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                 <CircularProgress size={40} sx={{ color: '#FF9800' }} />
@@ -565,7 +782,8 @@ export default function CargadoresPage() {
                 onCellClick={handleCellClick}
                 processRowUpdate={processRowUpdate}
                 onProcessRowUpdateError={handleProcessRowUpdateError}
-                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile }}
+                getRowClassName={getRowClassNameCategoria}
+                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile, equipo: !isMobile }}
               />
             )}
           </Box>
@@ -583,6 +801,19 @@ export default function CargadoresPage() {
         >
           {atletaSeleccionado ? (
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 3, gap: 2, position: 'relative' }}>
+
+              {/* Datos del atleta (compacto, arriba a la derecha) */}
+              <Box sx={{ position: 'absolute', top: 16, right: 16, textAlign: 'right', maxWidth: '60%' }}>
+                <Typography fontWeight={800} sx={{ fontSize: '1.25rem', lineHeight: 1.1, color: ejercicioColor }}>
+                  {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
+                  <Chip label={atletaSeleccionado.categoria} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                  <Typography variant="body2" fontWeight={700} color="text.secondary">
+                    Intento {intentoSeleccionado}°
+                  </Typography>
+                </Stack>
+              </Box>
 
               {/* Altura del rack */}
               {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') && (
@@ -610,6 +841,58 @@ export default function CargadoresPage() {
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     Barra 20 kg + Topes 5 kg
                   </Typography>
+                </Box>
+              )}
+
+              {/* Presentación equipo + coach */}
+              {atletaSeleccionado.equipo_nombre && (
+                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    alignItems="center"
+                    divider={<Divider orientation="vertical" flexItem sx={{ borderColor: border }} />}
+                    sx={{
+                      px: 2.5, py: 1, borderRadius: 3,
+                      border: `1px solid ${border}`,
+                      backgroundColor: isDark ? '#141414' : '#fafafa',
+                    }}
+                  >
+                    {/* Equipo */}
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Avatar
+                        src={atletaSeleccionado.equipo_foto || undefined}
+                        sx={{ width: 44, height: 44, bgcolor: atletaSeleccionado.equipo_color || '#9e9e9e' }}
+                      >
+                        <GroupsIcon />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 1 }}>
+                          Equipo
+                        </Typography>
+                        <Typography fontWeight={800} sx={{ lineHeight: 1.1 }}>
+                          {capitalizeWords(atletaSeleccionado.equipo_nombre)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    {/* Coach */}
+                    {atletaSeleccionado.equipo_coach_nombre && (
+                      <Stack direction="row" spacing={1.25} alignItems="center">
+                        <Avatar src={atletaSeleccionado.equipo_coach_foto || undefined} sx={{ width: 44, height: 44, bgcolor: '#bdbdbd' }}>
+                          <PersonIcon />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 1 }}>
+                            Coach
+                          </Typography>
+                          <Typography fontWeight={800} sx={{ lineHeight: 1.1 }}>
+                            {capitalizeWords(atletaSeleccionado.equipo_coach_nombre)}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    )}
+                  </Stack>
                 </Box>
               )}
 
@@ -663,7 +946,7 @@ export default function CargadoresPage() {
                     </Box>
                   ) : (
                     <Box sx={{ textAlign: 'center' }}>
-                      <FitnessCenterIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 1 }} />
+                      <FitnessCenterIcon size={64} style={{ marginBottom: 8, opacity: 0.38 }} />
                       <Typography variant="h4" color="text.secondary">Solo barra (20 kg)</Typography>
                     </Box>
                   )
@@ -678,15 +961,21 @@ export default function CargadoresPage() {
 
               {/* Controles */}
               <Stack direction="row" spacing={2} justifyContent="center" alignItems="center" flexWrap="wrap">
+                {/* Cronometro corriendo (chico, a la izquierda del play) — aislado: su tick no re-renderiza el page */}
+                <Cronometro
+                  corriendo={estadoJueces?.corriendo}
+                  tiempoInicial={estadoJueces?.tiempo_restante ?? 60}
+                  onExpire={handleCronoExpire}
+                />
                 {/* Play / Pause */}
                 <Stack direction="row" spacing={1.5}>
                   <Button variant="contained" onClick={iniciarCronometro} disabled={estadoJueces?.corriendo}
                     sx={{ width: 68, height: 68, bgcolor: '#ff6b35', '&:hover': { bgcolor: '#e55a27' }, borderRadius: 2 }}>
-                    <PlayArrowIcon sx={{ fontSize: 40 }} />
+                    <PlayArrowIcon size={40} />
                   </Button>
                   <Button variant="contained" color="error" onClick={detenerCronometro} disabled={!estadoJueces?.corriendo}
                     sx={{ width: 68, height: 68, borderRadius: 2 }}>
-                    <PauseIcon sx={{ fontSize: 40 }} />
+                    <PauseIcon size={40} />
                   </Button>
                 </Stack>
 
@@ -712,17 +1001,17 @@ export default function CargadoresPage() {
                   <Button variant="contained" onClick={() => marcarIntento(true)}
                     disabled={!atletaSeleccionado || !pesoActual}
                     sx={{ width: 68, height: 68, bgcolor: '#00e676', '&:hover': { bgcolor: '#00c853' }, borderRadius: 2 }}>
-                    <CheckIcon sx={{ fontSize: 40 }} />
+                    <CheckIcon size={40} />
                   </Button>
                   <Button variant="contained" onClick={() => marcarIntento(false)}
                     disabled={!atletaSeleccionado || !pesoActual}
                     sx={{ width: 68, height: 68, bgcolor: '#ff1744', '&:hover': { bgcolor: '#d50000' }, borderRadius: 2 }}>
-                    <BlockIcon sx={{ fontSize: 40 }} />
+                    <BlockIcon size={40} />
                   </Button>
                   <Button variant="contained" onClick={restablecerIntento}
                     disabled={!atletaSeleccionado}
                     sx={{ width: 68, height: 68, bgcolor: '#FF9800', '&:hover': { bgcolor: '#F57C00' }, borderRadius: 2 }}>
-                    <RestartAltIcon sx={{ fontSize: 40 }} />
+                    <RestartAltIcon size={40} />
                   </Button>
                 </Stack>
               </Stack>
@@ -735,7 +1024,7 @@ export default function CargadoresPage() {
             </Box>
           ) : (
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 4 }}>
-              <FitnessCenterIcon sx={{ fontSize: 72, color: 'text.disabled' }} />
+              <FitnessCenterIcon size={72} style={{ opacity: 0.38 }} />
               <Typography variant="h6" color="text.secondary" textAlign="center">
                 Selecciona un atleta de la tabla para ver los discos
               </Typography>
@@ -743,6 +1032,9 @@ export default function CargadoresPage() {
           )}
         </Paper>
       </Box>
+
+      {/* Modal "próximo peso" (timer 60s) — solo en Cargadores */}
+      <ModalProximoPeso data={modalPeso} onConfirm={asignarProximoPeso} onClose={cerrarModalPeso} />
     </Box>
   )
 }

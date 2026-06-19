@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, Button, Box, Typography, TextField, IconButton, Divider } from '@mui/material'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import CancelIcon from '@mui/icons-material/Cancel'
-import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import CloseIcon from '@mui/icons-material/Close'
-import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
+import { CheckCircle as CheckCircleIcon, XCircle as CancelIcon, ArrowsClockwise as RestartAltIcon, X as CloseIcon, Barbell as FitnessCenterIcon } from '@phosphor-icons/react'
 
 export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio, intento, pesoActual, field }) {
   const [peso, setPeso] = useState('')
@@ -90,7 +86,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               boxShadow: `0 4px 12px ${ejercicioColor[ejercicio]}40`
             }}
           >
-            <FitnessCenterIcon sx={{ fontSize: 32, color: 'white' }} />
+            <FitnessCenterIcon size={32} color="white" />
           </Box>
 
           <Typography variant="h5" fontWeight="bold" sx={{ mb: 1 }}>
@@ -155,7 +151,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               variant="contained"
               color="success"
               size="large"
-              startIcon={<CheckCircleIcon sx={{ fontSize: 28 }} />}
+              startIcon={<CheckCircleIcon size={28} />}
               onClick={handleValido}
               disabled={!peso || parseFloat(peso) < 0 || parseFloat(peso) > 500}
               sx={{ 
@@ -179,7 +175,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               variant="contained"
               color="error"
               size="large"
-              startIcon={<CancelIcon sx={{ fontSize: 28 }} />}
+              startIcon={<CancelIcon size={28} />}
               onClick={handleNulo}
               disabled={!peso || parseFloat(peso) < 0 || parseFloat(peso) > 500}
               sx={{ 
@@ -206,7 +202,7 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             color="warning"
             size="large"
             fullWidth
-            startIcon={<RestartAltIcon sx={{ fontSize: 24 }} />}
+            startIcon={<RestartAltIcon size={24} />}
             onClick={handleRestablecer}
             sx={{ 
               py: 2,

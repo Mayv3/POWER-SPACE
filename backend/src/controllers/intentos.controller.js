@@ -56,8 +56,7 @@ export async function getIntentosByTanda(req, res) {
 
 export async function getAtletasConIntentos(req, res) {
   try {
-    const { tanda_id } = req.query;
-    console.log("[getAtletasConIntentos] tanda_id:", tanda_id);
+    const { tanda_id, atleta_id } = req.query;
 
     let atletasQuery = supabase
       .from("atletas")
@@ -68,38 +67,35 @@ export async function getAtletasConIntentos(req, res) {
       atletasQuery = atletasQuery.eq("tanda_id", parseInt(tanda_id));
     }
 
-    const { atleta_id } = req.query;
     if (atleta_id) {
       atletasQuery = atletasQuery.eq("id", parseInt(atleta_id));
     }
 
     const { data: atletas, error: atletasError } = await atletasQuery;
-    console.log("[getAtletasConIntentos] atletas count:", atletas?.length, "| error:", atletasError?.message);
     if (atletasError) throw atletasError;
 
     const atletasIds = atletas.map(a => a.id);
-    
+
     const { data: intentos, error: intentosError } = await supabase
       .from("intentos")
       .select("*")
       .in("atleta_id", atletasIds);
-    console.log("[getAtletasConIntentos] intentos count:", intentos?.length, "| error:", intentosError?.message);
     if (intentosError) throw intentosError;
 
+    // Index O(1) por (atleta, movimiento, intento) en vez de filter+find O(n*m) por atleta.
+    const intentoMap = new Map();
+    for (const i of intentos) {
+      intentoMap.set(`${i.atleta_id}|${i.movimiento_id}|${i.intento_numero}`, i);
+    }
+
     const atletasConIntentos = atletas.map(atleta => {
-      const intentosAtleta = intentos.filter(i => i.atleta_id === atleta.id);
-      
       const getIntento = (movimiento_id, intento_numero) => {
-        const intento = intentosAtleta.find(
-          i => i.movimiento_id === movimiento_id && i.intento_numero === intento_numero
-        );
+        const intento = intentoMap.get(`${atleta.id}|${movimiento_id}|${intento_numero}`);
         return intento ? intento.peso : null;
       };
 
       const getValidoIntento = (movimiento_id, intento_numero) => {
-        const intento = intentosAtleta.find(
-          i => i.movimiento_id === movimiento_id && i.intento_numero === intento_numero
-        );
+        const intento = intentoMap.get(`${atleta.id}|${movimiento_id}|${intento_numero}`);
         return intento ? intento.valido : null;
       };
 
@@ -170,7 +166,12 @@ export async function getAtletasConIntentos(req, res) {
       }
       const pesoA = a.primer_intento_sentadilla || 0;
       const pesoB = b.primer_intento_sentadilla || 0;
-      return pesoA - pesoB;
+      if (pesoA !== pesoB) return pesoA - pesoB;
+      // Desempate (tarea 2): mismo intento -> primero el de menor numero de orden (Lot)
+      const lotA = a.lot ?? Infinity;
+      const lotB = b.lot ?? Infinity;
+      if (lotA !== lotB) return lotA - lotB;
+      return 0;
     });
 
     res.status(200).json(atletasConIntentos);

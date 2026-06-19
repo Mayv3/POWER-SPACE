@@ -5,9 +5,7 @@ import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
   CircularProgress, Paper, Divider,
 } from '@mui/material'
-import SearchIcon from '@mui/icons-material/Search'
-import PersonAddIcon from '@mui/icons-material/PersonAdd'
-import GroupIcon from '@mui/icons-material/Group'
+import { MagnifyingGlass as SearchIcon, UserPlus as PersonAddIcon, Users as GroupIcon } from '@phosphor-icons/react'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
 import { GenericModal } from '../../../components/modales/GenericModal'
@@ -48,7 +46,11 @@ export default function AtletasPage() {
     sexo: '',
     altura_rack_sentadilla: null,
     altura_rack_banco: null,
+    equipo_id: null,
+    foto: null,
   })
+
+  const [equipos, setEquipos] = useState([])
 
   const { isDark } = useDarkMode()
   const surface = isDark ? '#1a1a1a' : '#ffffff'
@@ -68,7 +70,17 @@ export default function AtletasPage() {
     }
   }
 
-  useEffect(() => { fetchAtletas() }, [])
+  const fetchEquipos = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos`)
+      const data = await res.json()
+      setEquipos(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error al cargar equipos:', err)
+    }
+  }
+
+  useEffect(() => { fetchAtletas(); fetchEquipos() }, [])
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -122,7 +134,8 @@ export default function AtletasPage() {
         categoria: '', peso_corporal: '', modalidad: '', tanda_id: null,
         primer_intento_sentadilla: null, primer_intento_banco: null,
         primer_intento_peso_muerto: null, sexo: '',
-        altura_rack_sentadilla: null, altura_rack_banco: null,
+        altura_rack_sentadilla: null, altura_rack_banco: null, equipo_id: null,
+        foto: null,
       })
     } catch (err) {
       console.error('Error al crear atleta:', err)
@@ -161,13 +174,7 @@ export default function AtletasPage() {
           <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
             Atletas
           </Typography>
-          <Stack direction="row" alignItems="center" gap={0.75} sx={{ mt: 0.5 }}>
-            <GroupIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" color="text.secondary">
-              {atletasFiltrados.length} {atletasFiltrados.length === 1 ? 'atleta' : 'atletas'}
-              {searchTerm && ` encontrados`}
-            </Typography>
-          </Stack>
+   
         </Box>
         <Button
           variant="contained"
@@ -210,7 +217,7 @@ export default function AtletasPage() {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  <SearchIcon size={18} style={{ opacity: 0.6 }} />
                 </InputAdornment>
               ),
               sx: { borderRadius: 2 },
@@ -246,7 +253,7 @@ export default function AtletasPage() {
         onSave={handleSaveEdit}
         loading={loadingEdit}
       >
-        <EditAtletaForm atleta={selectedAtleta} onChange={setSelectedAtleta} />
+        <EditAtletaForm atleta={selectedAtleta} onChange={setSelectedAtleta} equipos={equipos} />
       </GenericModal>
 
       {/* Modal crear */}
@@ -257,7 +264,7 @@ export default function AtletasPage() {
         onSave={handleCreateAtleta}
         loading={loadingCreate}
       >
-        <CreateAtletaForm atleta={newAtleta} onChange={setNewAtleta} />
+        <CreateAtletaForm atleta={newAtleta} onChange={setNewAtleta} equipos={equipos} />
       </GenericModal>
 
       {/* Modal eliminar */}

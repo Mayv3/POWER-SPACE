@@ -7,6 +7,9 @@ import intentosRoutes from "./routes/intentos.routes.js";
 import resultadosRoutes from "./routes/resultados.routes.js";
 import tandasRoutes from "./routes/tandas.routes.js";
 import juecesRoutes from './routes/jueces.routes.js'
+import historicoRoutes from "./routes/historico.routes.js";
+import coachesRoutes from "./routes/coaches.routes.js";
+import equiposRoutes from "./routes/equipos.routes.js";
 
 dotenv.config();
 const app = express();
@@ -19,6 +22,9 @@ app.use("/api/intentos", intentosRoutes);
 app.use("/api/resultados", resultadosRoutes);
 app.use("/api/tandas", tandasRoutes);
 app.use('/api/jueces', juecesRoutes)
+app.use('/api/historico', historicoRoutes);
+app.use('/api/coaches', coachesRoutes);
+app.use('/api/equipos', equiposRoutes);
 app.get('/ping', (req, res) => res.sendStatus(200));
 
 app.use((err, req, res, next) => {

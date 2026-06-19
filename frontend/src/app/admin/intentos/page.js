@@ -6,8 +6,7 @@ import {
   TextField, InputAdornment, Stack, CircularProgress,
   Paper, Divider, Chip,
 } from '@mui/material'
-import SearchIcon from '@mui/icons-material/Search'
-import GroupIcon from '@mui/icons-material/Group'
+import { MagnifyingGlass as SearchIcon, Users as GroupIcon } from '@phosphor-icons/react'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsIntentos } from '../../../const/columns/columnsIntentos'
 import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
@@ -333,7 +332,7 @@ export default function IntentosPage() {
             Intentos
           </Typography>
           <Stack direction="row" alignItems="center" gap={0.75} sx={{ mt: 0.5 }}>
-            <GroupIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <GroupIcon size={16} style={{ opacity: 0.6 }} />
             <Typography variant="body2" color="text.secondary">
               {atletasFiltrados.length} {atletasFiltrados.length === 1 ? 'atleta' : 'atletas'}
               {(tandaSeleccionada !== 'todas' || categoriaSeleccionada !== 'todas' || searchTerm) && ' filtrados'}
@@ -393,7 +392,7 @@ export default function IntentosPage() {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  <SearchIcon size={18} style={{ opacity: 0.6 }} />
                 </InputAdornment>
               ),
               sx: { borderRadius: 2 },

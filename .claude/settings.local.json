@@ -14,7 +14,26 @@
       "Bash(node -e \"const v=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const versions=JSON.parse\\(v\\); const v15=versions.filter\\(x=>x.startsWith\\(''''15.''''\\)\\); console.log\\(v15[v15.length-1]\\);\")",
       "Bash(npm install:*)",
       "Bash(npm audit:*)",
-      "Bash(node -e \"const d=JSON.parse\\(require\\(''''fs''''\\).readFileSync\\(0,''''utf8''''\\)\\); Object.values\\(d.vulnerabilities\\).forEach\\(v=>console.log\\(v.severity, v.name, v.range\\)\\)\")"
+      "Bash(node -e \"const d=JSON.parse\\(require\\(''''fs''''\\).readFileSync\\(0,''''utf8''''\\)\\); Object.values\\(d.vulnerabilities\\).forEach\\(v=>console.log\\(v.severity, v.name, v.range\\)\\)\")",
+      "Bash(claude mcp *)",
+      "Bash(curl *)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__supabase-fitflow__list_projects",
+      "mcp__supabase-power__list_projects",
+      "mcp__supabase-power__list_tables",
+      "Bash(ls src *)",
+      "Bash(ls routes *)",
+      "Bash(ls controllers *)",
+      "mcp__supabase-power__apply_migration",
+      "mcp__supabase-power__execute_sql",
+      "Bash(node -e \"const p=require\\('./node_modules/@mui/x-data-grid/package.json'\\); console.log\\('x-data-grid', p.version\\)\")",
+      "mcp__supabase-power__get_advisors",
+      "Bash(npm run *)",
+      "Bash(node --check src/controllers/intentos.controller.js)",
+      "Bash(node --check \"C:/Users/nicop/OneDrive/Desktop/Proyectos/POWER-SPACE/backend/src/controllers/intentos.controller.js\")"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "aidesigner"
+  ]
 }
