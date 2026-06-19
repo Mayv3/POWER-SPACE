@@ -85,6 +85,8 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
         {premiacion.map((eq) => {
           const color = eq.color || '#9e9e9e'
           const medal = MEDAL[eq.posicion]
+          // Solo los top 5 que aportan puntos al equipo.
+          const filas = (eq.detalle || []).filter((a) => a.cuenta_para_equipo)
           return (
             <Accordion
               key={eq.id}
@@ -128,9 +130,9 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
               </AccordionSummary>
 
               <AccordionDetails sx={{ px: 0, pt: 0 }}>
-                {eq.detalle.length === 0 ? (
+                {filas.length === 0 ? (
                   <Typography variant="body2" sx={{ px: 2, py: 1.5, color: muted }}>
-                    Sin atletas en este equipo.
+                    Sin atletas que puntúen en este equipo.
                   </Typography>
                 ) : (
                   <TableContainer>
@@ -148,7 +150,7 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {eq.detalle.map((a) => (
+                        {filas.map((a) => (
                           <TableRow key={a.atleta_id} sx={{ opacity: a.totalizo ? 1 : 0.5 }}>
                             <TableCell>{a.totalizo ? a.puesto : '—'}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>

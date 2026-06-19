@@ -72,8 +72,12 @@ export async function getPremiacionEquipos(req, res) {
             const detalle = calc
                 .filter((a) => a.equipo_id === eq.id)
                 .sort((x, y) => y.puntos - x.puntos || y.ipf_gl - x.ipf_gl);
-            const puntaje = detalle.reduce((s, a) => s + a.puntos, 0);
-            const suma_gl = r2(detalle.reduce((s, a) => s + a.ipf_gl, 0));
+            // Solo los mejores 5 (ya ordenados por puntos -> GL) suman para el equipo.
+            const top5 = detalle.slice(0, 5);
+            const cuentan = new Set(top5.map((a) => a.atleta_id));
+            detalle.forEach((a) => { a.cuenta_para_equipo = cuentan.has(a.atleta_id); });
+            const puntaje = top5.reduce((s, a) => s + a.puntos, 0);
+            const suma_gl = r2(top5.reduce((s, a) => s + a.ipf_gl, 0));
             return {
                 id: eq.id,
                 nombre: eq.nombre,
