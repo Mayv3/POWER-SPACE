@@ -25,7 +25,7 @@ app.use('/api/jueces', juecesRoutes)
 app.use('/api/historico', historicoRoutes);
 app.use('/api/coaches', coachesRoutes);
 app.use('/api/equipos', equiposRoutes);
-app.get('/ping', (req, res) => res.sendStatus(200));
+app.get('/ping', (req, res) => res.json({ pong: true, uptime: process.uptime(), timestamp: new Date().toISOString() }));
 
 app.use((err, req, res, next) => {
     console.error("Error:", err);
