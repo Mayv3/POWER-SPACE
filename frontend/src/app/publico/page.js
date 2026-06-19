@@ -330,9 +330,10 @@ export default function PublicoPage() {
 
   const openDetail = (a) => { setSelectedId(a.id); setView('detail'); if (typeof window !== 'undefined') window.scrollTo({ top: 0 }) }
   const back = () => { setView('list'); if (typeof window !== 'undefined') window.scrollTo({ top: 0 }) }
-  const verCategoria = () => {
-    if (!atletaEnVivo) return
-    setVersusCat(atletaEnVivo.categoria)
+  const verCategoria = (cat) => {
+    const c = cat || atletaEnVivo?.categoria
+    if (!c) return
+    setVersusCat(c)
     setView('versus')
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
   }
@@ -370,7 +371,8 @@ export default function PublicoPage() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Oswald:wght@400;500;600;700&display=swap');
         @keyframes psEq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
         @keyframes psDot{0%,100%{opacity:.25}50%{opacity:1}}
-        .ps-x::-webkit-scrollbar{display:none}
+        .ps-x{scrollbar-width:none;-ms-overflow-style:none}
+        .ps-x::-webkit-scrollbar{display:none;width:0;height:0}
         .ps-bar{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${T.lime},transparent);z-index:99;animation:psBar 1s linear infinite}
         @keyframes psBar{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
         .ps-view{animation:psIn .4s cubic-bezier(.22,.61,.36,1) both}
@@ -410,7 +412,8 @@ export default function PublicoPage() {
 
             {/* ---- LIVE ---- */}
             {live && (
-              <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', background: T.card, border: '1px solid rgba(255,255,255,.08)' }}>
+              <>
+              <div onClick={() => openDetail(liveA)} style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', background: T.card, border: '1px solid rgba(255,255,255,.08)', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', background: T.lime }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                     <Eq color="#0b0d0a" />
@@ -449,26 +452,10 @@ export default function PublicoPage() {
                       </div>
                     </div>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,.07)' }}>
-                    <div>
-                      <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>SUBTOTAL</div>
-                      <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, color: '#f7f8fa', lineHeight: 1, marginTop: 3 }}>{live.subtotal}<span style={{ fontSize: 12, color: T.txt2, marginLeft: 3 }}>kg</span></div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>PROYECCIÓN</div>
-                      <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, color: T.lime, lineHeight: 1, marginTop: 3 }}>{live.proj}<span style={{ fontSize: 12, color: 'rgba(192,249,59,.6)', marginLeft: 3 }}>kg</span></div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>POSICIÓN</div>
-                      <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, color: '#f7f8fa', lineHeight: 1, marginTop: 3 }}>{live.pos}°</div>
-                    </div>
-                  </div>
-
-                  <div onClick={() => openDetail(liveA)} style={{ marginTop: 14, textAlign: 'center', background: 'rgba(192,249,59,.1)', border: '1px solid rgba(192,249,59,.3)', borderRadius: 11, padding: 11, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.1em', color: T.lime, cursor: 'pointer' }}>VER PERFIL COMPLETO</div>
-                  <div onClick={verCategoria} style={{ marginTop: 8, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 11, padding: 11, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.06em', color: '#c9ced6', cursor: 'pointer' }}>{(atletaEnVivo?.nombre || '').toUpperCase()} VS {(atletaEnVivo?.categoria || '').toUpperCase()}</div>
                 </div>
               </div>
+              {/* <div onClick={verCategoria} style={{ marginTop: 12, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 11, padding: 11, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.06em', color: '#c9ced6', cursor: 'pointer' }}>{(atletaEnVivo?.nombre || '').toUpperCase()} VS {(atletaEnVivo?.categoria || '').toUpperCase()}</div> */}
+              </>
             )}
 
             {/* ---- PRÓXIMOS ---- */}
@@ -482,6 +469,13 @@ export default function PublicoPage() {
                   {proximos.map((np, i) => (
                     <div key={np.id} onClick={() => openDetail(np)} style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 13, padding: '10px 14px 10px 11px', cursor: 'pointer' }}>
                       <span style={{ width: 26, height: 26, borderRadius: 8, background: T.lime, color: '#0b0d0a', fontFamily: FO, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                      <span style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {np.foto ? (
+                          <img src={np.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                        ) : (
+                          <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 11, color: T.txt2 }}>{(np.nombre?.[0] || '') + (np.apellido?.[0] || '')}</span>
+                        )}
+                      </span>
                       <span>
                         <span style={{ display: 'block', fontWeight: 600, fontSize: 14, color: '#e6e8ec', lineHeight: 1.1 }}>{np.nombre} {np.apellido}</span>
                         <span style={{ display: 'block', fontFamily: FM, fontSize: 10, color: T.txt3 }}>{np.categoria}</span>
@@ -538,10 +532,6 @@ export default function PublicoPage() {
                     return (
                       <div key={item.id} onClick={() => openDetail(item)} style={{ background: T.card, border: `1px solid ${pal.border}`, borderRadius: 18, overflow: 'hidden', cursor: 'pointer' }}>
                         <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                          <div style={{ flex: 'none', width: 54, background: pal.posBg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                            <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 27, color: pal.posColor, lineHeight: .9 }}>{pos || '—'}</span>
-                            {pal.posTag && <span style={{ fontFamily: FM, fontSize: 8, color: pal.posColor, opacity: .7 }}>{pal.posTag}</span>}
-                          </div>
                           <div style={{ flex: 1, minWidth: 0, padding: '13px 15px', display: 'flex', alignItems: 'flex-start', gap: 11 }}>
                             <div style={{ flex: 'none', width: 46, height: 46, borderRadius: '50%', overflow: 'hidden', background: pal.posBg, border: `1px solid ${pal.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {item.foto ? (
@@ -577,9 +567,16 @@ export default function PublicoPage() {
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', marginTop: 14 }}>
-                          <div style={{ flex: 1, padding: '13px 15px', background: 'rgba(255,255,255,.03)' }}>
-                            <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>TOTAL</div>
-                            <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 2 }}><span style={{ fontSize: 30 }}>{item.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
+                          <div style={{ flex: 1, padding: '13px 15px', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                            <div>
+                              <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>POS</div>
+                              <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{pos || '—'}</span><span style={{ fontSize: 13, color: 'rgba(192,249,59,.6)', marginLeft: 1 }}>°</span></div>
+                            </div>
+                            <div style={{ flex: 'none', width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.12)' }} />
+                            <div>
+                              <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>TOTAL</div>
+                              <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 2 }}><span style={{ fontSize: 30 }}>{item.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
+                            </div>
                           </div>
                           <div style={{ flex: 'none', padding: '13px 16px', textAlign: 'right', background: 'rgba(192,249,59,.08)' }}>
                             <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>DOTS</div>
@@ -651,6 +648,11 @@ export default function PublicoPage() {
                     <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 32, lineHeight: .9, color: T.lime, marginTop: 4 }}>{selected.dots ? selected.dots.toFixed(2) : '—'}</div>
                   </div>
                 </div>
+
+                {/* VS CATEGORÍA */}
+                {selected.categoria && (
+                  <div onClick={() => verCategoria(selected.categoria)} style={{ marginTop: 10, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: 12, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.06em', color: '#c9ced6', cursor: 'pointer' }}>{(selected.nombre || '').toUpperCase()} VS {(selected.categoria || '').toUpperCase()}</div>
+                )}
 
                 {/* LEVANTANDO AHORA */}
                 {isLive && live && (
@@ -752,6 +754,13 @@ export default function PublicoPage() {
                   return (
                     <div key={a.id} ref={el => { if (el) rowRefs.current[a.id] = el }} onClick={() => openDetail(a)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isLive ? 'rgba(192,249,59,.08)' : T.card, border: `1px solid ${isLive ? 'rgba(192,249,59,.35)' : 'rgba(255,255,255,.07)'}`, borderRadius: 14, padding: '12px 14px', cursor: 'pointer', willChange: 'transform' }}>
                       <span style={{ flex: 'none', width: 28, textAlign: 'center', fontFamily: FO, fontWeight: 700, fontSize: 22, color: podio, lineHeight: 1 }}>{pos}</span>
+                      <div style={{ flex: 'none', width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {a.foto ? (
+                          <img src={a.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                        ) : (
+                          <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 14, color: T.txt2 }}>{(a.nombre?.[0] || '') + (a.apellido?.[0] || '')}</span>
+                        )}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                           <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 17, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre} {a.apellido}</span>
