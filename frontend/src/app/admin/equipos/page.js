@@ -5,8 +5,10 @@ import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
   CircularProgress, Card, CardContent, Avatar, IconButton,
   Menu, MenuItem, ListItemIcon, ListItemText, Divider, Chip,
+  Tabs, Tab, Accordion, AccordionSummary, AccordionDetails, Tooltip,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material'
-import { MagnifyingGlass as SearchIcon, UsersThree as GroupAddIcon, UsersThree as GroupsIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon, UserGear as SupervisorAccountIcon } from '@phosphor-icons/react'
+import { MagnifyingGlass as SearchIcon, UsersThree as GroupAddIcon, UsersThree as GroupsIcon, DotsThreeVertical as MoreVertIcon, PencilSimple as EditIcon, Trash as DeleteIcon, UserGear as SupervisorAccountIcon, CaretDown as ExpandIcon, Trophy as TrophyIcon, Info as InfoIcon } from '@phosphor-icons/react'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { EquipoForm } from '../../../components/modales/EquipoForm'
 import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
@@ -48,12 +50,144 @@ function CardMenu({ onEdit, onDelete }) {
   )
 }
 
+const MEDAL = { 1: '#FFD700', 2: '#C0C0C0', 3: '#CD7F32' }
+const fmtNum = (n) => (n || n === 0 ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—')
+
+function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
+  const muted = isDark ? '#9aa0ab' : '#6b7280'
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+        <CircularProgress size={40} sx={{ color: '#FF9800' }} />
+      </Box>
+    )
+  }
+  if (!premiacion || premiacion.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 1, color: 'text.secondary' }}>
+        <TrophyIcon size={56} style={{ opacity: 0.4 }} />
+        <Typography>No hay datos de premiación.</Typography>
+      </Box>
+    )
+  }
+
+  return (
+    <Box sx={{ maxWidth: 980, mx: 'auto' }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, color: muted }}>
+        <InfoIcon size={16} />
+        <Typography variant="caption">
+          Puesto por ranking absoluto de IPF GL. Puntos por puesto: 1°=12, 2°=9, 3°=8, 4°=7 … 10°+=1. Suma de todos los atletas del equipo.
+        </Typography>
+      </Stack>
+
+      <Stack spacing={1.5}>
+        {premiacion.map((eq) => {
+          const color = eq.color || '#9e9e9e'
+          const medal = MEDAL[eq.posicion]
+          return (
+            <Accordion
+              key={eq.id}
+              disableGutters
+              elevation={0}
+              sx={{
+                borderRadius: 3, border: `1px solid ${medal || border}`, backgroundColor: surface,
+                overflow: 'hidden', '&:before': { display: 'none' },
+              }}
+            >
+              <AccordionSummary expandIcon={<ExpandIcon size={20} />} sx={{ px: 2, py: 0.5 }}>
+                <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
+                  {/* Posición */}
+                  <Box sx={{
+                    width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 800, fontSize: 16,
+                    bgcolor: medal || (isDark ? '#2a2a2a' : '#eceff1'),
+                    color: medal ? '#000' : 'text.secondary',
+                  }}>
+                    {eq.posicion}
+                  </Box>
+                  <Avatar src={eq.foto || undefined} sx={{ width: 40, height: 40, bgcolor: color, flexShrink: 0 }}>
+                    <GroupsIcon size={22} />
+                  </Avatar>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
+                      {capitalizeWords(eq.nombre)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: muted }} noWrap>
+                      {eq.coach?.nombre ? capitalizeWords(eq.coach.nombre) : 'Sin coach'} · {eq.num_totalizaron}/{eq.num_atletas} totalizaron
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right', flexShrink: 0, pr: 1 }}>
+                    <Typography fontWeight={800} sx={{ fontSize: 22, lineHeight: 1, color: '#F57C00' }}>
+                      {eq.puntaje}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: muted }}>pts</Typography>
+                  </Box>
+                </Stack>
+              </AccordionSummary>
+
+              <AccordionDetails sx={{ px: 0, pt: 0 }}>
+                {eq.detalle.length === 0 ? (
+                  <Typography variant="body2" sx={{ px: 2, py: 1.5, color: muted }}>
+                    Sin atletas en este equipo.
+                  </Typography>
+                ) : (
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ color: muted }}>Pto.</TableCell>
+                          <TableCell sx={{ color: muted }}>Atleta</TableCell>
+                          <TableCell sx={{ color: muted }}>Categoría</TableCell>
+                          <TableCell align="right" sx={{ color: muted }}>Peso</TableCell>
+                          <TableCell align="right" sx={{ color: muted }}>Total</TableCell>
+                          <Tooltip title="IPF GoodLift (fórmula oficial actual)"><TableCell align="right" sx={{ color: muted }}>IPF GL</TableCell></Tooltip>
+                          <Tooltip title="IPF Points (fórmula anterior)"><TableCell align="right" sx={{ color: muted }}>IPF Pts</TableCell></Tooltip>
+                          <TableCell align="right" sx={{ color: muted, fontWeight: 700 }}>Aporta</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {eq.detalle.map((a) => (
+                          <TableRow key={a.atleta_id} sx={{ opacity: a.totalizo ? 1 : 0.5 }}>
+                            <TableCell>{a.totalizo ? a.puesto : '—'}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                              {capitalizeWords(`${a.nombre} ${a.apellido || ''}`)}
+                              {!a.totalizo && (
+                                <Chip label="No totalizó" size="small" sx={{ ml: 1, height: 18, fontSize: '0.65rem' }} />
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{a.categoria || '—'} · {a.modalidad || '—'}</TableCell>
+                            <TableCell align="right">{a.peso_corporal ?? '—'} kg</TableCell>
+                            <TableCell align="right">{a.total > 0 ? `${a.total} kg` : '—'}</TableCell>
+                            <TableCell align="right">{a.totalizo ? fmtNum(a.ipf_gl) : '—'}</TableCell>
+                            <TableCell align="right">{a.totalizo ? fmtNum(a.ipf_points) : '—'}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, color: a.puntos ? '#F57C00' : muted }}>{a.puntos}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </AccordionDetails>
+            </Accordion>
+          )
+        })}
+      </Stack>
+    </Box>
+  )
+}
+
 export default function EquiposPage() {
   const [equipos, setEquipos] = useState([])
   const [equiposFiltrados, setEquiposFiltrados] = useState([])
   const [coaches, setCoaches] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+
+  const [vista, setVista] = useState('equipos')
+  const [premiacion, setPremiacion] = useState([])
+  const [loadingPremiacion, setLoadingPremiacion] = useState(false)
 
   const [openEdit, setOpenEdit] = useState(false)
   const [selectedEquipo, setSelectedEquipo] = useState({})
@@ -95,7 +229,22 @@ export default function EquiposPage() {
     }
   }
 
+  const fetchPremiacion = async () => {
+    setLoadingPremiacion(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos/premiacion`)
+      const data = await res.json()
+      setPremiacion(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error al cargar premiación:', err)
+    } finally {
+      setLoadingPremiacion(false)
+    }
+  }
+
   useEffect(() => { fetchEquipos(); fetchCoaches() }, [])
+
+  useEffect(() => { if (vista === 'premiacion') fetchPremiacion() }, [vista])
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -194,38 +343,53 @@ export default function EquiposPage() {
         <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
           Equipos
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<GroupAddIcon />}
-          onClick={() => setOpenCreate(true)}
-          sx={{
-            borderRadius: 2, textTransform: 'none', fontWeight: 600,
-            backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' }, px: 2.5,
-          }}
-        >
-          Nuevo equipo
-        </Button>
+        {vista === 'equipos' && (
+          <Button
+            variant="contained"
+            startIcon={<GroupAddIcon />}
+            onClick={() => setOpenCreate(true)}
+            sx={{
+              borderRadius: 2, textTransform: 'none', fontWeight: 600,
+              backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' }, px: 2.5,
+            }}
+          >
+            Nuevo equipo
+          </Button>
+        )}
       </Stack>
 
-      <TextField
-        fullWidth
-        size="small"
-        placeholder="Buscar por nombre o coach..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        sx={{ maxWidth: 420 }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon size={18} style={{ opacity: 0.6 }} />
-            </InputAdornment>
-          ),
-          sx: { borderRadius: 2, backgroundColor: surface },
-        }}
-      />
+      <Tabs
+        value={vista}
+        onChange={(e, v) => setVista(v)}
+        sx={{ borderBottom: `1px solid ${border}`, minHeight: 40, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, minHeight: 40 }, '& .Mui-selected': { color: '#F57C00 !important' }, '& .MuiTabs-indicator': { backgroundColor: '#F57C00' } }}
+      >
+        <Tab value="equipos" label="Equipos" icon={<GroupsIcon size={18} />} iconPosition="start" />
+        <Tab value="premiacion" label="Premiación" icon={<TrophyIcon size={18} />} iconPosition="start" />
+      </Tabs>
+
+      {vista === 'equipos' && (
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="Buscar por nombre o coach..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          sx={{ maxWidth: 420 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon size={18} style={{ opacity: 0.6 }} />
+              </InputAdornment>
+            ),
+            sx: { borderRadius: 2, backgroundColor: surface },
+          }}
+        />
+      )}
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', pb: 2 }}>
-        {isLoading ? (
+        {vista === 'premiacion' ? (
+          <PremiacionView premiacion={premiacion} isLoading={loadingPremiacion} surface={surface} border={border} isDark={isDark} />
+        ) : isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
             <CircularProgress size={40} sx={{ color: '#FF9800' }} />
           </Box>

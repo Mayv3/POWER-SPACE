@@ -1,9 +1,10 @@
 import express from "express";
-import { getEquipos, getEquipoById, createEquipo, updateEquipo, deleteEquipo } from "../controllers/equipos.controller.js";
+import { getEquipos, getEquipoById, createEquipo, updateEquipo, deleteEquipo, getPremiacionEquipos } from "../controllers/equipos.controller.js";
 
 const router = express.Router();
 
 router.get("/", getEquipos);
+router.get("/premiacion", getPremiacionEquipos); // antes de /:id para no capturarse como id
 router.get("/:id", getEquipoById);
 
 router.post("/", createEquipo);

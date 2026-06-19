@@ -30,7 +30,21 @@
       "mcp__supabase-power__get_advisors",
       "Bash(npm run *)",
       "Bash(node --check src/controllers/intentos.controller.js)",
-      "Bash(node --check \"C:/Users/nicop/OneDrive/Desktop/Proyectos/POWER-SPACE/backend/src/controllers/intentos.controller.js\")"
+      "Bash(node --check \"C:/Users/nicop/OneDrive/Desktop/Proyectos/POWER-SPACE/backend/src/controllers/intentos.controller.js\")",
+      "Bash(xargs grep -l \"equipo\")",
+      "WebSearch",
+      "WebFetch(domain:www.ipfpointscalculator.com)",
+      "WebFetch(domain:www.powerlifting.sport)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:gitlab.com)",
+      "Bash(node --check src/utils/calcularIPF.js)",
+      "Bash(node --check src/controllers/equipos.controller.js)",
+      "Bash(node --check src/routes/equipos.routes.js)",
+      "Bash(npx --no-install eslint src/app/admin/equipos/page.js src/utils/calcularIPF.js)",
+      "Bash(echo \"---exit: $?\")",
+      "Bash(netstat -ano)",
+      "Bash(node scripts/gen-favicon.cjs)",
+      "Bash(node -e \"const s=require\\('sharp'\\);s\\('src/app/favicon.ico'\\).png\\(\\).resize\\(96,96\\).toFile\\('scripts/_fav_preview.png'\\).then\\(\\(\\)=>console.log\\('ok'\\)\\)\")"
     ]
   },
   "enabledMcpjsonServers": [

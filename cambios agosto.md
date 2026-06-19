@@ -29,18 +29,17 @@
 DUDAS: 
 
 
-
 ## Tarea 4 — Cronómetro de intento
-- [ ] Una vez dado válido o nulo un levantamiento, mostrar un cronómetro de 1 min en el próximo intento del atleta.
+- [x] Una vez dado válido o nulo un levantamiento, mostrar un cronómetro de 1 min en el próximo intento del atleta.
 - [x] Marcar el tiempo disponible para dar el intento (en pantalla de mesa o en el lugar del próximo intento).
 
 
 ## Tarea 9 — Cálculo IPF GL e IPF Points
-- [ ] Agregar cálculo de **IPF GL** e **IPF Points** (para premiación por equipos).
+- [x] Agregar cálculo de **IPF GL** e **IPF Points** (para premiación por equipos).
 
 
 ## Tarea 10 — Puntuación por equipos (no visible)
-- [ ] Una vez tenidos los resultados de todas las tandas, agrupar a todos y asignar puntuación a cada atleta según puesto:
+- [x] Una vez tenidos los resultados de todas las tandas, agrupar a todos y asignar puntuación a cada atleta según puesto:
 
 | Puesto | Puntos |
 |--------|--------|
