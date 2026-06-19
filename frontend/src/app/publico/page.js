@@ -534,6 +534,13 @@ export default function PublicoPage() {
                             {pal.posTag && <span style={{ fontFamily: FM, fontSize: 8, color: pal.posColor, opacity: .7 }}>{pal.posTag}</span>}
                           </div>
                           <div style={{ flex: 1, minWidth: 0, padding: '13px 15px', display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                            <div style={{ flex: 'none', width: 46, height: 46, borderRadius: '50%', overflow: 'hidden', background: pal.posBg, border: `1px solid ${pal.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {item.foto ? (
+                                <img src={item.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                              ) : (
+                                <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 16, color: pal.posColor }}>{(item.nombre?.[0] || '') + (item.apellido?.[0] || '')}</span>
+                              )}
+                            </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1 }}>{item.nombre} {item.apellido}</span>
