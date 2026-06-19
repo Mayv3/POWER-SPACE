@@ -9,6 +9,7 @@ import { Camera as PhotoCameraIcon, User as PersonIcon, Trash as DeleteOutlineIc
 import { capitalizeWords } from '../../utils/textUtils'
 import categorias from '../../const/categorias/categorias'
 import { supabase } from '../../lib/supabaseClient'
+import { optimizeImage } from '../../utils/optimizeImage'
 export function EditAtletaForm({ atleta, onChange, equipos = [] }) {
   const [uploading, setUploading] = useState(false)
 
@@ -27,11 +28,12 @@ export function EditAtletaForm({ atleta, onChange, equipos = [] }) {
     if (!file) return
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop()
+      const optimized = await optimizeImage(file)
+      const ext = optimized.name.split('.').pop()
       const path = `atletas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
       const { error } = await supabase.storage
         .from('atletas')
-        .upload(path, file, { upsert: true, contentType: file.type })
+        .upload(path, optimized, { upsert: true, contentType: optimized.type })
       if (error) throw error
       const { data } = supabase.storage.from('atletas').getPublicUrl(path)
       onChange({ ...atleta, foto: data.publicUrl })

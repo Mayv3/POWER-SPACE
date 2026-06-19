@@ -132,6 +132,7 @@ export default function PublicoPage() {
   const [updating, setUpdating] = useState(false)
   const loadedRef = useRef(false)
   const rankingRef = useRef(null)
+  const preloadedRef = useRef(new Set())
 
   /* ---- carga + realtime intentos ---- */
   useEffect(() => {
@@ -252,6 +253,26 @@ export default function PublicoPage() {
     return i === -1 ? [] : mismaTanda.slice(i + 1)
   }, [atletaEnVivo, estado, atletas])
 
+  /* ---- precarga de fotos: en vivo -> próximos -> resto (perfil abre instantáneo) ---- */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const seen = preloadedRef.current
+    const prime = (url) => {
+      if (!url || seen.has(url)) return
+      seen.add(url)
+      const im = new Image()
+      im.decoding = 'async'
+      im.src = url
+    }
+    prime(atletaEnVivo?.foto)
+    proximos.forEach(a => prime(a.foto))
+    const rest = () => atletas.forEach(a => prime(a.foto))
+    const ric = window.requestIdleCallback
+    if (ric) { const id = ric(rest, { timeout: 2000 }); return () => window.cancelIdleCallback?.(id) }
+    const t = setTimeout(rest, 600)
+    return () => clearTimeout(t)
+  }, [atletas, atletaEnVivo, proximos])
+
   /* ---- derivados live ---- */
   const liveA = useMemo(() => {
     if (!atletaEnVivo) return null
@@ -370,8 +391,11 @@ export default function PublicoPage() {
         {/* ============ HEADER ============ */}
         <div style={{ position: 'sticky', top: 0, zIndex: 20, backdropFilter: 'blur(14px)', background: 'rgba(8,9,11,.82)', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
-            <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, letterSpacing: '.02em', color: T.txt, position: 'relative', paddingBottom: 5 }}>
-              POWERSPACE<span style={{ position: 'absolute', left: 0, bottom: 0, width: 38, height: 4, background: T.lime }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <img src="/powerspace_logo.png" alt="POWERSPACE" style={{ height: 34, width: 34, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
+              <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, letterSpacing: '.02em', color: T.txt, position: 'relative', paddingBottom: 5 }}>
+                POWERSPACE<span style={{ position: 'absolute', left: 0, bottom: 0, width: 38, height: 4, background: T.lime }} />
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: T.lime }}>{atletaEnVivo ? 'EN VIVO' : 'RANKING'}</div>

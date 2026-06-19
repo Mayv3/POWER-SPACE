@@ -130,6 +130,13 @@ export const SideBar = ({ tabs }: HeaderComponentProps) => {
         overflowX: 'hidden',
       }}
     >
+      <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1.5, mt: 0.5 }}>
+        <img
+          src="/powerspace_logo.png"
+          alt="POWERSPACE"
+          style={{ height: isExpanded ? 52 : 44, width: isExpanded ? 52 : 44, borderRadius: 12, objectFit: 'cover', transition: 'all .25s ease' }}
+        />
+      </Box>
       <List sx={{ color: 'white', py: 0, mt: 0, width: '100%' }}>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.18)', mb: 1 }} />
         {tabs.map((tab, index) => {
