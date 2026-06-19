@@ -1,7 +1,7 @@
 // Reduce y recomprime una imagen en el cliente antes de subirla a Storage.
 // Devuelve un File más liviano (WebP, o JPEG si WebP no está disponible).
 // Si no logra achicarla, devuelve el original sin tocar.
-export async function optimizeImage(file, { maxSize = 1000, quality = 0.72 } = {}) {
+export async function optimizeImage(file, { maxSize = 1400, quality = 0.86 } = {}) {
   if (!file || !file.type?.startsWith('image/') || typeof document === 'undefined') return file
 
   let source, width, height, cleanup = () => {}
