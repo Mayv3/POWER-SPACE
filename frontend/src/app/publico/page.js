@@ -130,9 +130,14 @@ export default function PublicoPage() {
   const [versusCat, setVersusCat] = useState(null)
   const [secs, setSecs] = useState(0)
   const [updating, setUpdating] = useState(false)
+  const [exitHint, setExitHint] = useState(false)
   const loadedRef = useRef(false)
   const rankingRef = useRef(null)
   const preloadedRef = useRef(new Set())
+  const navStackRef = useRef([])
+  const viewStateRef = useRef({ view, selectedId, versusCat })
+  const lastBackRef = useRef(0)
+  const exitHintTimer = useRef(null)
 
   /* ---- carga + realtime intentos ---- */
   useEffect(() => {
@@ -328,14 +333,52 @@ export default function PublicoPage() {
     prevTops.current = next
   }, [versusList, view])
 
-  const openDetail = (a) => { setSelectedId(a.id); setView('detail'); if (typeof window !== 'undefined') window.scrollTo({ top: 0 }) }
-  const back = () => { setView('list'); if (typeof window !== 'undefined') window.scrollTo({ top: 0 }) }
+  /* ---- navegación interna + gesto "atrás" ----
+     atrás vuelve de vista (detalle/versus -> inicio) en vez de cerrar la página;
+     en el inicio hace falta tocar atrás dos veces para salir ---- */
+  useEffect(() => { viewStateRef.current = { view, selectedId, versusCat } }, [view, selectedId, versusCat])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const pushGuard = () => window.history.pushState({ ...(window.history.state || {}), psGuard: true }, '')
+    // entrada "guardia": captura el primer atrás estando en el inicio
+    if (!window.history.state?.psGuard) pushGuard()
+    const onPop = () => {
+      const stack = navStackRef.current
+      if (stack.length > 0) {                       // hay vista anterior -> volver
+        const prev = stack.pop()
+        setView(prev.view); setSelectedId(prev.selectedId); setVersusCat(prev.versusCat)
+        window.scrollTo({ top: 0 })
+        return
+      }
+      // estamos en el inicio: requiere doble atrás para salir
+      const now = Date.now()
+      if (now - lastBackRef.current < 2000) { window.history.back(); return } // segundo atrás -> sale
+      lastBackRef.current = now
+      pushGuard()                                   // traga este atrás y queda en la página
+      setExitHint(true)
+      window.clearTimeout(exitHintTimer.current)
+      exitHintTimer.current = window.setTimeout(() => setExitHint(false), 2000)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => { window.removeEventListener('popstate', onPop); window.clearTimeout(exitHintTimer.current) }
+  }, [])
+
+  const pushNav = (next) => {
+    navStackRef.current.push({ ...viewStateRef.current })
+    if (typeof window !== 'undefined') window.history.pushState({ ...(window.history.state || {}), psGuard: true }, '')
+    setView(next.view)
+    if ('selectedId' in next) setSelectedId(next.selectedId)
+    if ('versusCat' in next) setVersusCat(next.versusCat)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
+  }
+
+  const openDetail = (a) => pushNav({ view: 'detail', selectedId: a.id })
+  const back = () => { if (typeof window !== 'undefined') window.history.back() }
   const verCategoria = (cat) => {
     const c = cat || atletaEnVivo?.categoria
     if (!c) return
-    setVersusCat(c)
-    setView('versus')
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
+    pushNav({ view: 'versus', versusCat: c })
   }
 
   /* ---- estado de intento ---- */
@@ -387,6 +430,12 @@ export default function PublicoPage() {
         }`}</style>
 
       {updating && <div className="ps-bar" />}
+
+      {exitHint && (
+        <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 120, background: 'rgba(8,9,11,.92)', border: `1px solid ${T.line2}`, color: T.txt, fontFamily: FB, fontSize: 13, padding: '10px 18px', borderRadius: 999, backdropFilter: 'blur(8px)', boxShadow: '0 8px 30px rgba(0,0,0,.4)' }}>
+          Tocá atrás de nuevo para salir
+        </div>
+      )}
 
       <div className="ps-frame">
 
