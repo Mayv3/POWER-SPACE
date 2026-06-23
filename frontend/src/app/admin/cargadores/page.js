@@ -12,6 +12,7 @@ import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
 import { joinCompetenciaLive } from '../../../lib/competenciaLive'
+import { apiFetch } from '../../../lib/api'
 import { capitalizeWords } from '../../../utils/textUtils'
 import { colorCategoria } from '../../../utils/colorCategoria'
 import { useDarkMode } from '../../../context/ThemeContext'
@@ -358,7 +359,7 @@ export default function CargadoresPage() {
         juez1_valido: null, juez2_valido: null, juez3_valido: null,
         juez1_tipo: null, juez2_tipo: null, juez3_tipo: null, intento_valido: null,
       })
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/jueces/start`, { method: 'POST' })
+      await apiFetch(`/api/jueces/start`, { method: 'POST' })
     } catch (err) { console.error('Error al iniciar cronómetro:', err) }
   }, [])
 
@@ -404,7 +405,7 @@ export default function CargadoresPage() {
 
     // 3) Persistir en background (no bloquea la UI)
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+      await apiFetch(`/api/intentos/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -432,7 +433,7 @@ export default function CargadoresPage() {
       ? aplicarIntentoLocal(a, ejercicioFiltro, intentoSeleccionado, null, null) : a))
     toast.info('Intento restablecido')
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+      await apiFetch(`/api/intentos/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -459,7 +460,7 @@ export default function CargadoresPage() {
       ? aplicarIntentoLocal(a, ejercicio, proximoIntento, n, null) : a))
     toast.info(`${proximoIntento}° intento: ${n} kg`)
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+      await apiFetch(`/api/intentos/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -539,7 +540,7 @@ export default function CargadoresPage() {
       }))
 
       // Persistir en background
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert-batch`, {
+      apiFetch(`/api/intentos/upsert-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intentos: cambios })

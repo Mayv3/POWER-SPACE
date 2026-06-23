@@ -4,11 +4,13 @@ import { FloatingTabs } from '../../components/FloatingTabs'
 import { powerspaceTabs } from '../../const/powerSpaceTabs'
 import { Box } from '@mui/material'
 import { useDarkMode } from '../../context/ThemeContext'
+import AuthGuard from '../../components/AuthGuard'
 
 export default function AdminLayout({ children }) {
   const { isDark } = useDarkMode()
 
   return (
+    <AuthGuard>
     <Box sx={{ display: 'flex', height: '100dvh', width: '100%', overflow: 'hidden' }}>
       <Box
         component="main"
@@ -26,5 +28,6 @@ export default function AdminLayout({ children }) {
       </Box>
       <FloatingTabs tabs={powerspaceTabs} />
     </Box>
+    </AuthGuard>
   )
 }

@@ -12,6 +12,7 @@ import { CoachForm } from '../../../components/modales/CoachForm'
 import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { capitalizeWords } from '../../../utils/textUtils'
+import { apiFetch } from '../../../lib/api'
 
 const COLORES = ['#F57C00', '#1976d2', '#388e3c', '#7b1fa2', '#d32f2f', '#0097a7']
 
@@ -78,7 +79,7 @@ export default function CoachesPage() {
   const fetchCoaches = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/coaches`)
+      const res = await apiFetch(`/api/coaches`)
       const data = await res.json()
       setCoaches(data)
       setCoachesFiltrados(data)
@@ -106,7 +107,7 @@ export default function CoachesPage() {
     if (loadingEdit) return
     setLoadingEdit(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/coaches/${selectedCoach.id}`, {
+      const res = await apiFetch(`/api/coaches/${selectedCoach.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(selectedCoach),
@@ -126,7 +127,7 @@ export default function CoachesPage() {
     if (!newCoach.nombre?.trim()) { alert('El nombre es obligatorio.'); return }
     setLoadingCreate(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/coaches`, {
+      const res = await apiFetch(`/api/coaches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCoach),
@@ -149,7 +150,7 @@ export default function CoachesPage() {
     if (loadingDelete) return
     setLoadingDelete(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/coaches/${coachToDelete.id}`, {
+      const res = await apiFetch(`/api/coaches/${coachToDelete.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error()

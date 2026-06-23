@@ -13,6 +13,7 @@ import { EditAtletaForm } from '../../../components/modales/EditAtletaForm'
 import { DeleteConfirmModal } from '../../../components/modales/DeleteConfirmModal'
 import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
 import { useDarkMode } from '../../../context/ThemeContext'
+import { apiFetch } from '../../../lib/api'
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])
@@ -62,7 +63,7 @@ export default function AtletasPage() {
   const fetchAtletas = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas`)
+      const res = await apiFetch(`/api/atletas`)
       const data = await res.json()
       setAtletas(data)
       setAtletasFiltrados(data)
@@ -75,7 +76,7 @@ export default function AtletasPage() {
 
   const fetchEquipos = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos`)
+      const res = await apiFetch(`/api/equipos`)
       const data = await res.json()
       setEquipos(Array.isArray(data) ? data : [])
     } catch (err) {
@@ -105,7 +106,7 @@ export default function AtletasPage() {
     if (loadingEdit) return
     setLoadingEdit(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${selectedAtleta.id}`, {
+      const res = await apiFetch(`/api/atletas/${selectedAtleta.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(selectedAtleta),
@@ -124,7 +125,7 @@ export default function AtletasPage() {
     if (loadingCreate) return
     setLoadingCreate(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas`, {
+      const res = await apiFetch(`/api/atletas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAtleta),
@@ -154,7 +155,7 @@ export default function AtletasPage() {
     if (loadingDelete) return
     setLoadingDelete(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/atletas/${deleteAtleta.id}`, {
+      const res = await apiFetch(`/api/atletas/${deleteAtleta.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error()

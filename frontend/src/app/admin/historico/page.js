@@ -9,8 +9,7 @@ import {
 } from '@mui/material'
 import { Save as SaveIcon, CleaningServices as CleaningServicesIcon, Visibility as VisibilityIcon, Delete as DeleteIcon, Inventory2 as InventoryIcon } from '@mui/icons-material'
 import { useDarkMode } from '../../../context/ThemeContext'
-
-const API = process.env.NEXT_PUBLIC_API_URL
+import { apiFetch } from '../../../lib/api'
 
 export default function HistoricoPage() {
   const [snapshots, setSnapshots] = useState([])
@@ -43,7 +42,7 @@ export default function HistoricoPage() {
   const fetchSnapshots = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(`${API}/api/historico`)
+      const res = await apiFetch(`/api/historico`)
       const data = await res.json()
       setSnapshots(Array.isArray(data) ? data : [])
     } catch (err) {
@@ -59,7 +58,7 @@ export default function HistoricoPage() {
   const handleArchivar = async () => {
     setBusy(true)
     try {
-      const res = await fetch(`${API}/api/historico/archivar`, {
+      const res = await apiFetch(`/api/historico/archivar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: nombre.trim() || null, descripcion: descripcion.trim() || null }),
@@ -79,7 +78,7 @@ export default function HistoricoPage() {
   const handleLimpiar = async () => {
     setBusy(true)
     try {
-      const res = await fetch(`${API}/api/historico/limpiar`, {
+      const res = await apiFetch(`/api/historico/limpiar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ archivar: autoBackup }),
@@ -101,7 +100,7 @@ export default function HistoricoPage() {
     setVerTab(0)
     setVerLoading(true)
     try {
-      const res = await fetch(`${API}/api/historico/${snap.id}`)
+      const res = await apiFetch(`/api/historico/${snap.id}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
       setVerData(data)
@@ -119,7 +118,7 @@ export default function HistoricoPage() {
     if (!eliminarTarget) return
     setBusy(true)
     try {
-      const res = await fetch(`${API}/api/historico/${eliminarTarget.id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/historico/${eliminarTarget.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
       setEliminarTarget(null)
       await fetchSnapshots()

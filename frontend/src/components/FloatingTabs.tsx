@@ -6,6 +6,7 @@ import { Logout as LogoutIcon, DarkMode as DarkModeIcon, LightMode as LightModeI
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useDarkMode } from '../context/ThemeContext'
+import { supabase } from '../lib/supabaseClient'
 
 type TabItem = { label: string; icon: React.ReactNode; route: string }
 type FloatingTabsProps = { tabs: TabItem[] }
@@ -43,6 +44,11 @@ export const FloatingTabs = ({ tabs }: FloatingTabsProps) => {
     } else {
       router.push(route)
     }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.replace('/login')
   }
 
   useEffect(() => {
@@ -151,10 +157,10 @@ export const FloatingTabs = ({ tabs }: FloatingTabsProps) => {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title="Salir" placement="top" arrow>
+        <Tooltip title="Cerrar sesión" placement="top" arrow>
           <IconButton
             disableRipple
-            onClick={() => router.push('/')}
+            onClick={handleLogout}
             sx={{
               ...btnBase,
               color: 'rgba(255,255,255,0.55)',

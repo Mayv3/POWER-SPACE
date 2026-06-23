@@ -14,6 +14,7 @@ import { EquipoForm } from '../../../components/modales/EquipoForm'
 import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { capitalizeWords } from '../../../utils/textUtils'
+import { apiFetch } from '../../../lib/api'
 
 const EMPTY_EQUIPO = { nombre: '', foto: null, color: '#F57C00', coach_id: '' }
 
@@ -210,7 +211,7 @@ export default function EquiposPage() {
   const fetchEquipos = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos`)
+      const res = await apiFetch(`/api/equipos`)
       const data = await res.json()
       setEquipos(data)
       setEquiposFiltrados(data)
@@ -223,7 +224,7 @@ export default function EquiposPage() {
 
   const fetchCoaches = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/coaches`)
+      const res = await apiFetch(`/api/coaches`)
       const data = await res.json()
       setCoaches(Array.isArray(data) ? data : [])
     } catch (err) {
@@ -234,7 +235,7 @@ export default function EquiposPage() {
   const fetchPremiacion = async () => {
     setLoadingPremiacion(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos/premiacion`)
+      const res = await apiFetch(`/api/equipos/premiacion`)
       const data = await res.json()
       setPremiacion(Array.isArray(data) ? data : [])
     } catch (err) {
@@ -272,7 +273,7 @@ export default function EquiposPage() {
     if (!selectedEquipo.nombre?.trim()) { alert('El nombre es obligatorio.'); return }
     setLoadingEdit(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos/${selectedEquipo.id}`, {
+      const res = await apiFetch(`/api/equipos/${selectedEquipo.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -297,7 +298,7 @@ export default function EquiposPage() {
     if (!newEquipo.nombre?.trim()) { alert('El nombre es obligatorio.'); return }
     setLoadingCreate(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos`, {
+      const res = await apiFetch(`/api/equipos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -325,7 +326,7 @@ export default function EquiposPage() {
     if (loadingDelete) return
     setLoadingDelete(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/equipos/${equipoToDelete.id}`, {
+      const res = await apiFetch(`/api/equipos/${equipoToDelete.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error()

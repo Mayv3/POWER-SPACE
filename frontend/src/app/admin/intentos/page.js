@@ -12,6 +12,7 @@ import { columnsIntentos } from '../../../const/columns/columnsIntentos'
 import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
 import { Calculate_DOTS } from '../../../utils/calcularDots'
 import { useDarkMode } from '../../../context/ThemeContext'
+import { apiFetch } from '../../../lib/api'
 
 function calcularPuestos(atletas) {
   const grupos = {}
@@ -67,8 +68,8 @@ export default function IntentosPage() {
   const fetchAtletas = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/intentos/atletas-con-intentos?tanda_id=todas`
+      const res = await apiFetch(
+        `/api/intentos/atletas-con-intentos?tanda_id=todas`
       )
       const data = await res.json()
 
@@ -171,7 +172,7 @@ export default function IntentosPage() {
       }
 
       for (const intento of intentosParaActualizar) {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+        const res = await apiFetch(`/api/intentos/upsert`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(intento),
@@ -257,7 +258,7 @@ export default function IntentosPage() {
         bodyData.peso = nuevoPeso
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/intentos/upsert`, {
+      const res = await apiFetch(`/api/intentos/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyData),

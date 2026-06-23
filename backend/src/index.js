@@ -10,6 +10,7 @@ import juecesRoutes from './routes/jueces.routes.js'
 import historicoRoutes from "./routes/historico.routes.js";
 import coachesRoutes from "./routes/coaches.routes.js";
 import equiposRoutes from "./routes/equipos.routes.js";
+import { protectMutations } from "./middlewares/requireAuth.js";
 
 dotenv.config();
 const app = express();
@@ -17,14 +18,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/atletas", atletasRoutes);
-app.use("/api/intentos", intentosRoutes);
-app.use("/api/resultados", resultadosRoutes);
-app.use("/api/tandas", tandasRoutes);
+// protectMutations exige sesión de admin (JWT Supabase) en POST/PUT/PATCH/DELETE;
+// los GET quedan abiertos. El router de jueces queda sin protección porque el
+// flujo en vivo (votos / control) corre sin login de admin.
+app.use("/api/atletas", protectMutations, atletasRoutes);
+app.use("/api/intentos", protectMutations, intentosRoutes);
+app.use("/api/resultados", protectMutations, resultadosRoutes);
+app.use("/api/tandas", protectMutations, tandasRoutes);
 app.use('/api/jueces', juecesRoutes)
-app.use('/api/historico', historicoRoutes);
-app.use('/api/coaches', coachesRoutes);
-app.use('/api/equipos', equiposRoutes);
+app.use('/api/historico', protectMutations, historicoRoutes);
+app.use('/api/coaches', protectMutations, coachesRoutes);
+app.use('/api/equipos', protectMutations, equiposRoutes);
 app.get('/ping', (req, res) => res.json({ pong: true, uptime: process.uptime(), timestamp: new Date().toISOString() }));
 
 app.use((err, req, res, next) => {
