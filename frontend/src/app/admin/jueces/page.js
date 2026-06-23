@@ -33,7 +33,7 @@ export default function JuecesPage() {
   const handleOpenLink = (id) => window.open(getJuezUrl(id), '_blank')
 
   return (
-    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, minHeight: '100dvh', height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>
 
       {/* Header */}
       <Box>
@@ -44,7 +44,7 @@ export default function JuecesPage() {
       </Box>
 
       {/* Cards */}
-      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ flex: 1, display: 'flex', alignItems: { xs: 'stretch', md: 'center' }, justifyContent: 'center', overflowY: 'auto' }}>
         <Grid container spacing={3} sx={{ width: '100%', maxWidth: 1000, justifyContent: 'center' }}>
           {jueces.map((juez) => (
             <Grid item xs={12} md={4} key={juez.id} sx={{ display: 'flex' }}>

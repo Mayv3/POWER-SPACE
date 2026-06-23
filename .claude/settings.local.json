@@ -44,7 +44,9 @@
       "Bash(echo \"---exit: $?\")",
       "Bash(netstat -ano)",
       "Bash(node scripts/gen-favicon.cjs)",
-      "Bash(node -e \"const s=require\\('sharp'\\);s\\('src/app/favicon.ico'\\).png\\(\\).resize\\(96,96\\).toFile\\('scripts/_fav_preview.png'\\).then\\(\\(\\)=>console.log\\('ok'\\)\\)\")"
+      "Bash(node -e \"const s=require\\('sharp'\\);s\\('src/app/favicon.ico'\\).png\\(\\).resize\\(96,96\\).toFile\\('scripts/_fav_preview.png'\\).then\\(\\(\\)=>console.log\\('ok'\\)\\)\")",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(npm *)"
     ]
   },
   "enabledMcpjsonServers": [

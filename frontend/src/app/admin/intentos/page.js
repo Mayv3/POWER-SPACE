@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Box, Typography, FormControl, Select, MenuItem,
   TextField, InputAdornment, Stack, CircularProgress,
-  Paper, Divider, Chip,
+  Paper, Divider, Chip, useMediaQuery, useTheme,
 } from '@mui/material'
 import { Search as SearchIcon, Group as GroupIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
@@ -60,6 +60,9 @@ export default function IntentosPage() {
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
   const border = isDark ? '#3a3a3a' : '#e0e0e0'
+
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -323,7 +326,7 @@ export default function IntentosPage() {
   const categoriasDisponibles = [...new Set(atletas.map(a => a.categoria))].sort()
 
   return (
-    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
       {/* Header */}
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
@@ -340,12 +343,12 @@ export default function IntentosPage() {
           </Stack>
         </Box>
 
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" sx={{ width: { xs: '100%', sm: 'auto' } }}>
           <Select
             size="small"
             value={tandaSeleccionada}
             onChange={(e) => setTandaSeleccionada(e.target.value)}
-            sx={{ minWidth: 140, borderRadius: 2 }}
+            sx={{ minWidth: 140, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
           >
             <MenuItem value="todas">Todas las tandas</MenuItem>
             <MenuItem value="1">Tanda 1</MenuItem>
@@ -358,7 +361,7 @@ export default function IntentosPage() {
             size="small"
             value={categoriaSeleccionada}
             onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-            sx={{ minWidth: 160, borderRadius: 2 }}
+            sx={{ minWidth: 160, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
           >
             <MenuItem value="todas">Todas las categorías</MenuItem>
             {categoriasDisponibles.map(cat => (
@@ -414,6 +417,15 @@ export default function IntentosPage() {
               paginationMode="client"
               processRowUpdate={processRowUpdate}
               onProcessRowUpdateError={handleProcessRowUpdateError}
+              columnVisibilityModel={isMobile ? {
+                lot: false,
+                tanda_id: false,
+                peso_corporal: false,
+                categoria: false,
+                modalidad: false,
+                puesto: false,
+                dots: false,
+              } : undefined}
             />
           )}
         </Box>

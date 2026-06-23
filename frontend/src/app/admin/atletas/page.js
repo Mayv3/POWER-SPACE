@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
-  CircularProgress, Paper, Divider,
+  CircularProgress, Paper, Divider, useMediaQuery, useTheme,
 } from '@mui/material'
 import { Search as SearchIcon, PersonAdd as PersonAddIcon, Group as GroupIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
@@ -55,6 +55,9 @@ export default function AtletasPage() {
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
   const border = isDark ? '#3a3a3a' : '#e0e0e0'
+
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -166,15 +169,15 @@ export default function AtletasPage() {
   }
 
   return (
-    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+      <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
         <Box>
           <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
             Atletas
           </Typography>
-   
+
         </Box>
         <Button
           variant="contained"
@@ -186,10 +189,12 @@ export default function AtletasPage() {
             fontWeight: 600,
             backgroundColor: '#F57C00',
             '&:hover': { backgroundColor: '#E65100' },
-            px: 2.5,
+            px: { xs: 1.5, md: 2.5 },
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
         >
-          Nuevo atleta
+          {isMobile ? 'Nuevo' : 'Nuevo atleta'}
         </Button>
       </Stack>
 
@@ -240,6 +245,14 @@ export default function AtletasPage() {
               rowCount={atletasFiltrados.length}
               getRowClassName={(params) => params.row.tanda_id ? `row-tanda-${params.row.tanda_id}` : ''}
               loading={isLoading}
+              columnVisibilityModel={isMobile ? {
+                lot: false,
+                tanda_id: false,
+                equipo: false,
+                primer_intento_sentadilla: false,
+                primer_intento_banco: false,
+                primer_intento_peso_muerto: false,
+              } : undefined}
             />
           )}
         </Box>

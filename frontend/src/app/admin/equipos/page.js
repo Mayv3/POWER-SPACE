@@ -340,8 +340,8 @@ export default function EquiposPage() {
   }
 
   return (
-    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
         <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
           Equipos
         </Typography>
@@ -352,7 +352,8 @@ export default function EquiposPage() {
             onClick={() => setOpenCreate(true)}
             sx={{
               borderRadius: 2, textTransform: 'none', fontWeight: 600,
-              backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' }, px: 2.5,
+              backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' },
+              px: { xs: 1.5, md: 2.5 }, whiteSpace: 'nowrap', flexShrink: 0,
             }}
           >
             Nuevo equipo

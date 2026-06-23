@@ -136,7 +136,7 @@ export default function HistoricoPage() {
   }
 
   return (
-    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
       {/* Header */}
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
         <Box>
@@ -148,12 +148,12 @@ export default function HistoricoPage() {
           </Typography>
         </Box>
 
-        <Stack direction="row" spacing={1.5} flexWrap="wrap">
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" gap={1.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
           <Button
             variant="contained"
             startIcon={<SaveIcon />}
             onClick={() => setOpenArchivar(true)}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' } }}
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' }, flex: { xs: 1, sm: 'none' } }}
           >
             Archivar ahora
           </Button>
@@ -162,7 +162,7 @@ export default function HistoricoPage() {
             color="error"
             startIcon={<CleaningServicesIcon />}
             onClick={() => setOpenLimpiar(true)}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, flex: { xs: 1, sm: 'none' } }}
           >
             Limpiar para testear
           </Button>

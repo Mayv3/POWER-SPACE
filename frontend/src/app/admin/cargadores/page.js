@@ -231,6 +231,8 @@ const ModalProximoPeso = memo(function ModalProximoPeso({ data, onConfirm, onClo
 export default function CargadoresPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  // pantalla angosta: la tabla compite con el panel 52vw, no entran todas las columnas
+  const isTableCramped = useMediaQuery('(max-width:1300px)')
   const { isDark } = useDarkMode()
 
   const surface = isDark ? '#2a2a2a' : '#ffffff'
@@ -568,20 +570,14 @@ export default function CargadoresPage() {
         const nombre = params.row.equipo_nombre
         if (!nombre) return '-'
         return (
-          <Chip
-            avatar={
-              <Avatar src={params.row.equipo_foto || undefined} sx={{ bgcolor: params.row.equipo_color || '#bdbdbd' }}>
-                <GroupsIcon sx={{ fontSize: 14 }} />
-              </Avatar>
-            }
-            label={nombre}
-            size="small"
-            sx={{
-              fontWeight: 600, fontSize: '0.72rem',
-              bgcolor: params.row.equipo_color || '#9e9e9e', color: '#fff', border: 'none',
-              '& .MuiChip-avatar': { color: '#fff' },
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <Avatar
+              src={params.row.equipo_foto || undefined}
+              sx={{ width: 30, height: 30, bgcolor: '#bdbdbd' }}
+            >
+              <GroupsIcon sx={{ fontSize: 16 }} />
+            </Avatar>
+          </Box>
         )
       },
     },
@@ -699,8 +695,65 @@ export default function CargadoresPage() {
     estadoJueces?.juez2_valido !== null && estadoJueces?.juez2_valido !== undefined &&
     estadoJueces?.juez3_valido !== null && estadoJueces?.juez3_valido !== undefined
 
+  // Elementos de control reutilizados en layout mobile (filas apiladas) y desktop (una fila).
+  const cronometroEl = (
+    <Cronometro
+      corriendo={estadoJueces?.corriendo}
+      tiempoInicial={estadoJueces?.tiempo_restante ?? 60}
+      onExpire={handleCronoExpire}
+    />
+  )
+  const playPauseEl = (
+    <Stack direction="row" spacing={1.5}>
+      <Button variant="contained" onClick={iniciarCronometro} disabled={estadoJueces?.corriendo}
+        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#ff6b35', '&:hover': { bgcolor: '#e55a27' }, borderRadius: 2 }}>
+        <PlayArrowIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+      </Button>
+      <Button variant="contained" color="error" onClick={detenerCronometro} disabled={!estadoJueces?.corriendo}
+        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, borderRadius: 2 }}>
+        <PauseIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+      </Button>
+    </Stack>
+  )
+  const juecesEl = (
+    <Stack direction="row" spacing={1.5}>
+      {[estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map((valido, i) => {
+        const color = !todosVotaron ? (isDark ? '#2e2e2e' : '#e0e0e0')
+          : valido === true ? '#00e676' : '#ff1744'
+        return (
+          <Box key={i} sx={{
+            width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, borderRadius: 2,
+            backgroundColor: color,
+            boxShadow: !todosVotaron ? 'none'
+              : valido === true ? '0 0 20px 4px rgba(0,230,118,0.5)' : '0 0 20px 4px rgba(255,23,68,0.5)',
+            transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+          }} />
+        )
+      })}
+    </Stack>
+  )
+  const accionesEl = (
+    <Stack direction="row" spacing={1.5}>
+      <Button variant="contained" onClick={() => marcarIntento(true)}
+        disabled={!atletaSeleccionado || !pesoActual}
+        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#00e676', '&:hover': { bgcolor: '#00c853' }, borderRadius: 2 }}>
+        <CheckIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+      </Button>
+      <Button variant="contained" onClick={() => marcarIntento(false)}
+        disabled={!atletaSeleccionado || !pesoActual}
+        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#ff1744', '&:hover': { bgcolor: '#d50000' }, borderRadius: 2 }}>
+        <BlockIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+      </Button>
+      <Button variant="contained" onClick={restablecerIntento}
+        disabled={!atletaSeleccionado}
+        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#FF9800', '&:hover': { bgcolor: '#F57C00' }, borderRadius: 2 }}>
+        <RestartAltIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+      </Button>
+    </Stack>
+  )
+
   return (
-    <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
       {/* Header */}
       <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
@@ -729,12 +782,12 @@ export default function CargadoresPage() {
           }}
         >
           {/* Filtros */}
-          <Box sx={{ px: 2, py: 1.5, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <Box sx={{ px: { xs: 1, md: 2 }, py: 1.5, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             <Select
               size="small"
               value={ejercicioFiltro}
               onChange={(e) => setEjercicioFiltro(e.target.value)}
-              sx={{ minWidth: 140, borderRadius: 2 }}
+              sx={{ minWidth: 140, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
             >
               <MenuItem value="sentadilla">Sentadilla</MenuItem>
               <MenuItem value="banco">Banco</MenuItem>
@@ -744,7 +797,7 @@ export default function CargadoresPage() {
               size="small"
               value={tandaFiltro}
               onChange={(e) => setTandaFiltro(e.target.value)}
-              sx={{ minWidth: 120, borderRadius: 2 }}
+              sx={{ minWidth: 120, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
             >
               <MenuItem value={1}>Tanda 1</MenuItem>
               <MenuItem value={2}>Tanda 2</MenuItem>
@@ -755,7 +808,7 @@ export default function CargadoresPage() {
               size="small"
               value={pesoFiltro}
               onChange={(e) => setPesoFiltro(e.target.value)}
-              sx={{ minWidth: 130, borderRadius: 2 }}
+              sx={{ minWidth: 130, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
             >
               <MenuItem value="todos">Todas las categorías</MenuItem>
               {todasLasCategorias.map(c => (
@@ -783,7 +836,7 @@ export default function CargadoresPage() {
                 processRowUpdate={processRowUpdate}
                 onProcessRowUpdateError={handleProcessRowUpdateError}
                 getRowClassName={getRowClassNameCategoria}
-                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile, equipo: !isMobile }}
+                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile && !isTableCramped, equipo: !isMobile && !isTableCramped }}
               />
             )}
           </Box>
@@ -800,43 +853,74 @@ export default function CargadoresPage() {
           }}
         >
           {atletaSeleccionado ? (
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 3, gap: 2, position: 'relative' }}>
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: { xs: 1.5, md: 3 }, gap: 2, position: 'relative' }}>
 
-              {/* Datos del atleta (compacto, arriba a la derecha) */}
-              <Box sx={{ position: 'absolute', top: 16, right: 16, textAlign: 'right', maxWidth: '60%' }}>
-                <Typography fontWeight={800} sx={{ fontSize: '1.25rem', lineHeight: 1.1, color: ejercicioColor }}>
-                  {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
-                  <Chip label={atletaSeleccionado.categoria} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
-                  <Typography variant="body2" fontWeight={700} color="text.secondary">
-                    Intento {intentoSeleccionado}°
-                  </Typography>
+              {/* Header info — mobile: flujo normal (sin solapes); desktop: posicionado absoluto */}
+              {isMobile ? (
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                  {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') ? (
+                    <Stack direction="row" alignItems="baseline" gap={0.75} sx={{ flexShrink: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                        Rack
+                      </Typography>
+                      <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
+                        {ejercicioFiltro === 'sentadilla'
+                          ? (atletaSeleccionado.altura_rack_sentadilla || '—')
+                          : (atletaSeleccionado.altura_rack_banco || '—')}
+                      </Typography>
+                    </Stack>
+                  ) : <Box />}
+                  <Box sx={{ textAlign: 'right', minWidth: 0 }}>
+                    <Typography fontWeight={800} sx={{ fontSize: '0.95rem', lineHeight: 1.15, color: ejercicioColor }}>
+                      {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
+                      <Chip label={atletaSeleccionado.categoria} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                      <Typography variant="body2" fontWeight={700} color="text.secondary">
+                        Intento {intentoSeleccionado}°
+                      </Typography>
+                    </Stack>
+                  </Box>
                 </Stack>
-              </Box>
+              ) : (
+                <>
+                  {/* Datos del atleta (compacto, arriba a la derecha) */}
+                  <Box sx={{ position: 'absolute', top: 16, right: 16, textAlign: 'right', maxWidth: '55%' }}>
+                    <Typography fontWeight={800} sx={{ fontSize: '1.25rem', lineHeight: 1.1, color: ejercicioColor }}>
+                      {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
+                      <Chip label={atletaSeleccionado.categoria} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                      <Typography variant="body2" fontWeight={700} color="text.secondary">
+                        Intento {intentoSeleccionado}°
+                      </Typography>
+                    </Stack>
+                  </Box>
 
-              {/* Altura del rack */}
-              {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') && (
-                <Box sx={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Stack direction="row" alignItems="baseline" gap={1}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                      Rack
-                    </Typography>
-                    <Typography sx={{ fontSize: '2.2rem', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
-                      {ejercicioFiltro === 'sentadilla'
-                        ? (atletaSeleccionado.altura_rack_sentadilla || '—')
-                        : (atletaSeleccionado.altura_rack_banco || '—')}
-                    </Typography>
-                  </Stack>
-                </Box>
+                  {/* Altura del rack */}
+                  {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') && (
+                    <Box sx={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Stack direction="row" alignItems="baseline" gap={1}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                          Rack
+                        </Typography>
+                        <Typography sx={{ fontSize: '2.2rem', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
+                          {ejercicioFiltro === 'sentadilla'
+                            ? (atletaSeleccionado.altura_rack_sentadilla || '—')
+                            : (atletaSeleccionado.altura_rack_banco || '—')}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  )}
+                </>
               )}
 
               {/* Peso total destacado */}
               {pesoActual > 0 && (
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '5rem', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
+                <Box sx={{ textAlign: 'center', mt: { xs: 1.5, md: 0 } }}>
+                  <Typography sx={{ fontSize: 'clamp(2.4rem, 8vh, 5rem)', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
                     {pesoActual}
-                    <Typography component="span" sx={{ fontSize: '2.5rem', fontWeight: 700, ml: 1, color: 'text.secondary' }}>kg</Typography>
+                    <Typography component="span" sx={{ fontSize: 'clamp(1.2rem, 4vh, 2.5rem)', fontWeight: 700, ml: 1, color: 'text.secondary' }}>kg</Typography>
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     Barra 20 kg + Topes 5 kg
@@ -849,11 +933,11 @@ export default function CargadoresPage() {
                 <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                   <Stack
                     direction="row"
-                    spacing={2}
+                    spacing={{ xs: 1.25, md: 2 }}
                     alignItems="center"
                     divider={<Divider orientation="vertical" flexItem sx={{ borderColor: border }} />}
                     sx={{
-                      px: 2.5, py: 1, borderRadius: 3,
+                      px: { xs: 1.5, md: 2.5 }, py: 1, borderRadius: 3, maxWidth: '100%',
                       border: `1px solid ${border}`,
                       backgroundColor: isDark ? '#242424' : '#fafafa',
                     }}
@@ -862,31 +946,23 @@ export default function CargadoresPage() {
                     <Stack direction="row" spacing={1.25} alignItems="center">
                       <Avatar
                         src={atletaSeleccionado.equipo_foto || undefined}
-                        sx={{ width: 44, height: 44, bgcolor: atletaSeleccionado.equipo_color || '#9e9e9e' }}
+                        sx={{ width: { xs: 36, md: 44 }, height: { xs: 36, md: 44 }, bgcolor: '#bdbdbd' }}
                       >
                         <GroupsIcon />
                       </Avatar>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 1 }}>
-                          Equipo
-                        </Typography>
-                        <Typography fontWeight={800} sx={{ lineHeight: 1.1 }}>
-                          {capitalizeWords(atletaSeleccionado.equipo_nombre)}
-                        </Typography>
-                      </Box>
                     </Stack>
 
                     {/* Coach */}
                     {atletaSeleccionado.equipo_coach_nombre && (
                       <Stack direction="row" spacing={1.25} alignItems="center">
-                        <Avatar src={atletaSeleccionado.equipo_coach_foto || undefined} sx={{ width: 44, height: 44, bgcolor: '#bdbdbd' }}>
+                        <Avatar src={atletaSeleccionado.equipo_coach_foto || undefined} sx={{ width: { xs: 36, md: 44 }, height: { xs: 36, md: 44 }, bgcolor: '#bdbdbd' }}>
                           <PersonIcon />
                         </Avatar>
                         <Box>
                           <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 1 }}>
                             Coach
                           </Typography>
-                          <Typography fontWeight={800} sx={{ lineHeight: 1.1 }}>
+                          <Typography fontWeight={800} noWrap sx={{ lineHeight: 1.1, maxWidth: { xs: 100, md: 'none' } }}>
                             {capitalizeWords(atletaSeleccionado.equipo_coach_nombre)}
                           </Typography>
                         </Box>
@@ -908,17 +984,17 @@ export default function CargadoresPage() {
                         .map(([peso, cantidad]) => {
                           const p = parseFloat(peso)
                           const getAltura = (p) => {
-                            if (p >= 25) return '130px'
-                            if (p >= 20) return '120px'
-                            if (p >= 15) return '110px'
-                            if (p >= 10) return '105px'
-                            if (p >= 5)  return '95px'
-                            if (p >= 2.5) return '85px'
-                            if (p >= 1.25) return '78px'
-                            return '70px'
+                            if (p >= 25) return 'clamp(36px, 9vh, 130px)'
+                            if (p >= 20) return 'clamp(33px, 8.2vh, 120px)'
+                            if (p >= 15) return 'clamp(30px, 7.6vh, 110px)'
+                            if (p >= 10) return 'clamp(28px, 7.2vh, 105px)'
+                            if (p >= 5)  return 'clamp(25px, 6.5vh, 95px)'
+                            if (p >= 2.5) return 'clamp(22px, 5.8vh, 85px)'
+                            if (p >= 1.25) return 'clamp(20px, 5.3vh, 78px)'
+                            return 'clamp(18px, 4.8vh, 70px)'
                           }
                           const tiposDeDiscos = Object.keys(discos.reduce((acc, d) => { acc[d] = true; return acc }, {})).length
-                          const ancho = tiposDeDiscos > 3 ? '10vw' : '13vw'
+                          const ancho = tiposDeDiscos > 3 ? 'clamp(46px, 10vw, 150px)' : 'clamp(58px, 13vw, 190px)'
 
                           const textColor = p == 15 || p == 5 || p == 1.25 || p == 0.5 || p == 0.25 ? '#000' : '#fff'
                           const bgColor = p == 25 ? '#f44336' : p == 20 ? '#2196f3' : p == 15 ? '#ffeb3b' : p == 10 ? '#4caf50' : p == 5 ? '#fff' : p == 2.5 ? '#000' : p == 1.25 ? '#C0C0C0' : '#9e9e9e'
@@ -926,15 +1002,15 @@ export default function CargadoresPage() {
                           return (
                             <Box key={peso} sx={{
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              borderRadius: 2, px: '18px', py: getAltura(p),
+                              borderRadius: 2, px: 'clamp(6px, 1.2vw, 18px)', py: getAltura(p),
                               width: ancho, fontWeight: 'bold', color: textColor,
                               backgroundColor: bgColor,
                               border: p == 5 ? '2px solid #d0d0d0' : 'none',
                               boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                             }}>
-                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1, fontSize: '4.5rem', fontWeight: 900 }}>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1, fontSize: 'clamp(1.3rem, 4.5vh, 4.5rem)', fontWeight: 900 }}>
                                 <div>{peso}</div>
-                                <div style={{ fontSize: '2.8rem', opacity: 0.8 }}>×</div>
+                                <Box component="div" sx={{ fontSize: 'clamp(0.85rem, 2.6vh, 2.8rem)', opacity: 0.8 }}>×</Box>
                                 <div>{cantidad}</div>
                               </Box>
                             </Box>
@@ -942,7 +1018,7 @@ export default function CargadoresPage() {
                         })}
 
                       {/* Tope */}
-                      <Box sx={{ borderRadius: 1, width: '32px', height: '200px', backgroundColor: '#9e9e9e', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} />
+                      <Box sx={{ borderRadius: 1, width: 'clamp(14px, 1.6vw, 32px)', height: 'clamp(90px, 24vh, 200px)', backgroundColor: '#9e9e9e', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} />
                     </Box>
                   ) : (
                     <Box sx={{ textAlign: 'center' }}>
@@ -959,62 +1035,24 @@ export default function CargadoresPage() {
 
               <Divider />
 
-              {/* Controles */}
-              <Stack direction="row" spacing={2} justifyContent="center" alignItems="center" flexWrap="wrap">
-                {/* Cronometro corriendo (chico, a la izquierda del play) — aislado: su tick no re-renderiza el page */}
-                <Cronometro
-                  corriendo={estadoJueces?.corriendo}
-                  tiempoInicial={estadoJueces?.tiempo_restante ?? 60}
-                  onExpire={handleCronoExpire}
-                />
-                {/* Play / Pause */}
-                <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" onClick={iniciarCronometro} disabled={estadoJueces?.corriendo}
-                    sx={{ width: 68, height: 68, bgcolor: '#ff6b35', '&:hover': { bgcolor: '#e55a27' }, borderRadius: 2 }}>
-                    <PlayArrowIcon sx={{ fontSize: 40 }} />
-                  </Button>
-                  <Button variant="contained" color="error" onClick={detenerCronometro} disabled={!estadoJueces?.corriendo}
-                    sx={{ width: 68, height: 68, borderRadius: 2 }}>
-                    <PauseIcon sx={{ fontSize: 40 }} />
-                  </Button>
+              {/* Controles — mobile: filas apiladas; desktop: una fila */}
+              {isMobile ? (
+                <Stack spacing={1.5} alignItems="center">
+                  <Stack direction="row" spacing={2} alignItems="center" justifyContent="center">
+                    {cronometroEl}
+                    {playPauseEl}
+                  </Stack>
+                  {juecesEl}
+                  {accionesEl}
                 </Stack>
-
-                {/* Jueces */}
-                <Stack direction="row" spacing={1.5}>
-                  {[estadoJueces?.juez1_valido, estadoJueces?.juez2_valido, estadoJueces?.juez3_valido].map((valido, i) => {
-                    const color = !todosVotaron ? (isDark ? '#2e2e2e' : '#e0e0e0')
-                      : valido === true ? '#00e676' : '#ff1744'
-                    return (
-                      <Box key={i} sx={{
-                        width: 68, height: 68, borderRadius: 2,
-                        backgroundColor: color,
-                        boxShadow: !todosVotaron ? 'none'
-                          : valido === true ? '0 0 20px 4px rgba(0,230,118,0.5)' : '0 0 20px 4px rgba(255,23,68,0.5)',
-                        transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
-                      }} />
-                    )
-                  })}
+              ) : (
+                <Stack direction="row" spacing={2} justifyContent="center" alignItems="center" flexWrap="wrap">
+                  {cronometroEl}
+                  {playPauseEl}
+                  {juecesEl}
+                  {accionesEl}
                 </Stack>
-
-                {/* Válido / Nulo / Restablecer */}
-                <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" onClick={() => marcarIntento(true)}
-                    disabled={!atletaSeleccionado || !pesoActual}
-                    sx={{ width: 68, height: 68, bgcolor: '#00e676', '&:hover': { bgcolor: '#00c853' }, borderRadius: 2 }}>
-                    <CheckIcon sx={{ fontSize: 40 }} />
-                  </Button>
-                  <Button variant="contained" onClick={() => marcarIntento(false)}
-                    disabled={!atletaSeleccionado || !pesoActual}
-                    sx={{ width: 68, height: 68, bgcolor: '#ff1744', '&:hover': { bgcolor: '#d50000' }, borderRadius: 2 }}>
-                    <BlockIcon sx={{ fontSize: 40 }} />
-                  </Button>
-                  <Button variant="contained" onClick={restablecerIntento}
-                    disabled={!atletaSeleccionado}
-                    sx={{ width: 68, height: 68, bgcolor: '#FF9800', '&:hover': { bgcolor: '#F57C00' }, borderRadius: 2 }}>
-                    <RestartAltIcon sx={{ fontSize: 40 }} />
-                  </Button>
-                </Stack>
-              </Stack>
+              )}
 
               {(!atletaSeleccionado || !pesoActual) && (
                 <Typography variant="caption" color="error" textAlign="center">
