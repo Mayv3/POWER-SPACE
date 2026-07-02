@@ -8,7 +8,7 @@ import categorias from '../../const/categorias/categorias'
 
 /* ============ TEMA ============ */
 const T = {
-  pageBg: '#e7e5df', frame: '#08090b', card: '#101318', lime: '#c0f93b',
+  pageBg: '#e7e5df', frame: '#08090b', card: '#101318', lime: '#ff6a00',
   line: 'rgba(255,255,255,.07)', line2: 'rgba(255,255,255,.08)',
   txt: '#f4f5f7', txt2: '#9aa0ab', txt3: '#6b7280', txt4: '#4b515c',
   ok: '#dff79a', okBg: 'rgba(192,249,59,.1)', fail: '#ef5a54', failBg: 'rgba(239,90,84,.1)',
@@ -73,7 +73,7 @@ function Attempt({ status, label, big }) {
   if (status === 'ok') return <div style={{ ...base, fontWeight: 600, color: T.ok, background: T.okBg }}>{label}</div>
   if (status === 'fail') return <div style={{ ...base, color: T.fail, background: T.failBg, textDecoration: 'line-through' }}>{label}</div>
   if (status === 'current') return (
-    <div style={{ ...base, fontWeight: 600, color: T.lime, background: 'rgba(192,249,59,.05)', border: '1px solid rgba(192,249,59,.5)' }}>
+    <div style={{ ...base, fontWeight: 600, color: T.lime, background: 'rgba(255,106,0,.05)', border: '1px solid rgba(255,106,0,.5)' }}>
       {label}
       <span style={{ position: 'absolute', top: -3, right: -3, width: big ? 7 : 6, height: big ? 7 : 6, borderRadius: '50%', background: T.lime, animation: 'psDot 1.4s ease-in-out infinite' }} />
     </div>
@@ -139,47 +139,59 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const lastBackRef = useRef(0)
   const exitHintTimer = useRef(null)
 
-  /* ---- carga + realtime intentos ---- */
+  /* ---- carga + realtime del padrón completo ----
+     Todo en vivo: tiros válidos (intentos), posiciones (derivadas de atletas+intentos),
+     altas/bajas/ediciones de atletas y cambios de equipo/coach. Reload full debounced
+     para reflejar reordenamientos y filas nuevas/eliminadas (un map por-atleta no alcanza).
+     El debounce coalesce ráfagas (ej: upsert batch de resultados). */
   useEffect(() => {
-    const load = async () => {
+    let alive = true
+    let debounceTimer = null
+
+    const reload = async () => {
+      setUpdating(true)
       try {
         const data = await fetchAtletasConIntentos({ tandaId: 'todas' })
-        setAtletas(data.map(computeAtleta))
-      } catch (e) { console.error('Error al cargar atletas:', e) }
-      finally { loadedRef.current = true }
+        if (alive) setAtletas(data.map(computeAtleta))
+      } catch (e) { console.error('Error al recargar padrón:', e) }
+      finally {
+        loadedRef.current = true
+        if (alive) setTimeout(() => alive && setUpdating(false), 400)
+      }
     }
-    load()
+    // SSR ya trajo initialAtletas -> no re-fetchear al montar (ahorra ~140ms).
+    // Solo carga si el SSR vino vacío (falló). Realtime cubre cambios posteriores.
+    if (!initialAtletas.length) reload()
+    else loadedRef.current = true
+
+    const scheduleReload = () => {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(reload, 250)
+    }
 
     const ch = supabase
-      .channel('public:intentos_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, async (payload) => {
-        const id = payload.new?.atleta_id || payload.old?.atleta_id
-        if (!id) return
-        setUpdating(true)
-        try {
-          const data = await fetchAtletasConIntentos({ atletaId: id })
-          if (!data.length) return
-          const upd = computeAtleta(data[0])
-          setAtletas(prev => prev.map(a => a.id === id ? upd : a))
-        } catch (e) { console.error('Error al actualizar atleta:', e) }
-        finally { setTimeout(() => setUpdating(false), 500) }
-      })
+      .channel('public:board_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'atletas' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipos' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coaches' }, scheduleReload)
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+
+    return () => { alive = false; clearTimeout(debounceTimer); supabase.removeChannel(ch) }
   }, [])
 
   /* ---- estado en vivo ---- */
   useEffect(() => {
     const fetchEstado = async () => {
-      const { data } = await supabase.from('estado_competencia').select('*').eq('id', 1).maybeSingle()
+      // 1 round-trip: estado + atleta en vivo vía join embebido (FK estado_competencia.atleta_id -> atletas)
+      const { data } = await supabase.from('estado_competencia').select('*, atleta:atletas(*)').eq('id', 1).maybeSingle()
       if (!data) return
-      setEstado(data)
-      if (data.atleta_id) {
-        const { data: at } = await supabase.from('atletas').select('*').eq('id', data.atleta_id).single()
-        setAtletaEnVivo(at)
-      } else setAtletaEnVivo(null)
+      const { atleta, ...est } = data
+      setEstado(est)
+      setAtletaEnVivo(est.atleta_id ? atleta : null)
     }
-    fetchEstado()
+    // SSR ya trajo initialEstado + initialAtletaEnVivo -> saltar fetch inicial (ahorra ~80ms).
+    if (!initialEstado) fetchEstado()
 
     const ch = supabase
       .channel('public:estado_competencia_publico')
@@ -396,8 +408,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   }
 
   const palette = (pos, isLive) => {
-    if (isLive) return { border: 'rgba(192,249,59,.4)', posBg: 'rgba(192,249,59,.12)', posColor: T.lime, posTag: 'LIVE' }
-    if (pos === 1) return { border: 'rgba(192,249,59,.22)', posBg: 'rgba(192,249,59,.1)', posColor: T.lime, posTag: 'LÍDER' }
+    if (isLive) return { border: 'rgba(255,106,0,.4)', posBg: 'rgba(255,106,0,.12)', posColor: T.lime, posTag: 'LIVE' }
+    if (pos === 1) return { border: 'rgba(255,106,0,.22)', posBg: 'rgba(255,106,0,.1)', posColor: T.lime, posTag: 'LÍDER' }
     return { border: 'rgba(255,255,255,.06)', posBg: 'rgba(255,255,255,.04)', posColor: '#e6e8ec', posTag: '' }
   }
 
@@ -449,7 +461,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: T.lime }}>{atletaEnVivo ? 'EN VIVO' : 'RANKING'}</div>
+              <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: '#fff' }}>{atletaEnVivo ? 'EN VIVO' : 'RANKING'}</div>
               <div style={{ fontFamily: FM, fontSize: 10, color: T.txt3, marginTop: 2 }}>{hoy}</div>
             </div>
           </div>
@@ -465,15 +477,15 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
               <div onClick={() => openDetail(liveA)} style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', background: T.card, border: '1px solid rgba(255,255,255,.08)', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', background: T.lime }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                    <Eq color="#0b0d0a" />
-                    <span style={{ fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.18em', color: '#0b0d0a' }}>EN VIVO</span>
+                    <Eq color="#fff" />
+                    <span style={{ fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.18em', color: '#fff' }}>EN VIVO</span>
                   </div>
-                  <span style={{ fontFamily: FM, fontSize: 12, fontWeight: 600, color: '#0b0d0a' }}>{fmtTimer(secs)}</span>
+                  <span style={{ fontFamily: FM, fontSize: 12, fontWeight: 600, color: '#fff' }}>{fmtTimer(secs)}</span>
                 </div>
 
                 <div style={{ padding: '18px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                    <div style={{ flex: 'none', width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: 'rgba(192,249,59,.12)', border: '2px solid rgba(192,249,59,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ flex: 'none', width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,106,0,.12)', border: '2px solid rgba(255,106,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {liveA?.foto ? (
                         <img src={liveA.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
                       ) : (
@@ -495,8 +507,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       <div style={{ fontSize: 12, color: T.lime, marginTop: 2 }}>{live.attemptLabel}</div>
                     </div>
                     <div style={{ flex: 'none', width: 130, background: T.lime, borderRadius: 13, padding: '13px 15px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                      <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.14em', color: 'rgba(11,13,10,.6)', marginBottom: 2 }}>EN JUEGO</div>
-                      <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .85, color: '#0b0d0a' }}>
+                      <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.14em', color: 'rgba(255,255,255,.75)', marginBottom: 2 }}>EN JUEGO</div>
+                      <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .85, color: '#fff' }}>
                         <span style={{ fontSize: String(live.weight).length >= 5 ? 30 : String(live.weight).length >= 4 ? 36 : 44 }}>{live.weight}</span><span style={{ fontSize: 15, marginLeft: 2 }}>kg</span>
                       </div>
                     </div>
@@ -517,7 +529,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 <div className="ps-x" style={{ display: 'flex', gap: 9, overflowX: 'auto', paddingBottom: 2 }}>
                   {proximos.map((np, i) => (
                     <div key={np.id} onClick={() => openDetail(np)} style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 13, padding: '10px 14px 10px 11px', cursor: 'pointer' }}>
-                      <span style={{ width: 26, height: 26, borderRadius: 8, background: T.lime, color: '#0b0d0a', fontFamily: FO, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                      <span style={{ width: 26, height: 26, borderRadius: 8, background: T.lime, color: '#fff', fontFamily: FO, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
                       <span style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {np.foto ? (
                           <img src={np.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
@@ -594,8 +606,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                                 <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1 }}>{item.nombre} {item.apellido}</span>
                                 {isLive && (
                                   <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: T.lime, borderRadius: 5, padding: '3px 6px' }}>
-                                    <Eq color="#0b0d0a" h={8} w={2} />
-                                    <span style={{ fontFamily: FM, fontSize: 8, letterSpacing: '.08em', fontWeight: 600, color: '#0b0d0a' }}>EN VIVO</span>
+                                    <Eq color="#fff" h={8} w={2} />
+                                    <span style={{ fontFamily: FM, fontSize: 8, letterSpacing: '.08em', fontWeight: 600, color: '#fff' }}>EN VIVO</span>
                                   </span>
                                 )}
                               </div>
@@ -619,7 +631,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                           <div style={{ flex: 1, padding: '13px 15px', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', gap: 14 }}>
                             <div>
                               <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>POS</div>
-                              <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{pos || '—'}</span><span style={{ fontSize: 13, color: 'rgba(192,249,59,.6)', marginLeft: 1 }}>°</span></div>
+                              <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{pos || '—'}</span><span style={{ fontSize: 13, color: 'rgba(255,106,0,.6)', marginLeft: 1 }}>°</span></div>
                             </div>
                             <div style={{ flex: 'none', width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.12)' }} />
                             <div>
@@ -627,7 +639,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                               <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 2 }}><span style={{ fontSize: 30 }}>{item.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
                             </div>
                           </div>
-                          <div style={{ flex: 'none', padding: '13px 16px', textAlign: 'right', background: 'rgba(192,249,59,.08)' }}>
+                          <div style={{ flex: 'none', padding: '13px 16px', textAlign: 'right', background: 'rgba(255,106,0,.08)' }}>
                             <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>DOTS</div>
                             <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, lineHeight: .9, color: T.lime, marginTop: 2 }}>{item.dots ? item.dots.toFixed(2) : '—'}</div>
                           </div>
@@ -669,8 +681,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 </div>
                 {isLive && (
                   <div style={{ position: 'absolute', top: 18, right: 16, display: 'flex', alignItems: 'center', gap: 6, background: T.lime, borderRadius: 7, padding: '5px 9px' }}>
-                    <Eq color="#0b0d0a" h={10} w={2.5} />
-                    <span style={{ fontFamily: FO, fontWeight: 600, fontSize: 11, letterSpacing: '.14em', color: '#0b0d0a' }}>EN VIVO</span>
+                    <Eq color="#fff" h={10} w={2.5} />
+                    <span style={{ fontFamily: FO, fontWeight: 600, fontSize: 11, letterSpacing: '.14em', color: '#fff' }}>EN VIVO</span>
                   </div>
                 )}
               </div>
@@ -679,7 +691,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 {/* TÍTULO + DATOS (superpuesto sobre la foto) */}
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 13, color: '#0b0d0a', background: T.lime, borderRadius: 6, padding: '2px 9px' }}>{pos || '—'}º</span>
+                    <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 13, color: '#fff', background: T.lime, borderRadius: 6, padding: '2px 9px' }}>{pos || '—'}º</span>
                     <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: T.txt2 }}>{posTagLong}</span>
                   </div>
                   <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 42, lineHeight: .92, color: '#f7f8fa', textTransform: 'uppercase', letterSpacing: '.01em' }}>{selected.nombre} {selected.apellido}</div>
@@ -692,7 +704,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                     <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>TOTAL</div>
                     <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 4 }}><span style={{ fontSize: 32 }}>{selected.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
                   </div>
-                  <div style={{ flex: 1, background: T.card, border: '1px solid rgba(192,249,59,.25)', borderRadius: 14, padding: '14px 15px' }}>
+                  <div style={{ flex: 1, background: T.card, border: '1px solid rgba(255,106,0,.25)', borderRadius: 14, padding: '14px 15px' }}>
                     <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>DOTS</div>
                     <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 32, lineHeight: .9, color: T.lime, marginTop: 4 }}>{selected.dots ? selected.dots.toFixed(2) : '—'}</div>
                   </div>
@@ -705,8 +717,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
 
                 {/* LEVANTANDO AHORA */}
                 {isLive && live && (
-                  <div style={{ marginTop: 14, borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(192,249,59,.3)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 15px', background: 'rgba(192,249,59,.12)' }}>
+                  <div style={{ marginTop: 14, borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,106,0,.3)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 15px', background: 'rgba(255,106,0,.12)' }}>
                       <Eq color={T.lime} h={11} w={2.5} />
                       <span style={{ fontFamily: FO, fontWeight: 600, fontSize: 12, letterSpacing: '.14em', color: T.lime }}>LEVANTANDO AHORA</span>
                     </div>
@@ -717,7 +729,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.14em', color: T.txt3 }}>EN JUEGO</div>
-                        <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{live.weight}</span><span style={{ fontSize: 13, color: 'rgba(192,249,59,.6)', marginLeft: 2 }}>kg</span></div>
+                        <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{live.weight}</span><span style={{ fontSize: 13, color: 'rgba(255,106,0,.6)', marginLeft: 2 }}>kg</span></div>
                       </div>
                     </div>
                   </div>
@@ -801,7 +813,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   const pos = i + 1
                   const podio = pos === 1 ? T.lime : pos === 2 ? '#d0d0d0' : pos === 3 ? '#e0924a' : '#e6e8ec'
                   return (
-                    <div key={a.id} ref={el => { if (el) rowRefs.current[a.id] = el }} onClick={() => openDetail(a)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isLive ? 'rgba(192,249,59,.08)' : T.card, border: `1px solid ${isLive ? 'rgba(192,249,59,.35)' : 'rgba(255,255,255,.07)'}`, borderRadius: 14, padding: '12px 14px', cursor: 'pointer', willChange: 'transform' }}>
+                    <div key={a.id} ref={el => { if (el) rowRefs.current[a.id] = el }} onClick={() => openDetail(a)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isLive ? 'rgba(255,106,0,.08)' : T.card, border: `1px solid ${isLive ? 'rgba(255,106,0,.35)' : 'rgba(255,255,255,.07)'}`, borderRadius: 14, padding: '12px 14px', cursor: 'pointer', willChange: 'transform' }}>
                       <span style={{ flex: 'none', width: 28, textAlign: 'center', fontFamily: FO, fontWeight: 700, fontSize: 22, color: podio, lineHeight: 1 }}>{pos}</span>
                       <div style={{ flex: 'none', width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {a.foto ? (
@@ -815,8 +827,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                           <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 17, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre} {a.apellido}</span>
                           {isLive && (
                             <span style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 4, background: T.lime, borderRadius: 5, padding: '2px 5px' }}>
-                              <Eq color="#0b0d0a" h={7} w={2} />
-                              <span style={{ fontFamily: FM, fontSize: 7, letterSpacing: '.06em', fontWeight: 600, color: '#0b0d0a' }}>EN VIVO</span>
+                              <Eq color="#fff" h={7} w={2} />
+                              <span style={{ fontFamily: FM, fontSize: 7, letterSpacing: '.06em', fontWeight: 600, color: '#fff' }}>EN VIVO</span>
                             </span>
                           )}
                         </div>

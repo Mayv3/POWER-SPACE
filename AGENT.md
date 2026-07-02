@@ -232,3 +232,6 @@ PORT=4000
 - Backend usa ES modules (`"type": "module"` en package.json)
 - Frontend mezcla `.js` y `.tsx`
 - Upsert preferido sobre insert para intentos
+
+
+

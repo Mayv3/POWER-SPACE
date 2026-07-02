@@ -16,9 +16,17 @@ export async function calcularResultados(req, res) {
             .eq("valido", true);
         if (errIntentos) throw errIntentos;
 
+        // Índice intentos por atleta_id (O(n+m) en vez de O(n*m) con filter anidado).
+        const intentosPorAtleta = new Map();
+        for (const i of intentos) {
+            const arr = intentosPorAtleta.get(i.atleta_id);
+            if (arr) arr.push(i);
+            else intentosPorAtleta.set(i.atleta_id, [i]);
+        }
+
         // 3️⃣ Calcular los resultados base con los mejores intentos válidos
         const resultados = atletas.map((a) => {
-            const susIntentos = intentos.filter((i) => i.atleta_id === a.id);
+            const susIntentos = intentosPorAtleta.get(a.id) || [];
 
             const sentadilla = Math.max(
                 ...susIntentos.filter(i => i.movimiento_id === 1).map(i => i.peso),
@@ -70,18 +78,21 @@ export async function calcularResultados(req, res) {
             });
         }
 
-        // 6️⃣ Guardar los resultados en la base
-        for (const r of resultados) {
-            await supabase
-                .from("resultados")
-                .upsert({
+        // 6️⃣ Guardar los resultados en la base (un solo batch upsert = 1 round-trip)
+        const now = new Date();
+        const { error: errUpsert } = await supabase
+            .from("resultados")
+            .upsert(
+                resultados.map((r) => ({
                     atleta_id: r.atleta_id,
                     total: r.total,
                     dots: r.dots,
                     puesto: r.puesto,
-                    updated_at: new Date(),
-                }, { onConflict: "atleta_id" });
-        }
+                    updated_at: now,
+                })),
+                { onConflict: "atleta_id" }
+            );
+        if (errUpsert) throw errUpsert;
 
         // 7️⃣ Devolver respuesta completa
         res.status(200).json({

@@ -24,9 +24,17 @@ export async function getPremiacionEquipos(req, res) {
             .eq("valido", true);
         if (errIntentos) throw errIntentos;
 
+        // Índice intentos por atleta_id (O(n+m) en vez de O(n*m) con filter anidado).
+        const intentosPorAtleta = new Map();
+        for (const i of intentos) {
+            const arr = intentosPorAtleta.get(i.atleta_id);
+            if (arr) arr.push(i);
+            else intentosPorAtleta.set(i.atleta_id, [i]);
+        }
+
         // Mejor intento válido por movimiento + total + si totalizó (válido en los 3).
         const calc = atletas.map((a) => {
-            const suyos = intentos.filter((i) => i.atleta_id === a.id);
+            const suyos = intentosPorAtleta.get(a.id) || [];
             const mejor = (mov) => Math.max(0, ...suyos.filter((i) => i.movimiento_id === mov).map((i) => i.peso || 0));
             const sentadilla = mejor(1);
             const banco = mejor(2);

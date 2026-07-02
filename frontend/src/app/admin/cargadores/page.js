@@ -352,13 +352,17 @@ export default function CargadoresPage() {
   }, [estadoJueces])
 
   const iniciarCronometro = useCallback(async () => {
+    const reset = {
+      corriendo: true, tiempo_restante: 60,
+      juez1_valido: null, juez2_valido: null, juez3_valido: null,
+      juez1_tipo: null, juez2_tipo: null, juez3_tipo: null, intento_valido: null,
+    }
+    // Optimista local: la propia pantalla del cargador arranca YA (broadcast es self:false
+    // y postgres_changes tarda ~180ms+ contra Brasil). postgres_changes reconcilia luego.
+    setEstadoJueces(prev => prev ? { ...prev, ...reset } : reset)
     try {
-      // Fast-path: la vista arranca el cronómetro al instante.
-      liveRef.current?.send({
-        corriendo: true, tiempo_restante: 60,
-        juez1_valido: null, juez2_valido: null, juez3_valido: null,
-        juez1_tipo: null, juez2_tipo: null, juez3_tipo: null, intento_valido: null,
-      })
+      // Fast-path: las demás pantallas arrancan al instante.
+      liveRef.current?.send(reset)
       await apiFetch(`/api/jueces/start`, { method: 'POST' })
     } catch (err) { console.error('Error al iniciar cronómetro:', err) }
   }, [])
