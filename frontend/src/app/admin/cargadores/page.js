@@ -249,8 +249,10 @@ export default function CargadoresPage() {
   const [estadoJueces, setEstadoJueces] = useState(null)
   const [sortModel, setSortModel] = useState([])
   const [modalPeso, setModalPeso] = useState(null) // próximo peso: null = cerrado
-  const autoMarcadoRef = useRef(false)
-  const prevAtletaIdRef = useRef(null)
+  // Clave (atleta_id-intento) de la última tentativa auto-marcada. Evita re-marcar la
+  // misma tentativa cuando los echoes de postgres_changes replayan los votos de a uno
+  // después del fast-path (causaba el modal "próximo peso" reabriéndose solo).
+  const marcadoClaveRef = useRef(null)
   const liveRef = useRef(null)
 
   const fetchAtletas = useCallback(async () => {
@@ -325,29 +327,29 @@ export default function CargadoresPage() {
       .eq('id', 1)
   }, [])
 
-  // Auto-marcar intento cuando todos los jueces votan
+  // Auto-marcar intento cuando todos los jueces votan.
   useEffect(() => {
     if (!estadoJueces) return
 
-    // Resetear guard si cambia el atleta en curso
-    if (estadoJueces.atleta_id !== prevAtletaIdRef.current) {
-      prevAtletaIdRef.current = estadoJueces.atleta_id
-      autoMarcadoRef.current = false
-    }
+    const votos = [estadoJueces.juez1_valido, estadoJueces.juez2_valido, estadoJueces.juez3_valido]
+    const votado = (v) => v !== null && v !== undefined
+    const todosVotaron = votos.every(votado)
+    const ningunoVoto = votos.every((v) => !votado(v))
 
-    const todosVotaron =
-      estadoJueces.juez1_valido !== null && estadoJueces.juez1_valido !== undefined &&
-      estadoJueces.juez2_valido !== null && estadoJueces.juez2_valido !== undefined &&
-      estadoJueces.juez3_valido !== null && estadoJueces.juez3_valido !== undefined
+    // Ronda nueva: los 3 votos vuelven a null (iniciarCronometro / handleCellClick).
+    // Re-armamos para permitir marcar la próxima tentativa (incluido un redo de la misma).
+    if (ningunoVoto) marcadoClaveRef.current = null
 
-    if (!todosVotaron) { autoMarcadoRef.current = false; return }
-    if (autoMarcadoRef.current) return
+    if (!todosVotaron) return
 
-    autoMarcadoRef.current = true
+    // Clave autoritativa de la tentativa (del estado en DB, no de la selección local).
+    // Si ya la marcamos, ignoramos los echoes de postgres_changes que replayan los votos
+    // uno a uno tras el fast-path — eso reabría el modal / doble-marcaba.
+    const claveIntento = `${estadoJueces.atleta_id}-${estadoJueces.intento}`
+    if (marcadoClaveRef.current === claveIntento) return
 
-    const votosValidos = [estadoJueces.juez1_valido, estadoJueces.juez2_valido, estadoJueces.juez3_valido]
-      .filter(v => v === true).length
-
+    marcadoClaveRef.current = claveIntento
+    const votosValidos = votos.filter((v) => v === true).length
     marcarIntento(votosValidos >= 2)
   }, [estadoJueces])
 
