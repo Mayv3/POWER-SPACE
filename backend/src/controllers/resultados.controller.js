@@ -1,12 +1,13 @@
 import { supabase } from "../services/supabaseClient.js";
 import calcDOTS from "../utils/calcularDots.js";
+import { clavesCategoriasAtleta } from "../utils/categoriasIPF.js";
 
 export async function calcularResultados(req, res) {
     try {
         // 1️⃣ Traer atletas con todos los datos necesarios
         const { data: atletas, error: errAtletas } = await supabase
             .from("atletas")
-            .select("id, nombre, apellido, sexo, peso_corporal, tanda_id, categoria");
+            .select("id, nombre, apellido, sexo, peso_corporal, tanda_id, categoria, categoria_edad");
         if (errAtletas) throw errAtletas;
 
         // 2️⃣ Traer intentos válidos
@@ -52,6 +53,7 @@ export async function calcularResultados(req, res) {
                 peso_corporal: a.peso_corporal,
                 tanda_id: a.tanda_id,
                 categoria: a.categoria,
+                categoria_edad: a.categoria_edad,
                 mejores_intentos: {
                     sentadilla,
                     banco,
@@ -62,21 +64,30 @@ export async function calcularResultados(req, res) {
             };
         });
 
-        // 4️⃣ Agrupar por tanda + categoría
+        // 4️⃣ Agrupar por tanda + categoría de edad + categoría de peso
         const grupos = {};
         for (const r of resultados) {
-            const key = `${r.tanda_id}_${r.categoria}`;
-            if (!grupos[key]) grupos[key] = [];
-            grupos[key].push(r);
+            r.puestos_por_categoria = {};
+            for (const categoriaCompleta of clavesCategoriasAtleta(r)) {
+                const key = `${r.tanda_id}_${categoriaCompleta}`;
+                if (!grupos[key]) grupos[key] = [];
+                grupos[key].push(r);
+            }
         }
 
         // 5️⃣ Ordenar y asignar puestos dentro de cada grupo
         for (const key in grupos) {
             grupos[key].sort((a, b) => b.dots - a.dots);
             grupos[key].forEach((r, i) => {
-                r.puesto = i + 1;
+                const categoriaCompleta = key.slice(String(r.tanda_id).length + 1);
+                r.puestos_por_categoria[categoriaCompleta] = i + 1;
             });
         }
+
+        resultados.forEach((r) => {
+            const puestos = Object.values(r.puestos_por_categoria);
+            r.puesto = puestos.length ? Math.min(...puestos) : null;
+        });
 
         // 6️⃣ Guardar los resultados en la base (un solo batch upsert = 1 round-trip)
         const now = new Date();
@@ -110,7 +121,7 @@ export async function getResultados(req, res) {
     try {
         const { data, error } = await supabase
             .from("resultados")
-            .select("*, atletas(nombre, apellido, categoria, modalidad, peso_corporal, sexo)")
+            .select("*, atletas(nombre, apellido, categoria, categoria_edad, modalidad, peso_corporal, sexo)")
             .order("dots", { ascending: false });
 
         if (error) throw error;

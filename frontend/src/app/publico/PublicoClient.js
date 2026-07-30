@@ -4,7 +4,11 @@ import { useEffect, useLayoutEffect, useState, useMemo, useRef, Children } from 
 import { CaretLeft } from '@phosphor-icons/react'
 import { Calculate_DOTS } from '../../utils/calcularDots'
 import { supabase, fetchAtletasConIntentos } from '../../lib/supabaseClient'
-import categorias from '../../const/categorias/categorias'
+import { joinCompetenciaLive } from '../../lib/competenciaLive'
+import categorias, {
+  claveCategoriaAtleta,
+  clavesCategoriasAtleta,
+} from '../../const/categorias/categorias'
 
 /* ============ TEMA ============ */
 const T = {
@@ -65,10 +69,10 @@ const fmtTimer = (s) => {
 }
 
 /* ============ CELDA INTENTO ============ */
-function Attempt({ status, label, big }) {
+function Attempt({ status, label, big, joined = false }) {
   const base = {
     textAlign: 'center', fontFamily: FM, fontSize: big ? 16 : 13,
-    borderRadius: big ? 8 : 6, padding: big ? '10px 0' : '6px 0', position: 'relative',
+    borderRadius: joined ? 0 : (big ? 8 : 6), padding: big ? '10px 0' : '6px 0', position: 'relative',
   }
   if (status === 'ok') return <div style={{ ...base, fontWeight: 600, color: T.ok, background: T.okBg }}>{label}</div>
   if (status === 'fail') return <div style={{ ...base, color: T.fail, background: T.failBg, textDecoration: 'line-through' }}>{label}</div>
@@ -118,6 +122,108 @@ function Carousel({ children }) {
   )
 }
 
+/* ============ SELECT PROPIO POWERSPACE ============ */
+function PowerSelect({ value, options, onChange, label, divider = false }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef(null)
+  const selected = options.find((option) => option.value === value) || options[0]
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutside = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
+  return (
+    <div
+      ref={rootRef}
+      style={{
+        position: 'relative',
+        minWidth: 0,
+        borderLeft: divider ? `1px solid ${T.line}` : 0,
+      }}
+    >
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          width: '100%', height: '100%', minHeight: 48,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          padding: '12px 15px', background: open ? 'rgba(255,106,0,.07)' : 'transparent',
+          border: 0, outline: 0, color: open ? T.lime : '#e6e8ec',
+          fontFamily: FB, fontSize: 14, fontWeight: 600, textAlign: 'left', cursor: 'pointer',
+        }}
+      >
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selected?.label || '—'}</span>
+        <span
+          aria-hidden="true"
+          style={{
+            flex: 'none', width: 8, height: 8,
+            borderRight: `2px solid ${open ? T.lime : T.txt3}`,
+            borderBottom: `2px solid ${open ? T.lime : T.txt3}`,
+            transform: open ? 'rotate(225deg) translate(-2px,-2px)' : 'rotate(45deg) translate(-2px,-2px)',
+            transition: 'transform .18s ease, border-color .18s ease',
+          }}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          style={{
+            position: 'absolute', zIndex: 80, top: 'calc(100% + 7px)', left: 6, right: 6,
+            maxHeight: 270, overflowY: 'auto', padding: 5,
+            background: '#111318', border: '1px solid rgba(255,106,0,.35)',
+            borderRadius: 12, boxShadow: '0 18px 42px rgba(0,0,0,.58)',
+          }}
+        >
+          {options.map((option) => {
+            const active = option.value === value
+            return (
+              <button
+                type="button"
+                role="option"
+                aria-selected={active}
+                className="ps-select-option"
+                key={option.value}
+                onClick={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 11px', border: 0, borderRadius: 8,
+                  background: active ? 'rgba(255,106,0,.14)' : 'transparent',
+                  color: active ? T.lime : '#c9ced6',
+                  fontFamily: FB, fontSize: 13, fontWeight: active ? 700 : 500,
+                  textAlign: 'left', cursor: 'pointer',
+                }}
+              >
+                <span>{option.label}</span>
+                {active && <span style={{ width: 6, height: 6, borderRadius: '50%', background: T.lime, boxShadow: '0 0 10px rgba(255,106,0,.7)' }} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PublicoClient({ initialAtletas = [], initialEstado = null, initialAtletaEnVivo = null }) {
   const [atletas, setAtletas] = useState(() => initialAtletas.map(computeAtleta))
   const [sexoSel, setSexoSel] = useState('Masculino')
@@ -138,6 +244,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const viewStateRef = useRef({ view, selectedId, versusCat })
   const lastBackRef = useRef(0)
   const exitHintTimer = useRef(null)
+  const reloadAtletasRef = useRef(() => {})
 
   /* ---- carga + realtime del padrón completo ----
      Todo en vivo: tiros válidos (intentos), posiciones (derivadas de atletas+intentos),
@@ -147,6 +254,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   useEffect(() => {
     let alive = true
     let debounceTimer = null
+    let updatingTimer = null
 
     const reload = async () => {
       setUpdating(true)
@@ -156,18 +264,19 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       } catch (e) { console.error('Error al recargar padrón:', e) }
       finally {
         loadedRef.current = true
-        if (alive) setTimeout(() => alive && setUpdating(false), 400)
+        clearTimeout(updatingTimer)
+        if (alive) updatingTimer = setTimeout(() => alive && setUpdating(false), 400)
       }
     }
-    // SSR ya trajo initialAtletas -> no re-fetchear al montar (ahorra ~140ms).
-    // Solo carga si el SSR vino vacío (falló). Realtime cubre cambios posteriores.
-    if (!initialAtletas.length) reload()
-    else loadedRef.current = true
 
-    const scheduleReload = () => {
+    const scheduleReload = (delay = 180) => {
       clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(reload, 250)
+      debounceTimer = setTimeout(reload, delay)
     }
+    reloadAtletasRef.current = scheduleReload
+
+    // Cierra la ventana entre el fetch SSR y la hidratación del cliente.
+    reload()
 
     const ch = supabase
       .channel('public:board_realtime')
@@ -175,35 +284,112 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       .on('postgres_changes', { event: '*', schema: 'public', table: 'atletas' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'equipos' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'coaches' }, scheduleReload)
-      .subscribe()
+      .subscribe((status, error) => {
+        if (status === 'SUBSCRIBED') scheduleReload(0)
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Realtime del ranking público no disponible:', error || status)
+        }
+      })
 
-    return () => { alive = false; clearTimeout(debounceTimer); supabase.removeChannel(ch) }
+    const reconcile = () => {
+      if (document.visibilityState === 'visible') scheduleReload(0)
+    }
+    const interval = setInterval(reconcile, 10000)
+    window.addEventListener('focus', reconcile)
+    window.addEventListener('online', reconcile)
+    document.addEventListener('visibilitychange', reconcile)
+
+    return () => {
+      alive = false
+      reloadAtletasRef.current = () => {}
+      clearTimeout(debounceTimer)
+      clearTimeout(updatingTimer)
+      clearInterval(interval)
+      window.removeEventListener('focus', reconcile)
+      window.removeEventListener('online', reconcile)
+      document.removeEventListener('visibilitychange', reconcile)
+      supabase.removeChannel(ch)
+    }
   }, [])
 
   /* ---- estado en vivo ---- */
   useEffect(() => {
+    let alive = true
+    let lastAtletaId = initialEstado?.atleta_id ?? null
+
+    const fetchAtletaEnVivo = async (atletaId) => {
+      if (!atletaId) {
+        if (alive) setAtletaEnVivo(null)
+        return
+      }
+      const { data, error } = await supabase.from('atletas').select('*').eq('id', atletaId).maybeSingle()
+      if (!error && alive) setAtletaEnVivo(data)
+    }
+
+    const aplicarEstado = (incoming, completo = false) => {
+      if (!incoming || !alive) return
+      setEstado(prev => completo ? incoming : { ...(prev || {}), ...incoming })
+      if (Object.prototype.hasOwnProperty.call(incoming, 'atleta_id') && incoming.atleta_id !== lastAtletaId) {
+        lastAtletaId = incoming.atleta_id ?? null
+        fetchAtletaEnVivo(lastAtletaId)
+      }
+    }
+
     const fetchEstado = async () => {
       // 1 round-trip: estado + atleta en vivo vía join embebido (FK estado_competencia.atleta_id -> atletas)
-      const { data } = await supabase.from('estado_competencia').select('*, atleta:atletas(*)').eq('id', 1).maybeSingle()
-      if (!data) return
+      const { data, error } = await supabase.from('estado_competencia').select('*, atleta:atletas(*)').eq('id', 1).maybeSingle()
+      if (error || !data || !alive) return
       const { atleta, ...est } = data
       setEstado(est)
       setAtletaEnVivo(est.atleta_id ? atleta : null)
+      lastAtletaId = est.atleta_id ?? null
     }
-    // SSR ya trajo initialEstado + initialAtletaEnVivo -> saltar fetch inicial (ahorra ~80ms).
-    if (!initialEstado) fetchEstado()
+
+    // También se ejecuta con SSR para reconciliar cambios ocurridos durante la hidratación.
+    fetchEstado()
 
     const ch = supabase
       .channel('public:estado_competencia_publico')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'estado_competencia', filter: 'id=eq.1' }, async (payload) => {
-        setEstado(payload.new)
-        if (payload.new.atleta_id) {
-          const { data: at } = await supabase.from('atletas').select('*').eq('id', payload.new.atleta_id).single()
-          setAtletaEnVivo(at)
-        } else setAtletaEnVivo(null)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'estado_competencia', filter: 'id=eq.1' },
+        (payload) => aplicarEstado(payload.new, true)
+      )
+      .subscribe((status, error) => {
+        if (status === 'SUBSCRIBED') fetchEstado()
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Realtime del estado público no disponible:', error || status)
+        }
       })
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+
+    // Fast-path compartido con cargadores y jueces.
+    const live = joinCompetenciaLive(
+      (parcial) => aplicarEstado(parcial, false),
+      () => reloadAtletasRef.current(80)
+    )
+
+    const reconcile = () => {
+      if (document.visibilityState === 'visible') {
+        fetchEstado()
+        reloadAtletasRef.current(0)
+      }
+    }
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchEstado()
+    }, 10000)
+    window.addEventListener('focus', reconcile)
+    window.addEventListener('online', reconcile)
+    document.addEventListener('visibilitychange', reconcile)
+
+    return () => {
+      alive = false
+      clearInterval(interval)
+      window.removeEventListener('focus', reconcile)
+      window.removeEventListener('online', reconcile)
+      document.removeEventListener('visibilitychange', reconcile)
+      supabase.removeChannel(ch)
+      live.leave()
+    }
   }, [])
 
   /* ---- cronómetro local ---- */
@@ -218,10 +404,14 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   /* ---- posición por categoría (sobre todo el padrón) ---- */
   const posMap = useMemo(() => {
     const groups = {}
-    atletas.forEach(a => { (groups[a.categoria] ??= []).push(a) })
+    atletas.forEach(a => {
+      clavesCategoriasAtleta(a).forEach((clave) => { (groups[clave] ??= []).push(a) })
+    })
     const m = {}
     Object.values(groups).forEach(list => {
-      list.sort((x, y) => (y.dots || 0) - (x.dots || 0)).forEach((a, i) => { m[a.id] = i + 1 })
+      list.sort((x, y) => (y.dots || 0) - (x.dots || 0)).forEach((a, i) => {
+        m[a.id] = Math.min(m[a.id] ?? Number.POSITIVE_INFINITY, i + 1)
+      })
     })
     return m
   }, [atletas])
@@ -242,7 +432,9 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   /* ---- agrupado por categoría (ordenado) ---- */
   const grupos = useMemo(() => {
     const g = {}
-    filtrados.forEach(a => { (g[a.categoria] ??= []).push(a) })
+    filtrados.forEach(a => {
+      clavesCategoriasAtleta(a).forEach((clave) => { (g[clave] ??= []).push(a) })
+    })
     const getPeso = (cat) => {
       const m = cat?.match(/\+?(\d+)kg/)
       if (!m) return 0
@@ -251,7 +443,11 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     return Object.entries(g)
       .map(([cat, list]) => [cat, list.sort((x, y) => (y.dots || 0) - (x.dots || 0))])
       .sort(([a], [b]) => {
-        const am = a.startsWith('M'), bm = b.startsWith('M')
+        const ordenEdad = ['Sub-Junior', 'Junior', 'Open', 'Master I', 'Master II', 'Master III', 'Master IV']
+        const edadA = ordenEdad.findIndex(edad => a.startsWith(edad))
+        const edadB = ordenEdad.findIndex(edad => b.startsWith(edad))
+        if (edadA !== edadB) return edadA - edadB
+        const am = a.includes('M - '), bm = b.includes('M - ')
         if (am && !bm) return -1
         if (!am && bm) return 1
         return getPeso(a) - getPeso(b)
@@ -305,7 +501,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     const proj = subtotal + Math.max(0, (estado.peso || 0) - bestCur)
     return {
       name: `${atletaEnVivo.nombre ?? ''} ${atletaEnVivo.apellido ?? ''}`.trim(),
-      cat: [atletaEnVivo.categoria, atletaEnVivo.modalidad].filter(Boolean).join(' · '),
+      cat: [claveCategoriaAtleta(atletaEnVivo), atletaEnVivo.modalidad].filter(Boolean).join(' · '),
       bw: atletaEnVivo.peso_corporal, age: atletaEnVivo.edad,
       lift: LIFT_LABEL[liftKey] || '—',
       attemptLabel: estado.intento ? `${estado.intento}º intento` : '',
@@ -320,15 +516,39 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   /* ---- lista versus (categoría en vivo) + reordenamiento FLIP ---- */
   const versusList = useMemo(() => {
     if (!versusCat) return []
-    return atletas.filter(a => a.categoria === versusCat).sort((x, y) => (y.dots || 0) - (x.dots || 0))
+    return atletas
+      .filter(a => clavesCategoriasAtleta(a).includes(versusCat))
+      .sort((x, y) => (y.dots || 0) - (x.dots || 0))
   }, [atletas, versusCat])
+
+  /* ---- tanda que se está disputando + orden operativo ---- */
+  const tandaActual = liveA?.tanda_id ?? atletaEnVivo?.tanda_id ?? null
+  const tandaList = useMemo(() => {
+    if (tandaActual == null) return []
+    const liveId = estado?.atleta_id
+    const ordenProximos = Array.isArray(estado?.orden_proximos) ? estado.orden_proximos : []
+    const ordenPorId = new Map(ordenProximos.map((id, index) => [Number(id), index]))
+
+    return atletas
+      .filter((atleta) => String(atleta.tanda_id) === String(tandaActual))
+      .sort((a, b) => {
+        if (a.id === liveId) return -1
+        if (b.id === liveId) return 1
+        const ordenA = ordenPorId.has(Number(a.id)) ? ordenPorId.get(Number(a.id)) : Number.POSITIVE_INFINITY
+        const ordenB = ordenPorId.has(Number(b.id)) ? ordenPorId.get(Number(b.id)) : Number.POSITIVE_INFINITY
+        if (ordenA !== ordenB) return ordenA - ordenB
+        return (Number(a.lot) || Number.POSITIVE_INFINITY) - (Number(b.lot) || Number.POSITIVE_INFINITY)
+      })
+  }, [atletas, tandaActual, estado?.atleta_id, estado?.orden_proximos])
+
   const rowRefs = useRef({})
   const prevTops = useRef({})
   useLayoutEffect(() => {
-    if (view !== 'versus') { prevTops.current = {}; return }
+    if (view !== 'versus' && view !== 'tanda') { prevTops.current = {}; return }
+    const listaActiva = view === 'tanda' ? tandaList : versusList
     const next = {}
-    versusList.forEach(a => { const el = rowRefs.current[a.id]; if (el) next[a.id] = el.offsetTop })
-    versusList.forEach(a => {
+    listaActiva.forEach(a => { const el = rowRefs.current[a.id]; if (el) next[a.id] = el.offsetTop })
+    listaActiva.forEach(a => {
       const el = rowRefs.current[a.id]
       if (!el) return
       const prev = prevTops.current[a.id]
@@ -343,7 +563,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       }
     })
     prevTops.current = next
-  }, [versusList, view])
+  }, [versusList, tandaList, view])
 
   /* ---- navegación interna + gesto "atrás" ----
      atrás vuelve de vista (detalle/versus -> inicio) en vez de cerrar la página;
@@ -388,9 +608,13 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const openDetail = (a) => pushNav({ view: 'detail', selectedId: a.id })
   const back = () => { if (typeof window !== 'undefined') window.history.back() }
   const verCategoria = (cat) => {
-    const c = cat || atletaEnVivo?.categoria
+    const c = cat || clavesCategoriasAtleta(atletaEnVivo)[0]
     if (!c) return
     pushNav({ view: 'versus', versusCat: c })
+  }
+  const verTandaActual = () => {
+    if (tandaActual == null) return
+    pushNav({ view: 'tanda' })
   }
 
   /* ---- estado de intento ---- */
@@ -416,11 +640,6 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const catsDisponibles = sexoSel === 'Masculino' ? categorias.M : categorias.F
   const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
 
-  const selStyle = {
-    flex: 1, background: T.card, border: `1px solid ${T.line}`, borderRadius: 13, padding: '10px 14px',
-    color: '#e6e8ec', fontFamily: FB, fontSize: 14, appearance: 'none', WebkitAppearance: 'none', outline: 'none',
-  }
-
   return (
     <div className="ps-outer">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Oswald:wght@400;500;600;700&display=swap');
@@ -434,6 +653,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
         @keyframes psIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
         @keyframes psHero{from{transform:scale(1.12);opacity:.3}to{transform:scale(1);opacity:1}}
         @keyframes psRow{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+        .ps-select-option:hover,.ps-select-option:focus-visible{background:rgba(255,106,0,.09)!important;color:#ff6a00!important;outline:none}
         .ps-outer{min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:40px 24px;background:${T.pageBg};font-family:${FB}}
         .ps-frame{width:430px;max-width:100%;background:${T.frame};border-radius:30px;overflow:hidden;box-shadow:0 30px 80px rgba(20,18,14,.32);border:1px solid rgba(0,0,0,.5)}
         @media (max-width:600px){
@@ -455,7 +675,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
         <div style={{ position: 'sticky', top: 0, zIndex: 20, backdropFilter: 'blur(14px)', background: 'rgba(8,9,11,.82)', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src="/powerspace_logo.png" alt="POWERSPACE" style={{ height: 34, width: 34, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
+              <img src="/Gymspace-logo.png" alt="GYMSPACE" style={{ height: 34, width: 34, borderRadius: 8, objectFit: 'contain', flex: 'none' }} />
               <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, letterSpacing: '.02em', color: T.txt, position: 'relative', paddingBottom: 5 }}>
                 POWERSPACE<span style={{ position: 'absolute', left: 0, bottom: 0, width: 38, height: 4, background: T.lime }} />
               </div>
@@ -515,7 +735,22 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   </div>
                 </div>
               </div>
-              {/* <div onClick={verCategoria} style={{ marginTop: 12, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 11, padding: 11, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.06em', color: '#c9ced6', cursor: 'pointer' }}>{(atletaEnVivo?.nombre || '').toUpperCase()} VS {(atletaEnVivo?.categoria || '').toUpperCase()}</div> */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginTop: 10, background: T.card, border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => verCategoria(clavesCategoriasAtleta(liveA)[0])}
+                  style={{ minWidth: 0, textAlign: 'center', background: 'rgba(255,255,255,.025)', border: 0, padding: '12px 8px', fontFamily: FO, fontWeight: 600, fontSize: 12, letterSpacing: '.05em', color: '#c9ced6', cursor: 'pointer' }}
+                >
+                  CATEGORÍA EN VIVO
+                </button>
+                <button
+                  type="button"
+                  onClick={verTandaActual}
+                  style={{ minWidth: 0, textAlign: 'center', background: 'rgba(255,106,0,.09)', border: 0, borderLeft: '1px solid rgba(255,106,0,.3)', padding: '12px 8px', fontFamily: FO, fontWeight: 700, fontSize: 12, letterSpacing: '.05em', color: T.lime, cursor: 'pointer' }}
+                >
+                  TANDA {tandaActual} EN VIVO
+                </button>
+              </div>
               </>
             )}
 
@@ -539,7 +774,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       </span>
                       <span>
                         <span style={{ display: 'block', fontWeight: 600, fontSize: 14, color: '#e6e8ec', lineHeight: 1.1 }}>{np.nombre} {np.apellido}</span>
-                        <span style={{ display: 'block', fontFamily: FM, fontSize: 10, color: T.txt3 }}>{np.categoria}</span>
+                        <span style={{ display: 'block', fontFamily: FM, fontSize: 10, color: T.txt3 }}>{claveCategoriaAtleta(np)}</span>
                       </span>
                     </div>
                   ))}
@@ -548,8 +783,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
             )}
 
             {/* ---- BUSCADOR + FILTROS ---- */}
-            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11, background: T.card, border: `1px solid ${T.line}`, borderRadius: 13, padding: '14px 15px' }}>
+            <div style={{ marginTop: 24, background: T.card, border: `1px solid ${T.line}`, borderRadius: 15, position: 'relative', zIndex: 5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 15px' }}>
                 <span style={{ width: 15, height: 15, border: '1.7px solid #6b7280', borderRadius: '50%', position: 'relative', flex: 'none' }}>
                   <span style={{ position: 'absolute', width: 6, height: '1.7px', background: '#6b7280', transform: 'rotate(45deg)', bottom: -2, right: -4 }} />
                 </span>
@@ -557,14 +792,29 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: FB, fontSize: 14, color: '#e6e8ec' }} />
               </div>
               {!busqueda.trim() && (
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <select value={sexoSel} onChange={(e) => { setSexoSel(e.target.value); setCatSel('todas') }} style={selStyle}>
-                    <option>Masculino</option><option>Femenino</option>
-                  </select>
-                  <select value={catSel} onChange={(e) => setCatSel(e.target.value)} style={selStyle}>
-                    <option value="todas">Todas</option>
-                    {catsDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: `1px solid ${T.line}` }}>
+                  <PowerSelect
+                    label="Sexo"
+                    value={sexoSel}
+                    options={[
+                      { value: 'Masculino', label: 'Masculino' },
+                      { value: 'Femenino', label: 'Femenino' },
+                    ]}
+                    onChange={(nextSexo) => {
+                      setSexoSel(nextSexo)
+                      setCatSel('todas')
+                    }}
+                  />
+                  <PowerSelect
+                    divider
+                    label="Categoría de peso"
+                    value={catSel}
+                    options={[
+                      { value: 'todas', label: 'Todas' },
+                      ...catsDisponibles.map((categoria) => ({ value: categoria, label: categoria })),
+                    ]}
+                    onChange={setCatSel}
+                  />
                 </div>
               )}
             </div>
@@ -660,11 +910,12 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
           const isLive = estado?.atleta_id === selected.id
           const pos = posMap[selected.id] || 0
           const posTagLong = isLive ? 'EN PLATAFORMA' : pos === 1 ? 'LÍDER DE CATEGORÍA' : 'CLASIFICACIÓN PROVISIONAL'
+          const categoriasSeleccionadas = selected.categoria ? clavesCategoriasAtleta(selected) : []
           const facts = [
             { k: 'PESO CORPORAL', v: `${selected.peso_corporal ?? '—'} kg` },
             { k: 'EDAD', v: `${selected.edad ?? '—'} años` },
-            { k: 'MODALIDAD', v: selected.modalidad ?? '—' },
-            { k: 'CATEGORÍA', v: selected.categoria ?? '—' },
+            { k: 'DIVISIÓN', v: selected.modalidad ?? '—' },
+            { k: 'CATEGORÍA', v: claveCategoriaAtleta(selected) },
           ]
           return (
             <div className="ps-view" style={{ paddingBottom: 90 }}>
@@ -695,24 +946,44 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                     <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: T.txt2 }}>{posTagLong}</span>
                   </div>
                   <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 42, lineHeight: .92, color: '#f7f8fa', textTransform: 'uppercase', letterSpacing: '.01em' }}>{selected.nombre} {selected.apellido}</div>
-                  <div style={{ fontSize: 13, color: T.txt2, marginTop: 7 }}>{selected.categoria} · {selected.peso_corporal ?? '—'} kg BW · {selected.edad ?? '—'} años</div>
+                  <div style={{ fontSize: 13, color: T.txt2, marginTop: 7 }}>{claveCategoriaAtleta(selected)} · {selected.peso_corporal ?? '—'} kg BW · {selected.edad ?? '—'} años</div>
                 </div>
 
                 {/* STATS */}
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ flex: 1, background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 14, padding: '14px 15px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 14, overflow: 'hidden' }}>
+                  <div style={{ minWidth: 0, padding: '14px 15px' }}>
                     <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>TOTAL</div>
                     <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 4 }}><span style={{ fontSize: 32 }}>{selected.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
                   </div>
-                  <div style={{ flex: 1, background: T.card, border: '1px solid rgba(255,106,0,.25)', borderRadius: 14, padding: '14px 15px' }}>
+                  <div style={{ minWidth: 0, borderLeft: '1px solid rgba(255,106,0,.25)', background: 'rgba(255,106,0,.04)', padding: '14px 15px' }}>
                     <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.16em', color: T.txt3 }}>DOTS</div>
                     <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 32, lineHeight: .9, color: T.lime, marginTop: 4 }}>{selected.dots ? selected.dots.toFixed(2) : '—'}</div>
                   </div>
                 </div>
 
-                {/* VS CATEGORÍA */}
-                {selected.categoria && (
-                  <div onClick={() => verCategoria(selected.categoria)} style={{ marginTop: 10, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: 12, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.06em', color: '#c9ced6', cursor: 'pointer' }}>{(selected.nombre || '').toUpperCase()} VS {(selected.categoria || '').toUpperCase()}</div>
+                {/* ACCESOS EN VIVO */}
+                {(categoriasSeleccionadas.length > 0 || tandaActual != null) && (
+                  <div style={{ marginTop: 10, background: T.card, border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, overflow: 'hidden' }}>
+                    {categoriasSeleccionadas.map((categoriaCompleta, index) => (
+                      <button
+                        type="button"
+                        key={categoriaCompleta}
+                        onClick={() => verCategoria(categoriaCompleta)}
+                        style={{ width: '100%', display: 'block', textAlign: 'center', background: 'rgba(255,255,255,.025)', border: 0, borderTop: index > 0 ? '1px solid rgba(255,255,255,.08)' : 0, padding: 12, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.06em', color: '#c9ced6', cursor: 'pointer' }}
+                      >
+                        {(selected.nombre || '').toUpperCase()} VS {categoriaCompleta.toUpperCase()}
+                      </button>
+                    ))}
+                    {tandaActual != null && (
+                      <button
+                        type="button"
+                        onClick={verTandaActual}
+                        style={{ width: '100%', display: 'block', textAlign: 'center', background: 'rgba(255,106,0,.09)', border: 0, borderTop: '1px solid rgba(255,106,0,.3)', padding: 12, fontFamily: FO, fontWeight: 700, fontSize: 13, letterSpacing: '.08em', color: T.lime, cursor: 'pointer' }}
+                      >
+                        VER TANDA {tandaActual} EN VIVO
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* LEVANTANDO AHORA */}
@@ -740,22 +1011,22 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   <span style={{ width: 4, height: 19, background: T.lime, borderRadius: 2 }} />
                   <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 17, letterSpacing: '.06em', color: T.txt }}>INTENTOS</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                  {LIFTS.map(L => {
+                <div style={{ background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 15, overflow: 'hidden' }}>
+                  {LIFTS.map((L, liftIndex) => {
                     const best = selected[L.best]
                     return (
-                      <div key={L.key} style={{ background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 15, padding: '14px 15px' }}>
+                      <div key={L.key} style={{ padding: '14px 15px', borderTop: liftIndex > 0 ? '1px solid rgba(255,255,255,.07)' : 0 }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
                           <span style={{ fontFamily: FO, fontWeight: 600, fontSize: 16, color: T.txt, textTransform: 'uppercase' }}>{L.name}</span>
                           <span style={{ fontFamily: FM, fontSize: 11, color: T.txt3 }}>MEJOR <span style={{ color: T.lime, fontWeight: 600 }}>{best || '—'}</span> kg</span>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, overflow: 'hidden' }}>
                           {[1, 2, 3].map(i => {
                             const s = attStatus(selected, L.key, L.prefix, i)
                             return (
-                              <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                              <div key={i} style={{ minWidth: 0, textAlign: 'center', paddingTop: 7, borderLeft: i > 1 ? '1px solid rgba(255,255,255,.08)' : 0 }}>
                                 <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.04em', color: T.txt3, marginBottom: 6 }}>{i}º</div>
-                                <Attempt status={s.status} label={s.label} big />
+                                <Attempt status={s.status} label={s.label} big joined />
                               </div>
                             )
                           })}
@@ -770,9 +1041,9 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   <span style={{ width: 4, height: 19, background: T.lime, borderRadius: 2 }} />
                   <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 17, letterSpacing: '.06em', color: T.txt }}>DATOS</span>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {facts.map(f => (
-                    <div key={f.k} style={{ flex: 1, minWidth: 'calc(50% - 5px)', background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 13, padding: '12px 14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 13, overflow: 'hidden' }}>
+                  {facts.map((f, index) => (
+                    <div key={f.k} style={{ minWidth: 0, padding: '12px 14px', borderLeft: index % 2 === 1 ? '1px solid rgba(255,255,255,.07)' : 0, borderTop: index >= 2 ? '1px solid rgba(255,255,255,.07)' : 0 }}>
                       <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.12em', color: T.txt3 }}>{f.k}</div>
                       <div style={{ fontFamily: FO, fontWeight: 600, fontSize: 18, color: T.txt, marginTop: 3 }}>{f.v}</div>
                     </div>
@@ -837,6 +1108,129 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       <div style={{ flex: 'none', textAlign: 'right' }}>
                         <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 18, color: '#f7f8fa', lineHeight: 1 }}>{a.total || 0}<span style={{ fontSize: 11, color: T.txt2, marginLeft: 2 }}>kg</span></div>
                         <div style={{ fontFamily: FM, fontSize: 10, color: T.lime, marginTop: 3 }}>{a.dots ? a.dots.toFixed(1) : '—'} DOTS</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div onClick={back} style={{ marginTop: 22, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: 13, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.1em', color: '#c9ced6', cursor: 'pointer' }}>‹ VOLVER</div>
+            </div>
+          )
+        })()}
+
+        {/* ============ VISTA TANDA EN VIVO ============ */}
+        {view === 'tanda' && tandaActual != null && (() => {
+          const ordenProximos = Array.isArray(estado?.orden_proximos)
+            ? estado.orden_proximos.map(Number)
+            : []
+          return (
+            <div className="ps-view" style={{ padding: '18px 16px 90px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                <div onClick={back} style={{ flex: 'none', width: 42, height: 42, borderRadius: 13, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <CaretLeft size={22} weight="bold" color={T.txt} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: FM, fontSize: 10, letterSpacing: '.14em', color: T.lime }}>
+                    <Eq color={T.lime} h={9} w={2} />
+                    TANDA EN VIVO
+                  </div>
+                  <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 28, color: T.txt, textTransform: 'uppercase', lineHeight: 1, marginTop: 4 }}>
+                    TANDA {tandaActual}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 118px', background: T.card, border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                <div style={{ minWidth: 0, padding: '11px 13px' }}>
+                  <div style={{ fontFamily: FM, fontSize: 8, letterSpacing: '.14em', color: T.txt3 }}>MOVIMIENTO ACTUAL</div>
+                  <div style={{ fontFamily: FO, fontWeight: 600, fontSize: 17, color: T.txt, textTransform: 'uppercase', marginTop: 3 }}>{LIFT_LABEL[estado?.ejercicio] || '—'}</div>
+                </div>
+                <div style={{ borderLeft: '1px solid rgba(255,106,0,.25)', background: 'rgba(255,106,0,.09)', padding: '11px 13px', textAlign: 'right' }}>
+                  <div style={{ fontFamily: FM, fontSize: 8, letterSpacing: '.14em', color: T.txt3 }}>INTENTO</div>
+                  <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 20, color: T.lime, marginTop: 2 }}>{estado?.intento ? `${estado.intento}°` : '—'}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+                <span
+                  style={{
+                    flex: 'none',
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,106,0,.38)',
+                    background: 'rgba(255,106,0,.12)',
+                    fontFamily: FO,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    lineHeight: 1,
+                    letterSpacing: '.07em',
+                    color: T.lime,
+                  }}
+                >
+                  ORDEN DE PLATAFORMA
+                </span>
+                <span
+                  style={{
+                    minWidth: 0,
+                    textAlign: 'right',
+                    fontFamily: FO,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    letterSpacing: '.02em',
+                    color: T.txt,
+                  }}
+                >
+                  {tandaList.length} atletas en esta tanda
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {tandaList.length === 0 ? (
+                  <div style={{ textAlign: 'center', marginTop: 40, fontFamily: FM, fontSize: 12, letterSpacing: '.1em', color: T.txt4 }}>SIN ATLETAS EN LA TANDA ACTUAL</div>
+                ) : tandaList.map((a) => {
+                  const isLive = estado?.atleta_id === a.id
+                  const proximoIndex = ordenProximos.indexOf(Number(a.id))
+                  const estadoTanda = isLive
+                    ? 'EN PLATAFORMA'
+                    : proximoIndex >= 0
+                      ? `PRÓXIMO ${proximoIndex + 1}`
+                      : 'EN TANDA'
+                  return (
+                    <div
+                      key={a.id}
+                      ref={el => { if (el) rowRefs.current[a.id] = el }}
+                      onClick={() => openDetail(a)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        background: isLive ? 'rgba(255,106,0,.09)' : T.card,
+                        border: `1px solid ${isLive ? 'rgba(255,106,0,.4)' : 'rgba(255,255,255,.07)'}`,
+                        borderRadius: 14, padding: '12px 14px', cursor: 'pointer', willChange: 'transform',
+                      }}
+                    >
+                      <div style={{ flex: 'none', width: 38, textAlign: 'center' }}>
+                        <div style={{ fontFamily: FM, fontSize: 7, letterSpacing: '.1em', color: T.txt3 }}>LOT</div>
+                        <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, color: isLive ? T.lime : '#e6e8ec', lineHeight: 1, marginTop: 2 }}>{a.lot ?? '—'}</div>
+                      </div>
+                      <div style={{ flex: 'none', width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: `1px solid ${isLive ? 'rgba(255,106,0,.5)' : 'rgba(255,255,255,.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {a.foto ? (
+                          <img src={a.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                        ) : (
+                          <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 14, color: isLive ? T.lime : T.txt2 }}>{(a.nombre?.[0] || '') + (a.apellido?.[0] || '')}</span>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 17, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre} {a.apellido}</div>
+                        <div style={{ fontFamily: FM, fontSize: 9, color: T.txt3, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{claveCategoriaAtleta(a)}</div>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 5, borderRadius: 5, padding: '2px 6px', background: isLive ? T.lime : 'rgba(255,255,255,.06)', color: isLive ? '#fff' : T.txt2 }}>
+                          {isLive && <Eq color="#fff" h={7} w={2} />}
+                          <span style={{ fontFamily: FM, fontSize: 7, letterSpacing: '.08em', fontWeight: 600 }}>{estadoTanda}</span>
+                        </div>
+                      </div>
+                      <div style={{ flex: 'none', textAlign: 'right' }}>
+                        <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 18, color: '#f7f8fa', lineHeight: 1 }}>{a.total || 0}<span style={{ fontSize: 11, color: T.txt2, marginLeft: 2 }}>kg</span></div>
+                        <div style={{ fontFamily: FM, fontSize: 9, color: T.lime, marginTop: 4 }}>{a.dots ? a.dots.toFixed(1) : '—'} DOTS</div>
                       </div>
                     </div>
                   )

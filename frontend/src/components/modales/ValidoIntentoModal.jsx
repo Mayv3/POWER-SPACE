@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, Button, Box, Typography, TextField, IconButton, Divider } from '@mui/material'
-import { CheckCircle as CheckCircleIcon, XCircle as CancelIcon, ArrowsClockwise as RestartAltIcon, X as CloseIcon, Barbell as FitnessCenterIcon } from '@phosphor-icons/react'
+import { Dialog, DialogContent, Box, Typography, TextField } from '@mui/material'
+import { CheckCircle as CheckCircleIcon, XCircle as CancelIcon, ArrowsClockwise as RestartAltIcon, Barbell as FitnessCenterIcon } from '@phosphor-icons/react'
+import { ModalFooterActions } from './ModalFooterActions'
+import { ModalHeader, modalContentSx, modalPaperSx } from './ModalLayout'
 
 export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio, intento, pesoActual, field }) {
   const [peso, setPeso] = useState('')
@@ -50,29 +52,25 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
     <Dialog 
       open={open} 
       onClose={onClose} 
-      maxWidth="sm" 
+      maxWidth={false}
       fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
-        }
-      }}
+      slotProps={{ paper: { sx: modalPaperSx('standard') } }}
     >
-      <IconButton
-        onClick={onClose}
-        sx={{
-          position: 'absolute',
-          right: 12,
-          top: 12,
-          color: 'grey.500'
-        }}
-      >
-        <CloseIcon />
-      </IconButton>
-
-      <DialogContent sx={{ px: 4, py: 4 }}>
-        <Box sx={{ textAlign: 'center' }}>
+      <ModalHeader
+        title={`${ejercicioNombre[ejercicio]} · Intento ${intento}`}
+        subtitle={`${atleta?.apellido || ''} ${atleta?.nombre || ''}`.trim()}
+        onClose={onClose}
+      />
+      <DialogContent sx={modalContentSx}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '180px minmax(0, 1fr)' },
+            gap: 3,
+            alignItems: 'center',
+          }}
+        >
+          <Box sx={{ textAlign: 'center' }}>
           <Box 
             sx={{ 
               display: 'inline-flex',
@@ -82,25 +80,16 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
               height: 64,
               borderRadius: '50%',
               bgcolor: ejercicioColor[ejercicio] || '#3f51b5',
-              mb: 2,
+              mb: 1.5,
               boxShadow: `0 4px 12px ${ejercicioColor[ejercicio]}40`
             }}
           >
             <FitnessCenterIcon size={32} color="white" />
           </Box>
 
-          <Typography variant="h5" fontWeight="bold" sx={{ mb: 1 }}>
-            {ejercicioNombre[ejercicio]}
-          </Typography>
-          
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5 }}>
-            {atleta?.apellido} {atleta?.nombre}
-          </Typography>
-
           <Typography 
             variant="body2" 
             sx={{ 
-              mb: 3,
               px: 2,
               py: 0.5,
               display: 'inline-block',
@@ -112,11 +101,13 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
           >
             Intento #{intento}
           </Typography>
-
-          <Divider sx={{ my: 3 }} />
-
+          </Box>
+          <Box>
+          <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>
+            Peso del intento
+          </Typography>
           <TextField
-            label="Peso"
+            aria-label="Peso del intento"
             type="number"
             value={peso}
             onChange={(e) => {
@@ -128,9 +119,8 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             fullWidth
             variant="outlined"
             sx={{ 
-              mb: 3,
               '& .MuiOutlinedInput-root': {
-                fontSize: '1.5rem',
+                fontSize: '1.65rem',
                 fontWeight: 'bold'
               }
             }}
@@ -145,83 +135,36 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             }}
             autoFocus
           />
-
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 2 }}>
-            <Button
-              variant="contained"
-              color="success"
-              size="large"
-              startIcon={<CheckCircleIcon size={28} />}
-              onClick={handleValido}
-              disabled={!peso || parseFloat(peso) < 0 || parseFloat(peso) > 500}
-              sx={{ 
-                flex: 1,
-                py: 2.5,
-                fontWeight: 'bold',
-                fontSize: '1.1rem',
-                borderRadius: 2,
-                textTransform: 'uppercase',
-                boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
-                '&:hover': {
-                  boxShadow: '0 6px 16px rgba(76, 175, 80, 0.4)',
-                  transform: 'translateY(-2px)',
-                  transition: 'all 0.2s'
-                }
-              }}
-            >
-              Válido
-            </Button>
-            <Button
-              variant="contained"
-              color="error"
-              size="large"
-              startIcon={<CancelIcon size={28} />}
-              onClick={handleNulo}
-              disabled={!peso || parseFloat(peso) < 0 || parseFloat(peso) > 500}
-              sx={{ 
-                flex: 1,
-                py: 2.5,
-                fontWeight: 'bold',
-                fontSize: '1.1rem',
-                borderRadius: 2,
-                textTransform: 'uppercase',
-                boxShadow: '0 4px 12px rgba(244, 67, 54, 0.3)',
-                '&:hover': {
-                  boxShadow: '0 6px 16px rgba(244, 67, 54, 0.4)',
-                  transform: 'translateY(-2px)',
-                  transition: 'all 0.2s'
-                }
-              }}
-            >
-              Nulo
-            </Button>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Podés usar incrementos de 0,5 kg.
+          </Typography>
           </Box>
-
-          <Button
-            variant="outlined"
-            color="warning"
-            size="large"
-            fullWidth
-            startIcon={<RestartAltIcon size={24} />}
-            onClick={handleRestablecer}
-            sx={{ 
-              py: 2,
-              fontWeight: 'bold',
-              fontSize: '1rem',
-              borderRadius: 2,
-              textTransform: 'uppercase',
-              borderWidth: 2,
-              '&:hover': {
-                borderWidth: 2,
-                transform: 'translateY(-2px)',
-                transition: 'all 0.2s'
-              }
-            }}
-          >
-            Restablecer
-          </Button>
         </Box>
       </DialogContent>
+      <ModalFooterActions
+        actions={[
+          {
+            label: 'Restablecer',
+            tone: 'warning',
+            icon: <RestartAltIcon size={21} />,
+            onClick: handleRestablecer,
+          },
+          {
+            label: 'Nulo',
+            tone: 'error',
+            icon: <CancelIcon size={21} />,
+            onClick: handleNulo,
+            disabled: !peso || parseFloat(peso) < 0 || parseFloat(peso) > 500,
+          },
+          {
+            label: 'Válido',
+            tone: 'success',
+            icon: <CheckCircleIcon size={21} />,
+            onClick: handleValido,
+            disabled: !peso || parseFloat(peso) < 0 || parseFloat(peso) > 500,
+          },
+        ]}
+      />
     </Dialog>
   )
 }

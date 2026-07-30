@@ -2,16 +2,12 @@
 
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
   Typography,
   Box,
-  Stack,
-  CircularProgress,
 } from '@mui/material'
-import { Warning as WarningAmberRoundedIcon } from '@phosphor-icons/react'
+import { ModalFooterActions } from './ModalFooterActions'
+import { ModalHeader, modalContentSx, modalPaperSx } from './ModalLayout'
 
 export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading = false }) {
   return (
@@ -19,45 +15,40 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading =
       open={open}
       onClose={loading ? null : onClose}
       fullWidth
-      maxWidth="xs"
+      maxWidth={false}
       slotProps={{
-        paper: {
-          sx: {
-            borderRadius: 2,
-            overflow: 'hidden',
-            bgcolor: '#fff',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-          },
-        },
+        paper: { sx: modalPaperSx('compact') },
       }}
     >
-      <Box sx={{ bgcolor: 'error.main', color: '#fff', py: 2, px: 3 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <WarningAmberRoundedIcon />
-          <Typography variant="h6" fontWeight={700}>
-            Eliminar atleta
-          </Typography>
-        </Stack>
-      </Box>
+      <ModalHeader
+        title="Eliminar atleta"
+        subtitle="Esta acción es permanente."
+        tone="error"
+        onClose={onClose}
+        disabled={loading}
+      />
 
-      <DialogContent sx={{ py: 3, px: 3 }}>
-        <Typography variant="body1" sx={{ mb: 2 }}>
-          ¿Seguro que querés eliminar al siguiente atleta? Esta acción no se puede deshacer.
+      <DialogContent sx={modalContentSx}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Revisá los datos antes de confirmar.
         </Typography>
 
         <Box
           sx={{
             p: 2,
-            borderRadius: 1,
-            bgcolor: 'rgba(255, 0, 0, 0.06)',
-            border: '1px dashed rgba(255, 0, 0, 0.3)',
+            borderRadius: 2,
+            bgcolor: 'rgba(211, 47, 47, 0.08)',
+            border: '1px solid rgba(211, 47, 47, 0.28)',
           }}
         >
           <Typography variant="subtitle1" fontWeight={700} color="error.main">
             {atleta?.nombre} {atleta?.apellido}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            Categoría: {atleta?.categoria || '-'}
+            Categoría: {[
+              Array.isArray(atleta?.categoria_edad) ? atleta.categoria_edad.join(' / ') : atleta?.categoria_edad,
+              atleta?.categoria,
+            ].filter(Boolean).join(' · ') || '-'}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             DNI: {atleta?.dni || '-'}
@@ -65,38 +56,12 @@ export function DeleteConfirmModal({ open, atleta, onClose, onConfirm, loading =
         </Box>
       </DialogContent>
 
-
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button
-          onClick={onClose}
-          variant="outlined"
-          color="inherit"
-          disabled={loading}
-          sx={{
-            borderRadius: 1,
-            textTransform: 'none',
-            fontWeight: 500,
-          }}
-        >
-          Cancelar
-        </Button>
-
-        <Button
-          onClick={onConfirm}
-          variant="contained"
-          color="error"
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
-          sx={{
-            borderRadius: 1,
-            textTransform: 'none',
-            fontWeight: 600,
-            px: 3,
-          }}
-        >
-          {loading ? 'Eliminando...' : 'Eliminar'}
-        </Button>
-      </DialogActions>
+      <ModalFooterActions
+        actions={[
+          { label: 'Cancelar', tone: 'neutral', onClick: onClose, disabled: loading },
+          { label: 'Eliminar', tone: 'error', onClick: onConfirm, loading },
+        ]}
+      />
     </Dialog>
   )
 }

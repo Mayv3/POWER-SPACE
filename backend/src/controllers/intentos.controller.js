@@ -40,7 +40,7 @@ export async function getIntentosByTanda(req, res) {
 
     const { data, error } = await supabase
       .from("intentos")
-      .select("*, atletas(nombre, apellido, categoria, modalidad, peso_corporal, tanda_id)")
+      .select("*, atletas(nombre, apellido, categoria, categoria_edad, modalidad, peso_corporal, tanda_id)")
       .eq("atletas.tanda_id", tanda_id)
       .order("atleta_id", { ascending: true })
       .order("movimiento_id", { ascending: true })

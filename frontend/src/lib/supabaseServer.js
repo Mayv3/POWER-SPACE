@@ -20,7 +20,21 @@ export async function fetchAtletasConIntentosServer({ tandaId, atletaId } = {}) 
     .order('lot', { ascending: true })
   const { data, error } = await q
   if (error) throw error
-  return data ?? []
+  const filas = data ?? []
+  if (filas.length === 0) return []
+
+  const ids = filas.map((atleta) => atleta.id)
+  const { data: edades, error: edadesError } = await supabaseServer
+    .from('atletas')
+    .select('id, categoria_edad')
+    .in('id', ids)
+  if (edadesError) throw edadesError
+
+  const categoriaEdadPorId = new Map((edades ?? []).map((atleta) => [atleta.id, atleta.categoria_edad]))
+  return filas.map((atleta) => ({
+    ...atleta,
+    categoria_edad: categoriaEdadPorId.get(atleta.id) ?? [],
+  }))
 }
 
 export async function fetchEstadoCompetenciaServer() {

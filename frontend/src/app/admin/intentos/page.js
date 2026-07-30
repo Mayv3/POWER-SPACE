@@ -4,26 +4,28 @@ import { useEffect, useState } from 'react'
 import {
   Box, Typography, FormControl, Select, MenuItem,
   TextField, InputAdornment, Stack, CircularProgress,
-  Paper, Divider, Chip, useMediaQuery, useTheme,
+  Paper, Chip, useMediaQuery, useTheme,
 } from '@mui/material'
-import { Search as SearchIcon, Group as GroupIcon } from '@mui/icons-material'
+import { Search as SearchIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsIntentos } from '../../../const/columns/columnsIntentos'
 import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
 import { Calculate_DOTS } from '../../../utils/calcularDots'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
+import { clavesCategoriasAtleta } from '../../../const/categorias/categorias'
 
 function calcularPuestos(atletas) {
   const grupos = {}
 
   atletas.forEach(atleta => {
-    const key = atleta.categoria
-    if (!grupos[key]) grupos[key] = []
-    grupos[key].push(atleta)
+    clavesCategoriasAtleta(atleta).forEach((key) => {
+      if (!grupos[key]) grupos[key] = []
+      grupos[key].push(atleta)
+    })
   })
 
-  const atletasConPuesto = []
+  const mejorPuestoPorId = new Map()
 
   Object.keys(grupos).forEach(grupoKey => {
     const atletasDelGrupo = grupos[grupoKey]
@@ -33,17 +35,15 @@ function calcularPuestos(atletas) {
       .sort((a, b) => b.dots - a.dots)
 
     conDots.forEach((atleta, index) => {
-      atletasConPuesto.push({ ...atleta, puesto: index + 1 })
+      const puesto = index + 1
+      mejorPuestoPorId.set(atleta.id, Math.min(mejorPuestoPorId.get(atleta.id) ?? Infinity, puesto))
     })
-
-    atletasDelGrupo
-      .filter(a => !a.dots || a.dots <= 0)
-      .forEach(atleta => {
-        atletasConPuesto.push({ ...atleta, puesto: null })
-      })
   })
 
-  return atletasConPuesto
+  return atletas.map((atleta) => ({
+    ...atleta,
+    puesto: mejorPuestoPorId.get(atleta.id) ?? null,
+  }))
 }
 
 
@@ -329,49 +329,6 @@ export default function IntentosPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-            Intentos
-          </Typography>
-          <Stack direction="row" alignItems="center" gap={0.75} sx={{ mt: 0.5 }}>
-            <GroupIcon sx={{ fontSize: 16 }} style={{ opacity: 0.6 }} />
-            <Typography variant="body2" color="text.secondary">
-              {atletasFiltrados.length} {atletasFiltrados.length === 1 ? 'atleta' : 'atletas'}
-              {(tandaSeleccionada !== 'todas' || categoriaSeleccionada !== 'todas' || searchTerm) && ' filtrados'}
-            </Typography>
-          </Stack>
-        </Box>
-
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          <Select
-            size="small"
-            value={tandaSeleccionada}
-            onChange={(e) => setTandaSeleccionada(e.target.value)}
-            sx={{ minWidth: 140, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
-          >
-            <MenuItem value="todas">Todas las tandas</MenuItem>
-            <MenuItem value="1">Tanda 1</MenuItem>
-            <MenuItem value="2">Tanda 2</MenuItem>
-            <MenuItem value="3">Tanda 3</MenuItem>
-            <MenuItem value="4">Tanda 4</MenuItem>
-          </Select>
-
-          <Select
-            size="small"
-            value={categoriaSeleccionada}
-            onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-            sx={{ minWidth: 160, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
-          >
-            <MenuItem value="todas">Todas las categorías</MenuItem>
-            {categoriasDisponibles.map(cat => (
-              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-            ))}
-          </Select>
-        </Stack>
-      </Stack>
-
       {/* Buscador + Tabla */}
       <Paper
         elevation={0}
@@ -380,33 +337,105 @@ export default function IntentosPage() {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          border: `1px solid ${border}`,
-          borderRadius: 3,
-          overflow: 'hidden',
-          backgroundColor: surface,
+          borderRadius: 0,
+          overflow: 'visible',
+          backgroundColor: 'transparent',
         }}
       >
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Buscar por nombre o apellido..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18 }} style={{ opacity: 0.6 }} />
-                </InputAdornment>
-              ),
-              sx: { borderRadius: 2 },
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr 1fr', md: 'minmax(240px, 1fr) 170px 210px' },
+            minHeight: { xs: 108, md: 70 },
+            bgcolor: isDark ? '#111d18' : '#f5faf7',
+            border: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+            borderBottom: 0,
+            borderRadius: '12px 12px 0 0',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              minWidth: 0, px: 1.5, py: 1,
+              display: 'flex', flexDirection: 'column', justifyContent: 'center',
+              gridColumn: { xs: '1 / -1', md: 'auto' },
+              borderBottom: { xs: `1px solid ${isDark ? '#244238' : '#d6e7df'}`, md: 0 },
             }}
-          />
+          >
+            <TextField
+              fullWidth
+              variant="standard"
+              placeholder="Nombre o apellido..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                disableUnderline: true,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: '#8aa9a0' }} />
+                  </InputAdornment>
+                ),
+                sx: { fontSize: '0.9rem', fontWeight: 700 },
+              }}
+            />
+          </Box>
+
+          {[
+            {
+              label: 'Tanda',
+              value: tandaSeleccionada,
+              onChange: (e) => setTandaSeleccionada(e.target.value),
+              options: [['todas', 'Todas las tandas'], ['1', 'Tanda 1'], ['2', 'Tanda 2'], ['3', 'Tanda 3'], ['4', 'Tanda 4']],
+            },
+            {
+              label: 'Categoría',
+              value: categoriaSeleccionada,
+              onChange: (e) => setCategoriaSeleccionada(e.target.value),
+              options: [['todas', 'Todas las categorías'], ...categoriasDisponibles.map((cat) => [cat, cat])],
+            },
+          ].map((filtro) => (
+            <Box
+              key={filtro.label}
+              sx={{
+                minWidth: 0, px: 1.25, pt: 0.85, pb: 0.55, textAlign: 'center',
+                borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+              }}
+            >
+              <Typography sx={{ fontSize: '0.62rem', lineHeight: 1, letterSpacing: 1.05, textTransform: 'uppercase', color: '#8aa9a0' }}>
+                {filtro.label}
+              </Typography>
+              <Select
+                size="small"
+                fullWidth
+                value={filtro.value}
+                onChange={filtro.onChange}
+                inputProps={{ 'aria-label': filtro.label }}
+                sx={{
+                  mt: 0.25, height: 32, borderRadius: 0, fontSize: '0.86rem', fontWeight: 800,
+                  '& .MuiOutlinedInput-notchedOutline': { border: 0 },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { border: 0 },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 0 },
+                  '& .MuiSelect-select': { py: 0.5, pl: 1, pr: '26px !important', textAlign: 'center' },
+                  '& .MuiSelect-icon': { right: 2, color: '#8aa9a0' },
+                }}
+              >
+                {filtro.options.map(([value, label]) => (
+                  <MenuItem key={value} value={value}>{label}</MenuItem>
+                ))}
+              </Select>
+            </Box>
+          ))}
         </Box>
 
-        <Divider sx={{ borderColor: border }} />
-
-        <Box sx={{ flex: 1, minHeight: 0 }}>
+        <Box
+          sx={{
+            flex: 1, minHeight: 0,
+            border: `1px solid ${border}`,
+            borderRadius: '0 0 12px 12px',
+            overflow: 'hidden',
+            backgroundColor: surface,
+          }}
+        >
           {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
               <CircularProgress size={40} sx={{ color: '#FF9800' }} />

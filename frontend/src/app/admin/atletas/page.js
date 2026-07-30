@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react'
 import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
-  CircularProgress, Paper, Divider, useMediaQuery, useTheme,
+  CircularProgress, Paper, useMediaQuery, useTheme,
 } from '@mui/material'
-import { Search as SearchIcon, PersonAdd as PersonAddIcon, Group as GroupIcon } from '@mui/icons-material'
+import { Search as SearchIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { EditAtletaForm } from '../../../components/modales/EditAtletaForm'
 import { DeleteConfirmModal } from '../../../components/modales/DeleteConfirmModal'
 import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
+import { isAtletaFormValid } from '../../../components/modales/AtletaForm'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
 
@@ -37,6 +38,7 @@ export default function AtletasPage() {
     dni: '',
     fecha_nacimiento: '',
     edad: '',
+    categoria_edad: [],
     categoria: '',
     peso_corporal: '',
     modalidad: '',
@@ -100,7 +102,13 @@ export default function AtletasPage() {
     }
   }, [searchTerm, atletas])
 
-  const handleEdit = (atleta) => { setSelectedAtleta(atleta); setOpenEdit(true) }
+  const handleEdit = (atleta) => {
+    setSelectedAtleta({
+      ...atleta,
+      modalidad: atleta.modalidad === 'Classic Raw' ? 'Powerlifting' : atleta.modalidad,
+    })
+    setOpenEdit(true)
+  }
 
   const handleSaveEdit = async () => {
     if (loadingEdit) return
@@ -135,7 +143,7 @@ export default function AtletasPage() {
       setOpenCreate(false)
       setNewAtleta({
         nombre: '', apellido: '', dni: '', fecha_nacimiento: '', edad: '',
-        categoria: '', peso_corporal: '', modalidad: '', tanda_id: null,
+        categoria_edad: [], categoria: '', peso_corporal: '', modalidad: '', tanda_id: null,
         primer_intento_sentadilla: null, primer_intento_banco: null,
         primer_intento_peso_muerto: null, sexo: '',
         altura_rack_sentadilla: null, altura_rack_banco: null, equipo_id: null,
@@ -172,33 +180,6 @@ export default function AtletasPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-            Atletas
-          </Typography>
-
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<PersonAddIcon />}
-          onClick={() => setOpenCreate(true)}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            fontWeight: 600,
-            backgroundColor: '#F57C00',
-            '&:hover': { backgroundColor: '#E65100' },
-            px: { xs: 1.5, md: 2.5 },
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-          }}
-        >
-          {isMobile ? 'Nuevo' : 'Nuevo atleta'}
-        </Button>
-      </Stack>
-
       {/* Buscador + Tabla */}
       <Paper
         elevation={0}
@@ -207,33 +188,71 @@ export default function AtletasPage() {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          border: `1px solid ${border}`,
-          borderRadius: 3,
-          overflow: 'hidden',
-          backgroundColor: surface,
+          borderRadius: 0,
+          overflow: 'visible',
+          backgroundColor: 'transparent',
         }}
       >
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Buscar por nombre o apellido..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18 }} style={{ opacity: 0.6 }} />
-                </InputAdornment>
-              ),
-              sx: { borderRadius: 2 },
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'minmax(0, 1fr) 116px', sm: 'minmax(0, 1fr) 164px' },
+            minHeight: { xs: 62, sm: 70 },
+            bgcolor: isDark ? '#111d18' : '#f5faf7',
+            border: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+            borderBottom: 0,
+            borderRadius: '12px 12px 0 0',
+            overflow: 'hidden',
+          }}
+        >
+          <Box sx={{ minWidth: 0, px: 1.5, py: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <TextField
+              fullWidth
+              variant="standard"
+              placeholder="Nombre o apellido..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                disableUnderline: true,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: '#8aa9a0' }} />
+                  </InputAdornment>
+                ),
+                sx: { fontSize: '0.9rem', fontWeight: 700 },
+              }}
+            />
+          </Box>
+          <Button
+            onClick={() => setOpenCreate(true)}
+            sx={{
+              borderRadius: 0,
+              borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+              color: '#F57C00',
+              textTransform: 'none',
+              whiteSpace: 'nowrap',
+              '&:hover': { bgcolor: isDark ? 'rgba(245,124,0,.09)' : 'rgba(245,124,0,.07)' },
             }}
-          />
+          >
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <PersonAddIcon sx={{ fontSize: 20 }} />
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900 }}>
+                {isMobile ? 'Nuevo' : 'Nuevo atleta'}
+              </Typography>
+            </Stack>
+          </Button>
         </Box>
 
-        <Divider sx={{ borderColor: border }} />
-
-        <Box sx={{ flex: 1, minHeight: 0 }}>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            border: `1px solid ${border}`,
+            borderRadius: '0 0 12px 12px',
+            overflow: 'hidden',
+            backgroundColor: surface,
+          }}
+        >
           {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
               <CircularProgress size={40} sx={{ color: '#FF9800' }} />
@@ -250,6 +269,7 @@ export default function AtletasPage() {
                 lot: false,
                 tanda_id: false,
                 equipo: false,
+                categoria_edad: false,
                 primer_intento_sentadilla: false,
                 primer_intento_banco: false,
                 primer_intento_peso_muerto: false,
@@ -263,9 +283,12 @@ export default function AtletasPage() {
       <GenericModal
         open={openEdit}
         title="Editar atleta"
+        subtitle="Actualizá sus datos, clasificación y configuración de competencia."
         onClose={() => setOpenEdit(false)}
         onSave={handleSaveEdit}
         loading={loadingEdit}
+        size="wide"
+        saveDisabled={!isAtletaFormValid(selectedAtleta)}
       >
         <EditAtletaForm atleta={selectedAtleta} onChange={setSelectedAtleta} equipos={equipos} />
       </GenericModal>
@@ -274,9 +297,12 @@ export default function AtletasPage() {
       <GenericModal
         open={openCreate}
         title="Crear nuevo atleta"
+        subtitle="Completá los datos principales y su configuración para competir."
         onClose={() => setOpenCreate(false)}
         onSave={handleCreateAtleta}
         loading={loadingCreate}
+        size="wide"
+        saveDisabled={!isAtletaFormValid(newAtleta)}
       >
         <CreateAtletaForm atleta={newAtleta} onChange={setNewAtleta} equipos={equipos} />
       </GenericModal>

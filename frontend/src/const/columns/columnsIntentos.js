@@ -122,7 +122,7 @@ export const columnsIntentos = (onCellClick) => [
   },
   {
     field: 'categoria',
-    headerName: 'Categoría',
+    headerName: 'Peso',
     flex: 0.1,
     align: 'center',
     headerAlign: 'center',
@@ -137,9 +137,17 @@ export const columnsIntentos = (onCellClick) => [
       </Box>
     )
   },
+  {
+    field: 'categoria_edad',
+    headerName: 'Edad',
+    flex: 0.09,
+    align: 'center',
+    headerAlign: 'center',
+    renderCell: (params) => Array.isArray(params.value) ? params.value.join(' / ') : (params.value || '-'),
+  },
   { 
     field: 'modalidad', 
-    headerName: 'Modalidad', 
+    headerName: 'División',
     flex: 0.12, 
     align: 'center', 
     headerAlign: 'center' 

@@ -1,4 +1,9 @@
 import { supabase } from "../services/supabaseClient.js";
+import {
+    calcularEdad,
+    normalizarCategoriasEdad,
+    validarCategoriasAtleta,
+} from "../utils/categoriasIPF.js";
 
 export async function getAtletas(req, res) {
     try {
@@ -109,6 +114,7 @@ export async function createAtleta(req, res) {
             fecha_nacimiento,
             edad,
             categoria,
+            categoria_edad,
             peso_corporal,
             modalidad,
             tanda_id,
@@ -123,20 +129,21 @@ export async function createAtleta(req, res) {
         } = req.body;
 
         console.log(req.body);
-        if (!nombre || !apellido || !dni || !categoria || !peso_corporal) {
+        const categoriasEdad = normalizarCategoriasEdad(categoria_edad);
+        if (!nombre || !apellido || !dni || !fecha_nacimiento || categoriasEdad.length === 0 || !categoria || !peso_corporal || !sexo) {
             return res.status(400).json({ error: "Faltan campos obligatorios" });
         }
 
-        let edadCalculada = null;
-        if (fecha_nacimiento) {
-            const nacimiento = new Date(fecha_nacimiento);
-            const hoy = new Date();
-            edadCalculada = hoy.getFullYear() - nacimiento.getFullYear();
-            const mes = hoy.getMonth() - nacimiento.getMonth();
-            if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
-                edadCalculada--;
-            }
+        const errorCategoria = validarCategoriasAtleta({
+            fecha_nacimiento,
+            categoria_edad: categoriasEdad,
+            sexo,
+            categoria,
+        });
+        if (errorCategoria) {
+            return res.status(400).json({ error: errorCategoria });
         }
+        const edadCalculada = calcularEdad(fecha_nacimiento);
 
         const atleta = {
             nombre,
@@ -145,6 +152,7 @@ export async function createAtleta(req, res) {
             fecha_nacimiento,
             edad: edadCalculada,
             categoria,
+            categoria_edad: categoriasEdad,
             peso_corporal,
             modalidad,
             tanda_id,
@@ -213,6 +221,7 @@ export async function updateAtleta(req, res) {
             fecha_nacimiento,
             edad,
             categoria,
+            categoria_edad,
             peso_corporal,
             modalidad,
             tanda_id,
@@ -232,13 +241,29 @@ export async function updateAtleta(req, res) {
             foto
         } = req.body;
 
+        const categoriasEdad = normalizarCategoriasEdad(categoria_edad);
+        if (!fecha_nacimiento || categoriasEdad.length === 0 || !categoria || !sexo) {
+            return res.status(400).json({ error: "Fecha, sexo y categorías son obligatorios" });
+        }
+
+        const errorCategoria = validarCategoriasAtleta({
+            fecha_nacimiento,
+            categoria_edad: categoriasEdad,
+            sexo,
+            categoria,
+        });
+        if (errorCategoria) {
+            return res.status(400).json({ error: errorCategoria });
+        }
+
         const updatedData = {
             nombre,
             apellido,
             dni,
             fecha_nacimiento,
-            edad,
+            edad: calcularEdad(fecha_nacimiento),
             categoria,
+            categoria_edad: categoriasEdad,
             peso_corporal,
             modalidad,
             tanda_id,

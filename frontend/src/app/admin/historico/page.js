@@ -3,13 +3,19 @@
 import { useEffect, useState } from 'react'
 import {
   Box, Typography, Button, Stack, Paper, Divider, Chip,
-  CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions,
+  CircularProgress, Dialog, DialogContent,
   TextField, FormControlLabel, Checkbox, Alert, Snackbar, IconButton, Tooltip,
   Tabs, Tab, Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material'
 import { Save as SaveIcon, CleaningServices as CleaningServicesIcon, Visibility as VisibilityIcon, Delete as DeleteIcon, Inventory2 as InventoryIcon } from '@mui/icons-material'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
+import { ModalFooterActions } from '../../../components/modales/ModalFooterActions'
+import {
+  ModalHeader,
+  modalContentSx,
+  modalPaperSx,
+} from '../../../components/modales/ModalLayout'
 
 export default function HistoricoPage() {
   const [snapshots, setSnapshots] = useState([])
@@ -239,9 +245,20 @@ export default function HistoricoPage() {
       </Paper>
 
       {/* Dialog Archivar */}
-      <Dialog open={openArchivar} onClose={() => !busy && setOpenArchivar(false)} fullWidth maxWidth="sm">
-        <DialogTitle fontWeight={700}>Archivar datos actuales</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={openArchivar}
+        onClose={() => !busy && setOpenArchivar(false)}
+        fullWidth
+        maxWidth={false}
+        slotProps={{ paper: { sx: modalPaperSx('standard') } }}
+      >
+        <ModalHeader
+          title="Archivar datos actuales"
+          subtitle="Crea una copia completa sin modificar los datos activos."
+          onClose={() => setOpenArchivar(false)}
+          disabled={busy}
+        />
+        <DialogContent sx={modalContentSx}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Guarda una copia completa (atletas, intentos, estado, tandas y movimientos) sin borrar nada.
           </Typography>
@@ -250,18 +267,30 @@ export default function HistoricoPage() {
             <TextField label="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} fullWidth size="small" multiline minRows={2} />
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpenArchivar(false)} disabled={busy} sx={{ textTransform: 'none' }}>Cancelar</Button>
-          <Button onClick={handleArchivar} disabled={busy} variant="contained" sx={{ textTransform: 'none', backgroundColor: '#F57C00', '&:hover': { backgroundColor: '#E65100' } }}>
-            {busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Archivar'}
-          </Button>
-        </DialogActions>
+        <ModalFooterActions
+          actions={[
+            { label: 'Cancelar', tone: 'neutral', onClick: () => setOpenArchivar(false), disabled: busy },
+            { label: 'Archivar', onClick: handleArchivar, loading: busy },
+          ]}
+        />
       </Dialog>
 
       {/* Dialog Limpiar */}
-      <Dialog open={openLimpiar} onClose={() => !busy && setOpenLimpiar(false)} fullWidth maxWidth="sm">
-        <DialogTitle fontWeight={700}>Limpiar tablas para testear</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={openLimpiar}
+        onClose={() => !busy && setOpenLimpiar(false)}
+        fullWidth
+        maxWidth={false}
+        slotProps={{ paper: { sx: modalPaperSx('standard') } }}
+      >
+        <ModalHeader
+          title="Limpiar tablas para testear"
+          subtitle="Revisá el alcance antes de continuar."
+          tone="error"
+          onClose={() => setOpenLimpiar(false)}
+          disabled={busy}
+        />
+        <DialogContent sx={modalContentSx}>
           <Alert severity="warning" sx={{ mb: 2 }}>
             Borra <b>atletas</b> e <b>intentos</b> y resetea el estado en vivo. Conserva tandas y movimientos. Esta acción no se puede deshacer (salvo restaurando un respaldo).
           </Alert>
@@ -270,25 +299,28 @@ export default function HistoricoPage() {
             label="Crear un respaldo automático antes de limpiar (recomendado)"
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpenLimpiar(false)} disabled={busy} sx={{ textTransform: 'none' }}>Cancelar</Button>
-          <Button onClick={handleLimpiar} disabled={busy} variant="contained" color="error" sx={{ textTransform: 'none' }}>
-            {busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Limpiar ahora'}
-          </Button>
-        </DialogActions>
+        <ModalFooterActions
+          actions={[
+            { label: 'Cancelar', tone: 'neutral', onClick: () => setOpenLimpiar(false), disabled: busy },
+            { label: 'Limpiar ahora', tone: 'error', onClick: handleLimpiar, loading: busy },
+          ]}
+        />
       </Dialog>
 
       {/* Dialog Ver (solo lectura) */}
-      <Dialog open={Boolean(verSnap)} onClose={cerrarVer} fullWidth maxWidth="lg">
-        <DialogTitle fontWeight={700}>
-          {verSnap && <>#{verSnap.id} — {verSnap.nombre}</>}
-          {verSnap && (
-            <Typography variant="caption" color="text.secondary" display="block">
-              {fmtFecha(verSnap.creado_at)} · solo lectura
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent dividers>
+      <Dialog
+        open={Boolean(verSnap)}
+        onClose={cerrarVer}
+        fullWidth
+        maxWidth={false}
+        slotProps={{ paper: { sx: modalPaperSx('wide') } }}
+      >
+        <ModalHeader
+          title={verSnap ? `#${verSnap.id} — ${verSnap.nombre}` : 'Detalle del respaldo'}
+          subtitle={verSnap ? `${fmtFecha(verSnap.creado_at)} · solo lectura` : ''}
+          onClose={cerrarVer}
+        />
+        <DialogContent dividers sx={modalContentSx}>
           {verLoading || !verData ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
               <CircularProgress size={36} sx={{ color: '#FF9800' }} />
@@ -314,12 +346,25 @@ export default function HistoricoPage() {
                     <Tab key={t} label={`${t} (${verData.registros[t].length})`} sx={{ textTransform: 'none' }} />
                   ))}
                 </Tabs>
-                <Box sx={{ overflow: 'auto', maxHeight: '60vh', border: `1px solid ${border}`, borderRadius: 1 }}>
+                <Box sx={{ overflow: 'auto', maxHeight: '60vh', border: `1px solid ${isDark ? '#244238' : '#d6e7df'}`, borderRadius: 1.5 }}>
                   <Table size="small" stickyHeader>
                     <TableHead>
-                      <TableRow>
+                      <TableRow sx={{ bgcolor: isDark ? '#111d18' : '#f5faf7' }}>
                         {columnas.map((c) => (
-                          <TableCell key={c} sx={{ fontWeight: 700, whiteSpace: 'nowrap', bgcolor: surface }}>{c}</TableCell>
+                          <TableCell
+                            key={c}
+                            sx={{
+                              whiteSpace: 'nowrap',
+                              bgcolor: isDark ? '#111d18' : '#f5faf7',
+                              color: '#8aa9a0',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              letterSpacing: 0.8,
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            {c}
+                          </TableCell>
                         ))}
                       </TableRow>
                     </TableHead>
@@ -344,25 +389,35 @@ export default function HistoricoPage() {
             )
           })()}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={cerrarVer} sx={{ textTransform: 'none' }}>Cerrar</Button>
-        </DialogActions>
+        <ModalFooterActions actions={[{ label: 'Cerrar', tone: 'neutral', onClick: cerrarVer }]} />
       </Dialog>
 
       {/* Dialog Eliminar */}
-      <Dialog open={Boolean(eliminarTarget)} onClose={() => !busy && setEliminarTarget(null)} fullWidth maxWidth="xs">
-        <DialogTitle fontWeight={700}>Eliminar respaldo</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={Boolean(eliminarTarget)}
+        onClose={() => !busy && setEliminarTarget(null)}
+        fullWidth
+        maxWidth={false}
+        slotProps={{ paper: { sx: modalPaperSx('compact') } }}
+      >
+        <ModalHeader
+          title="Eliminar respaldo"
+          subtitle="Esta acción es permanente."
+          tone="error"
+          onClose={() => setEliminarTarget(null)}
+          disabled={busy}
+        />
+        <DialogContent sx={modalContentSx}>
           <Typography variant="body2">
             ¿Eliminar el respaldo {eliminarTarget && <b>#{eliminarTarget.id} — {eliminarTarget.nombre}</b>}? Esta acción no se puede deshacer.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setEliminarTarget(null)} disabled={busy} sx={{ textTransform: 'none' }}>Cancelar</Button>
-          <Button onClick={handleEliminar} disabled={busy} variant="contained" color="error" sx={{ textTransform: 'none' }}>
-            {busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Eliminar'}
-          </Button>
-        </DialogActions>
+        <ModalFooterActions
+          actions={[
+            { label: 'Cancelar', tone: 'neutral', onClick: () => setEliminarTarget(null), disabled: busy },
+            { label: 'Eliminar', tone: 'error', onClick: handleEliminar, loading: busy },
+          ]}
+        />
       </Dialog>
 
       <Snackbar

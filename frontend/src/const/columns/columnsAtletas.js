@@ -74,7 +74,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
   },
   {
     field: 'categoria',
-    headerName: 'Categoría',
+    headerName: 'Categoría de peso',
     flex: 0.15,
     align: 'center',
     headerAlign: 'center',
@@ -88,6 +88,14 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
         {params.value || '-'}
       </Box>
     ),
+  },
+  {
+    field: 'categoria_edad',
+    headerName: 'Categoría de edad',
+    flex: 0.14,
+    align: 'center',
+    headerAlign: 'center',
+    renderCell: (params) => Array.isArray(params.value) ? params.value.join(' / ') : (params.value || '-'),
   },
   {
     field: 'tanda_id',

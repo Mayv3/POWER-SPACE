@@ -1,5 +1,8 @@
 import { supabase } from "../services/supabaseClient.js";
 import { calcIPFGL, calcIPFPoints } from "../utils/calcularIPF.js";
+import {
+    clavesCategoriasAtleta,
+} from "../utils/categoriasIPF.js";
 
 // Puntos por puesto en el ranking absoluto (Tarea 10).
 function puntosPorPuesto(puesto) {
@@ -9,13 +12,25 @@ function puntosPorPuesto(puesto) {
 
 const r2 = (n) => Math.round(n * 100) / 100;
 
+// Misma fórmula y límites usados por frontend/src/app/publico/PublicoClient.js.
+function calcDotsPublico(pesoCorporal, total, esFemenino) {
+    const coef = esFemenino
+        ? [-57.96288, 13.6175032, -0.1126655495, 0.0005158568, -0.0000010706]
+        : [-307.75076, 24.0900756, -0.1918759221, 0.0007391293, -0.000001093];
+    const pesoMaximo = esFemenino ? 150 : 210;
+    const peso = Math.min(Math.max(Number(pesoCorporal) || 0, 40), pesoMaximo);
+    let denominador = coef[0];
+    for (let i = 1; i < coef.length; i++) denominador += coef[i] * Math.pow(peso, i);
+    return denominador > 0 ? (500 / denominador) * total : 0;
+}
+
 // Ranking de equipos para premiación.
 // 1 ranking absoluto único por IPF GL -> puesto -> puntos -> suma por equipo.
 export async function getPremiacionEquipos(req, res) {
     try {
         const { data: atletas, error: errAtletas } = await supabase
             .from("atletas")
-            .select("id, nombre, apellido, sexo, peso_corporal, categoria, modalidad, equipo_id");
+            .select("id, nombre, apellido, sexo, peso_corporal, categoria, categoria_edad, modalidad, equipo_id");
         if (errAtletas) throw errAtletas;
 
         const { data: intentos, error: errIntentos } = await supabase
@@ -51,6 +66,7 @@ export async function getPremiacionEquipos(req, res) {
                 apellido: a.apellido,
                 sexo: a.sexo,
                 categoria: a.categoria,
+                categoria_edad: a.categoria_edad,
                 modalidad: a.modalidad,
                 peso_corporal: a.peso_corporal,
                 equipo_id: a.equipo_id,
@@ -112,6 +128,115 @@ export async function getPremiacionEquipos(req, res) {
     } catch (err) {
         console.error("Error al calcular premiación de equipos:", err.message);
         res.status(500).json({ error: "Error al calcular premiación de equipos" });
+    }
+}
+
+// Premiación por categoría. Replica /publico: mismo agrupamiento y orden por DOTS.
+export async function getPremiacionCategorias(req, res) {
+    try {
+        const { data: atletas, error: errAtletas } = await supabase
+            .from("atletas_con_intentos")
+            .select("*");
+        if (errAtletas) throw errAtletas;
+
+        const idsAtletas = (atletas || []).map((atleta) => atleta.id);
+        const { data: categoriasEdad, error: errCategoriasEdad } = idsAtletas.length
+            ? await supabase.from("atletas").select("id, categoria_edad").in("id", idsAtletas)
+            : { data: [], error: null };
+        if (errCategoriasEdad) throw errCategoriasEdad;
+        const categoriaEdadPorId = new Map(
+            (categoriasEdad || []).map((atleta) => [atleta.id, atleta.categoria_edad])
+        );
+
+        const grupos = new Map();
+        for (const atleta of atletas) {
+            atleta.categoria_edad = categoriaEdadPorId.get(atleta.id) ?? null;
+            const sentadilla = Math.max(
+                0,
+                atleta.valido_s1 === true ? atleta.primer_intento_sentadilla || 0 : 0,
+                atleta.valido_s2 === true ? atleta.segundo_intento_sentadilla || 0 : 0,
+                atleta.valido_s3 === true ? atleta.tercer_intento_sentadilla || 0 : 0
+            );
+            const banco = Math.max(
+                0,
+                atleta.valido_b1 === true ? atleta.primer_intento_banco || 0 : 0,
+                atleta.valido_b2 === true ? atleta.segundo_intento_banco || 0 : 0,
+                atleta.valido_b3 === true ? atleta.tercer_intento_banco || 0 : 0
+            );
+            const peso_muerto = Math.max(
+                0,
+                atleta.valido_d1 === true ? atleta.primer_intento_peso_muerto || 0 : 0,
+                atleta.valido_d2 === true ? atleta.segundo_intento_peso_muerto || 0 : 0,
+                atleta.valido_d3 === true ? atleta.tercer_intento_peso_muerto || 0 : 0
+            );
+            const total = sentadilla + banco + peso_muerto;
+            const totalizo = sentadilla > 0 && banco > 0 && peso_muerto > 0;
+            const categoria = atleta.categoria || "Sin categoría";
+            const modalidad = atleta.modalidad || "Sin modalidad";
+            const sexo = atleta.sexo || "—";
+            const dots = Number(atleta.dots) || (
+                totalizo ? r2(calcDotsPublico(atleta.peso_corporal, total, sexo === "F")) : 0
+            );
+            const ipf_gl = totalizo ? r2(calcIPFGL(sexo, modalidad, total, atleta.peso_corporal)) : 0;
+            const ipf_points = totalizo ? r2(calcIPFPoints(sexo, modalidad, total, atleta.peso_corporal)) : 0;
+            const registroBase = {
+                atleta_id: atleta.id,
+                nombre: atleta.nombre,
+                apellido: atleta.apellido,
+                sexo,
+                categoria,
+                modalidad,
+                peso_corporal: atleta.peso_corporal,
+                sentadilla,
+                banco,
+                peso_muerto,
+                total,
+                totalizo,
+                dots,
+                ipf_gl,
+                ipf_points,
+                puesto: null,
+            };
+            for (const clave of clavesCategoriasAtleta(atleta)) {
+                const categoria_edad = clave.includes(" · ")
+                    ? clave.slice(0, clave.indexOf(" · "))
+                    : "Sin categoría de edad";
+                const registro = { ...registroBase, categoria_edad };
+                if (!grupos.has(clave)) grupos.set(clave, []);
+                grupos.get(clave).push(registro);
+            }
+        }
+
+        const premiacion = [...grupos.entries()].map(([clave, detalle]) => {
+            // Array.prototype.sort es estable: esto reproduce el sort de /publico.
+            detalle.sort((a, b) => (b.dots || 0) - (a.dots || 0));
+            detalle.forEach((atleta, index) => {
+                atleta.puesto = index + 1;
+            });
+            const referencia = detalle[0];
+            const modalidades = [...new Set(detalle.map((atleta) => atleta.modalidad).filter(Boolean))];
+            return {
+                clave,
+                sexo: referencia.sexo,
+                categoria: referencia.categoria,
+                categoria_edad: referencia.categoria_edad,
+                modalidad: modalidades.length === 1 ? modalidades[0] : "Modalidades mixtas",
+                participantes: detalle.length,
+                totalizaron: detalle.filter((atleta) => atleta.totalizo).length,
+                detalle,
+            };
+        });
+
+        premiacion.sort((a, b) =>
+            a.sexo.localeCompare(b.sexo) ||
+            a.categoria_edad.localeCompare(b.categoria_edad, "es", { numeric: true }) ||
+            a.categoria.localeCompare(b.categoria, "es", { numeric: true })
+        );
+
+        res.status(200).json(premiacion);
+    } catch (err) {
+        console.error("Error al calcular premiación por categoría:", err.message);
+        res.status(500).json({ error: "Error al calcular premiación por categoría" });
     }
 }
 

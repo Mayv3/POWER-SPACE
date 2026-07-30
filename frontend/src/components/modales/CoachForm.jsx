@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Box, Stack, TextField, Avatar, Button, CircularProgress, IconButton, Typography,
-} from '@mui/material'
-import { Camera as PhotoCameraIcon, Trash as DeleteOutlineIcon, User as PersonIcon } from '@phosphor-icons/react'
+import { Box, TextField } from '@mui/material'
+import { User as PersonIcon } from '@phosphor-icons/react'
 import { capitalizeWords } from '../../utils/textUtils'
 import { supabase } from '../../lib/supabaseClient'
+import { ModalSection } from './ModalLayout'
+import { PhotoUploadField } from './PhotoUploadField'
 
 export function CoachForm({ coach, onChange }) {
   const [uploading, setUploading] = useState(false)
@@ -37,48 +37,35 @@ export function CoachForm({ coach, onChange }) {
   }
 
   return (
-    <Box component="form" sx={{ width: '100%', mt: 1 }}>
-      {/* Foto */}
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <Avatar src={coach.foto || undefined} sx={{ width: 72, height: 72, bgcolor: '#bdbdbd' }}>
-          <PersonIcon />
-        </Avatar>
-        <Box>
-          <Button
-            component="label"
-            variant="outlined"
-            size="small"
-            startIcon={uploading ? <CircularProgress size={16} /> : <PhotoCameraIcon />}
-            disabled={uploading}
-            sx={{ textTransform: 'none' }}
-          >
-            {uploading ? 'Subiendo...' : (coach.foto ? 'Cambiar foto' : 'Subir foto')}
-            <input hidden type="file" accept="image/*" onChange={handleFile} />
-          </Button>
-          {coach.foto && (
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => onChange({ ...coach, foto: null })}
-              sx={{ ml: 1 }}
-            >
-              <DeleteOutlineIcon size={20} />
-            </IconButton>
-          )}
-          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-            Opcional
-          </Typography>
-        </Box>
-      </Stack>
+    <Box component="form" sx={{ width: '100%' }}>
+      <ModalSection title="Datos del coach" description="Nombre e imagen que se mostrarán en el sistema.">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '300px minmax(0, 1fr)' }, gap: 2, alignItems: 'center' }}>
+      <PhotoUploadField
+        src={coach.foto}
+        uploading={uploading}
+        onFile={handleFile}
+        fallbackIcon={<PersonIcon size={27} />}
+        avatarSx={{ bgcolor: '#bdbdbd' }}
+      />
 
       <TextField
         fullWidth
+        size="small"
+        required
+        helperText={!coach.nombre?.trim() ? 'Campo obligatorio' : ''}
+        slotProps={{
+          formHelperText: {
+            sx: { color: !coach.nombre?.trim() ? 'error.main' : 'text.secondary' },
+          },
+        }}
         name="nombre"
         label="Nombre del coach"
         value={coach.nombre || ''}
         onChange={handleNombre}
         autoFocus
       />
+      </Box>
+      </ModalSection>
     </Box>
   )
 }

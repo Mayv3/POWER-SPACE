@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import {
-  Box, Stack, TextField, MenuItem, Typography, Avatar, Button,
-  CircularProgress, IconButton,
+  Box, Stack, TextField, MenuItem, Typography,
 } from '@mui/material'
-import { Camera as PhotoCameraIcon, UsersThree as GroupsIcon, Trash as DeleteOutlineIcon } from '@phosphor-icons/react'
+import { UsersThree as GroupsIcon } from '@phosphor-icons/react'
 import { capitalizeWords } from '../../utils/textUtils'
 import { supabase } from '../../lib/supabaseClient'
+import { ModalSection } from './ModalLayout'
+import { PhotoUploadField } from './PhotoUploadField'
 
 const COLORES = ['#F57C00', '#1976d2', '#388e3c', '#7b1fa2', '#d32f2f', '#0097a7', '#fbc02d', '#212121']
 
@@ -45,58 +46,38 @@ export function EquipoForm({ equipo, onChange, coaches = [] }) {
   }
 
   return (
-    <Box component="form" sx={{ width: '100%', mt: 1 }}>
-      {/* Foto */}
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <Avatar
-          src={equipo.foto || undefined}
-          sx={{ width: 72, height: 72, bgcolor: equipo.color || '#bdbdbd' }}
-        >
-          <GroupsIcon />
-        </Avatar>
-        <Box>
-          <Button
-            component="label"
-            variant="outlined"
-            size="small"
-            startIcon={uploading ? <CircularProgress size={16} /> : <PhotoCameraIcon />}
-            disabled={uploading}
-            sx={{ textTransform: 'none' }}
-          >
-            {uploading ? 'Subiendo...' : (equipo.foto ? 'Cambiar foto' : 'Subir foto')}
-            <input hidden type="file" accept="image/*" onChange={handleFile} />
-          </Button>
-          {equipo.foto && (
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => onChange({ ...equipo, foto: null })}
-              sx={{ ml: 1 }}
-            >
-              <DeleteOutlineIcon size={20} />
-            </IconButton>
-          )}
-          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-            Opcional
-          </Typography>
-        </Box>
-      </Stack>
+    <Box component="form" sx={{ width: '100%', display: 'grid' }}>
+      <ModalSection title="Identidad del equipo" description="Nombre, imagen y color identificador.">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '300px minmax(0, 1fr)' }, gap: 2, alignItems: 'center' }}>
+      <PhotoUploadField
+        src={equipo.foto}
+        uploading={uploading}
+        onFile={handleFile}
+        fallbackIcon={<GroupsIcon size={27} />}
+        avatarSx={{ bgcolor: equipo.color || '#bdbdbd' }}
+      />
 
-      {/* Nombre */}
       <TextField
         fullWidth
+        size="small"
+        required
+        helperText={!equipo.nombre?.trim() ? 'Campo obligatorio' : ''}
+        slotProps={{
+          formHelperText: {
+            sx: { color: !equipo.nombre?.trim() ? 'error.main' : 'text.secondary' },
+          },
+        }}
         name="nombre"
         label="Nombre del equipo"
         value={equipo.nombre || ''}
         onChange={handleChange}
-        sx={{ mb: 3 }}
       />
+      </Box>
 
-      {/* Color */}
-      <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+      <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
         Color
       </Typography>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3, flexWrap: 'wrap', gap: 1 }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 1 }}>
         {COLORES.map((c) => (
           <Box
             key={c}
@@ -124,11 +105,13 @@ export function EquipoForm({ equipo, onChange, coaches = [] }) {
           sx={{ width: 110 }}
         />
       </Stack>
+      </ModalSection>
 
-      {/* Coach */}
+      <ModalSection title="Responsable" description="Asignación del coach encargado.">
       <TextField
         select
         fullWidth
+        size="small"
         name="coach_id"
         label="Coach encargado"
         value={equipo.coach_id || ''}
@@ -144,6 +127,7 @@ export function EquipoForm({ equipo, onChange, coaches = [] }) {
           </MenuItem>
         ))}
       </TextField>
+      </ModalSection>
     </Box>
   )
 }

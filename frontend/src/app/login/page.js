@@ -94,7 +94,7 @@ export default function LoginPage() {
         {/* logo + marca */}
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
           <Box
-            component="img" src="/powerspace_logo.png" alt="POWERSPACE"
+            component="img" src="/Gymspace-logo.png" alt="GYMSPACE"
             sx={{
               width: 76, height: 76, borderRadius: '20px', objectFit: 'cover', mb: 2.5,
               border: `1px solid ${T.line}`, boxShadow: '0 10px 30px rgba(192,249,59,.18)',

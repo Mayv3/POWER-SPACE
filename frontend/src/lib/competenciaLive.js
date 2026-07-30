@@ -9,17 +9,24 @@ import { supabase } from './supabaseClient'
 // el render. Si un broadcast se pierde, postgres_changes igual reconcilia el estado real.
 const CHANNEL = 'competencia-live'
 const EVENT = 'estado'
+const REFRESH_EVENT = 'refrescar-atletas'
 
 // Une el canal. `onEstado(payloadParcial)` se llama con los campos cambiados (merge).
 // Devuelve { send, leave }. send(parcial) emite a las demás pantallas (self:false).
-export function joinCompetenciaLive(onEstado) {
+export function joinCompetenciaLive(onEstado, onRefreshAtletas) {
   const channel = supabase.channel(CHANNEL, { config: { broadcast: { self: false } } })
   if (onEstado) {
     channel.on('broadcast', { event: EVENT }, ({ payload }) => { onEstado(payload) })
   }
+  if (onRefreshAtletas) {
+    channel.on('broadcast', { event: REFRESH_EVENT }, () => { onRefreshAtletas() })
+  }
   channel.subscribe()
 
   const send = (parcial) => { channel.send({ type: 'broadcast', event: EVENT, payload: parcial }) }
+  const refreshAtletas = () => {
+    channel.send({ type: 'broadcast', event: REFRESH_EVENT, payload: { at: Date.now() } })
+  }
   const leave = () => { supabase.removeChannel(channel) }
-  return { send, leave }
+  return { send, refreshAtletas, leave }
 }

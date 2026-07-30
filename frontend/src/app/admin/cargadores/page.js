@@ -4,10 +4,10 @@ import { useEffect, useState, useRef, useMemo, useCallback, memo } from 'react'
 import {
   Box, Typography, Paper, FormControl, InputLabel,
   Select, MenuItem, useMediaQuery, useTheme,
-  Button, Stack, CircularProgress, Divider, Chip, Avatar,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+  Button, Stack, CircularProgress, Divider, Chip,
+  TextField, LinearProgress, IconButton, Tooltip,
 } from '@mui/material'
-import { Groups as GroupsIcon, Person as PersonIcon, CheckCircle as CheckCircleIcon, Cancel as CancelIcon, PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, Block as BlockIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon } from '@mui/icons-material'
+import { CheckCircle as CheckCircleIcon, Cancel as CancelIcon, PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
@@ -16,7 +16,7 @@ import { apiFetch } from '../../../lib/api'
 import { capitalizeWords } from '../../../utils/textUtils'
 import { colorCategoria } from '../../../utils/colorCategoria'
 import { useDarkMode } from '../../../context/ThemeContext'
-import categorias from '../../../const/categorias/categorias'
+import categorias, { claveCategoriaAtleta } from '../../../const/categorias/categorias'
 
 // ── Helpers puros a nivel módulo (refs estables -> columns memoizable) ──
 const MOVIMIENTO_MAP = { sentadilla: 1, banco: 2, peso_muerto: 3 }
@@ -30,6 +30,7 @@ const VALIDO_FIELDS = {
   banco: ['valido_b1', 'valido_b2', 'valido_b3'],
   peso_muerto: ['valido_d1', 'valido_d2', 'valido_d3'],
 }
+const SOLICITUDES_PESO_STORAGE_KEY = 'power-space:solicitudes-proximo-peso'
 
 function calcularDiscos(pesoTotal) {
   if (!pesoTotal) return { discos: [], total: 0 }
@@ -136,96 +137,134 @@ const Cronometro = memo(function Cronometro({ corriendo, tiempoInicial, onExpire
   )
 })
 
-// Modal "próximo peso": se abre al marcar el intento. Timer de 60s AISLADO (su tick no
-// re-renderiza el page). Muestra el peso sugerido (válido: +2.5 / nulo: mismo), editable,
-// con botón rápido +2.5. Si el timer llega a 0 sin confirmar, aplica el sugerido (auto).
-const ModalProximoPeso = memo(function ModalProximoPeso({ data, onConfirm, onClose }) {
-  const open = !!data
-  const [valor, setValor] = useState('')
-  const [segundos, setSegundos] = useState(60)
+// Tarjeta no bloqueante para definir el próximo peso. Cada tarjeta administra su propio
+// timer para que el tick de 1s no vuelva a renderizar la página ni la grilla completa.
+const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, onDismiss, isDark }) {
+  const [valor, setValor] = useState(String(data.pesoSugerido ?? ''))
+  const [segundos, setSegundos] = useState(() =>
+    Math.max(0, Math.ceil(((data.venceEn ?? Date.now() + 60000) - Date.now()) / 1000))
+  )
   const intervalRef = useRef(null)
+  const venceEnRef = useRef(data.venceEn ?? Date.now() + 60000)
   const dataRef = useRef(data)
   dataRef.current = data
   const onConfirmRef = useRef(onConfirm)
   onConfirmRef.current = onConfirm
 
-  // `marca` (timestamp del parent) cambia en cada apertura -> reinicia el timer aunque
-  // sea el mismo atleta/intento.
-  const claveApertura = data ? `${data.atletaId}-${data.proximoIntento}-${data.marca}` : null
   useEffect(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
-    if (!claveApertura) return
-
     setValor(String(dataRef.current.pesoSugerido ?? ''))
-    setSegundos(60)
-    let s = 60
+    const calcularRestante = () =>
+      Math.max(0, Math.ceil((venceEnRef.current - Date.now()) / 1000))
+    let s = calcularRestante()
+    setSegundos(s)
+    if (s <= 0) {
+      const d = dataRef.current
+      if (d) onConfirmRef.current?.(d, d.pesoSugerido)
+      return
+    }
     intervalRef.current = setInterval(() => {
-      s -= 1
+      s = calcularRestante()
       setSegundos(Math.max(0, s))
       if (s <= 0) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
         const d = dataRef.current
-        if (d) onConfirmRef.current?.(d.atletaId, d.ejercicio, d.proximoIntento, d.pesoSugerido) // auto
+        if (d) onConfirmRef.current?.(d, d.pesoSugerido)
       }
     }, 1000)
     return () => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null } }
-  }, [claveApertura])
-
-  if (!open) return null
+  }, [data.id])
 
   const color = data.ejercicioColor || '#ff6b35'
   const urgente = segundos <= 10
-  const masDosCinco = () => setValor(String((parseFloat(dataRef.current.pesoActual) || 0) + 2.5))
+  const progreso = (segundos / 60) * 100
+  const pesoIngresado = parseFloat(valor)
+  const pesoMinimo = parseFloat(data.pesoActual) || 0
+  const pesoPermitido = !isNaN(pesoIngresado) && pesoIngresado >= pesoMinimo
+  const masDosCinco = () => setValor(String(Math.max(parseFloat(valor) || pesoMinimo, pesoMinimo) + 2.5))
   const confirmar = () => {
     const n = parseFloat(valor)
     const d = dataRef.current
-    if (d && !isNaN(n) && n > 0) onConfirm(d.atletaId, d.ejercicio, d.proximoIntento, n)
+    if (d && !isNaN(n) && n >= pesoMinimo) onConfirm(d, n)
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ pb: 0.5 }}>
-        <Typography component="div" sx={{ fontWeight: 800, fontSize: '1.15rem', lineHeight: 1.2 }}>
-          Próximo peso — {data.proximoIntento}° intento
+    <Paper
+      elevation={0}
+      sx={{
+        position: 'relative', flex: '0 0 auto', width: { xs: 330, md: 390 }, height: 66,
+        display: 'flex', alignItems: 'center', gap: 1, px: 1.25, pb: 0.5,
+        border: `1px solid ${urgente ? '#ff1744' : (isDark ? '#424242' : '#dedede')}`,
+        borderRadius: 0.75, overflow: 'hidden',
+        bgcolor: isDark ? '#202020' : '#fff',
+        transition: 'border-color .2s ease',
+      }}
+    >
+      <Box sx={{ minWidth: 112, maxWidth: 132, overflow: 'hidden' }}>
+        <Typography noWrap sx={{ fontSize: '0.82rem', fontWeight: 900, lineHeight: 1.1 }}>
+          {capitalizeWords(data.atletaNombre)}
         </Typography>
-        <Typography component="div" sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
-          {data.atletaNombre} · {data.valido ? 'Intento VÁLIDO' : 'Intento NULO'}
-        </Typography>
-      </DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 0.5 }}>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography sx={{ fontSize: '3rem', fontWeight: 900, lineHeight: 1, color: urgente ? '#ff1744' : color }}>
-              0:{String(segundos).padStart(2, '0')}
-            </Typography>
-            <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-              Si no confirmás, se aplica <b>{data.pesoSugerido} kg</b>
-            </Typography>
+        <Typography noWrap sx={{ mt: 0.35, fontSize: '0.68rem', color: 'text.secondary', fontWeight: 700 }}>
+          <Box component="span" sx={{ color: data.valido ? '#43a047' : '#ef5350' }}>
+            {data.valido ? 'Válido' : 'Nulo'}
           </Box>
+          {' · '}{data.proximoIntento}° intento · actual {data.pesoActual} kg
+        </Typography>
+      </Box>
 
-          <Stack direction="row" spacing={1} alignItems="center">
-            <TextField
-              type="number" label="Peso (kg)" value={valor} autoFocus size="small" fullWidth
-              onChange={(e) => setValor(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') confirmar() }}
-            />
-            <Button variant="outlined" onClick={masDosCinco} sx={{ whiteSpace: 'nowrap', borderColor: color, color }}>
-              +2.5 kg
-            </Button>
-          </Stack>
-          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
-            Intento actual: {data.pesoActual} kg
-          </Typography>
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} color="inherit">Cerrar</Button>
-        <Button variant="contained" onClick={confirmar} sx={{ bgcolor: color, '&:hover': { bgcolor: color, filter: 'brightness(0.9)' } }}>
-          Confirmar
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto' }}>
+        <TextField
+          type="text" value={valor} size="small"
+          onChange={(e) => setValor(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') confirmar() }}
+          error={!pesoPermitido}
+          inputProps={{ 'aria-label': `Próximo peso de ${data.atletaNombre}`, inputMode: 'decimal' }}
+          sx={{
+            width: 72,
+            '& .MuiInputBase-root': { height: 34, borderRadius: 1.5 },
+            '& input': { p: '7px 6px', textAlign: 'center', fontWeight: 900, fontSize: '0.85rem' },
+          }}
+        />
+        <Button
+          variant="outlined" onClick={masDosCinco}
+          sx={{ minWidth: 44, height: 34, px: 0.5, borderColor: color, color, fontSize: '0.68rem', fontWeight: 900 }}
+        >
+          +2.5
         </Button>
-      </DialogActions>
-    </Dialog>
+        <Button
+          variant="contained" onClick={confirmar} disabled={!pesoPermitido}
+          aria-label={`Confirmar próximo peso de ${data.atletaNombre}`}
+          sx={{ minWidth: 36, width: 36, height: 34, p: 0, bgcolor: color, '&:hover': { bgcolor: color, filter: 'brightness(.9)' } }}
+        >
+          <CheckIcon fontSize="small" />
+        </Button>
+      </Stack>
+
+      <Typography
+        aria-label={`${segundos} segundos restantes`}
+        sx={{ width: 30, textAlign: 'right', fontSize: '0.72rem', fontWeight: 900, color: urgente ? '#ff1744' : 'text.secondary' }}
+      >
+        {segundos}s
+      </Typography>
+      <Tooltip title="Descartar solicitud">
+        <IconButton
+          size="small" onClick={() => onDismiss(data.id)}
+          aria-label={`Descartar próximo peso de ${data.atletaNombre}`}
+          sx={{ position: 'absolute', top: -3, right: -3, p: 0.25, color: 'text.disabled' }}
+        >
+          <CloseIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Tooltip>
+
+      <LinearProgress
+        variant="determinate" value={progreso}
+        sx={{
+          position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, bgcolor: isDark ? '#343434' : '#eceff1',
+          '& .MuiLinearProgress-bar': { bgcolor: urgente ? '#ff1744' : color, transition: 'transform 1s linear' },
+        }}
+      />
+    </Paper>
   )
 })
 
@@ -248,12 +287,35 @@ export default function CargadoresPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [estadoJueces, setEstadoJueces] = useState(null)
   const [sortModel, setSortModel] = useState([])
-  const [modalPeso, setModalPeso] = useState(null) // próximo peso: null = cerrado
+  const [solicitudesPeso, setSolicitudesPeso] = useState([])
+  const [solicitudesHidratadas, setSolicitudesHidratadas] = useState(false)
   // Clave (atleta_id-intento) de la última tentativa auto-marcada. Evita re-marcar la
   // misma tentativa cuando los echoes de postgres_changes replayan los votos de a uno
   // después del fast-path (causaba el modal "próximo peso" reabriéndose solo).
   const marcadoClaveRef = useRef(null)
   const liveRef = useRef(null)
+
+  // Las solicitudes sobreviven recargas y cierres del navegador. Se guarda el timestamp
+  // de vencimiento para continuar el timer real, sin regalar otros 60s al recargar.
+  useEffect(() => {
+    try {
+      const guardadas = JSON.parse(localStorage.getItem(SOLICITUDES_PESO_STORAGE_KEY) || '[]')
+      if (Array.isArray(guardadas)) setSolicitudesPeso(guardadas)
+    } catch (err) {
+      console.error('No se pudieron restaurar los próximos pesos:', err)
+    } finally {
+      setSolicitudesHidratadas(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!solicitudesHidratadas) return
+    try {
+      localStorage.setItem(SOLICITUDES_PESO_STORAGE_KEY, JSON.stringify(solicitudesPeso))
+    } catch (err) {
+      console.error('No se pudieron guardar los próximos pesos:', err)
+    }
+  }, [solicitudesPeso, solicitudesHidratadas])
 
   const fetchAtletas = useCallback(async () => {
     setIsLoading(true)
@@ -390,23 +452,28 @@ export default function CargadoresPage() {
     if (intentoSeleccionado < 3) {
       const pesoNum = parseFloat(peso) || 0
       const proximoIntento = intentoSeleccionado + 1
-      if (valido) {
-        // Válido: abrir modal con timer 60s para confirmar/modificar (default +2.5).
-        setModalPeso({
-          atletaId,
-          atletaNombre: `${atletaSeleccionado.nombre ?? ''} ${atletaSeleccionado.apellido ?? ''}`.trim(),
-          ejercicio: ejercicioFiltro,
-          ejercicioColor: { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicioFiltro],
-          proximoIntento,
-          pesoActual: pesoNum,
-          pesoSugerido: pesoNum + 2.5,
-          valido,
-          marca: Date.now(),
-        })
-      } else {
-        // Nulo: mismo peso, automático, sin modal ni espera.
-        asignarProximoPeso(atletaId, ejercicioFiltro, proximoIntento, pesoNum)
+      // Tanto válido como nulo generan una tarjeta. El válido sugiere +2.5 kg;
+      // el nulo conserva el mismo peso y permite mantenerlo o aumentarlo, nunca bajarlo.
+      const nuevaSolicitud = {
+        id: `${atletaId}-${ejercicioFiltro}-${proximoIntento}-${Date.now()}`,
+        atletaId,
+        atletaNombre: `${atletaSeleccionado.nombre ?? ''} ${atletaSeleccionado.apellido ?? ''}`.trim(),
+        ejercicio: ejercicioFiltro,
+        ejercicioColor: { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicioFiltro],
+        proximoIntento,
+        pesoActual: pesoNum,
+        pesoSugerido: valido ? pesoNum + 2.5 : pesoNum,
+        valido,
+        venceEn: Date.now() + 60000,
       }
+      setSolicitudesPeso(prev => [
+        ...prev.filter(s => !(
+          s.atletaId === atletaId &&
+          s.ejercicio === ejercicioFiltro &&
+          s.proximoIntento === proximoIntento
+        )),
+        nuevaSolicitud,
+      ])
     }
 
     // 3) Persistir en background (no bloquea la UI)
@@ -422,6 +489,7 @@ export default function CargadoresPage() {
           valido,
         })
       })
+      liveRef.current?.refreshAtletas()
       await detenerCronometro()
     } catch (err) {
       console.error('Error al marcar intento:', err)
@@ -433,10 +501,11 @@ export default function CargadoresPage() {
   const restablecerIntento = useCallback(async () => {
     if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }
     const atletaId = atletaSeleccionado.id
-    // Optimista: limpiar el intento. (Para intento 1 el backend puede caer al valor de apertura,
-    // por eso reconciliamos con fetchAtletas después.)
+    // Optimista: limpiar solo el atleta afectado sin recargar toda la grilla.
     setAtletas(prev => prev.map(a => a.id === atletaId
       ? aplicarIntentoLocal(a, ejercicioFiltro, intentoSeleccionado, null, null) : a))
+    setAtletaSeleccionado(prev => prev?.id === atletaId
+      ? aplicarIntentoLocal(prev, ejercicioFiltro, intentoSeleccionado, null, null) : prev)
     toast.info('Intento restablecido')
     try {
       await apiFetch(`/api/intentos/upsert`, {
@@ -450,15 +519,21 @@ export default function CargadoresPage() {
           valido: null,
         })
       })
-      await fetchAtletas()
-    } catch (err) { console.error('Error al restablecer intento:', err); toast.error('Error al restablecer el intento') }
+      liveRef.current?.refreshAtletas()
+    } catch (err) {
+      console.error('Error al restablecer intento:', err)
+      toast.error('Error al restablecer el intento')
+      fetchAtletas() // solo reconciliar la lista si la escritura falló
+    }
   }, [atletaSeleccionado, ejercicioFiltro, intentoSeleccionado, fetchAtletas])
 
-  const cerrarModalPeso = useCallback(() => setModalPeso(null), [])
+  const descartarSolicitudPeso = useCallback((solicitudId) => {
+    setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
+  }, [])
 
   // Asigna el peso del intento siguiente (confirmado o automático por timeout).
-  const asignarProximoPeso = useCallback(async (atletaId, ejercicio, proximoIntento, nuevoPeso) => {
-    setModalPeso(null)
+  const asignarProximoPeso = useCallback(async (atletaId, ejercicio, proximoIntento, nuevoPeso, solicitudId = null) => {
+    if (solicitudId) setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
     const n = parseFloat(nuevoPeso)
     if (isNaN(n) || n <= 0) return
     // Optimista: cargar el peso del próximo intento (sin validar todavía).
@@ -477,8 +552,19 @@ export default function CargadoresPage() {
           valido: null,
         })
       })
+      liveRef.current?.refreshAtletas()
     } catch (err) { console.error('Error al asignar próximo peso:', err); fetchAtletas() }
   }, [fetchAtletas])
+
+  const confirmarSolicitudPeso = useCallback((solicitud, nuevoPeso) => {
+    asignarProximoPeso(
+      solicitud.atletaId,
+      solicitud.ejercicio,
+      solicitud.proximoIntento,
+      nuevoPeso,
+      solicitud.id,
+    )
+  }, [asignarProximoPeso])
 
   const handleCellClick = useCallback(async (params) => {
     let intento = 1
@@ -550,7 +636,9 @@ export default function CargadoresPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intentos: cambios })
-      }).catch(err => { console.error('Error al actualizar peso:', err); fetchAtletas() })
+      })
+        .then(() => liveRef.current?.refreshAtletas())
+        .catch(err => { console.error('Error al actualizar peso:', err); fetchAtletas() })
 
       return newRow
     } catch (err) { console.error('Error al actualizar peso:', err); return oldRow }
@@ -566,27 +654,15 @@ export default function CargadoresPage() {
       renderCell: (params) => capitalizeWords(params.value),
     },
     {
-      field: 'categoria', headerName: 'Categoría', flex: 0.04,
+      field: 'categoria', headerName: 'Categoría', flex: 0.07, minWidth: 150,
       align: 'center', headerAlign: 'center',
+      valueGetter: (value, row) => claveCategoriaAtleta(row),
     },
     {
-      field: 'equipo', headerName: 'Equipo', flex: 0.06, minWidth: 110,
-      align: 'center', headerAlign: 'center', sortable: false,
-      valueGetter: (value, row) => row.equipo_nombre ?? '',
-      renderCell: (params) => {
-        const nombre = params.row.equipo_nombre
-        if (!nombre) return '-'
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <Avatar
-              src={params.row.equipo_foto || undefined}
-              sx={{ width: 30, height: 30, bgcolor: '#bdbdbd' }}
-            >
-              <GroupsIcon sx={{ fontSize: 16 }} />
-            </Avatar>
-          </Box>
-        )
-      },
+      field: 'division', headerName: 'División', flex: 0.06, minWidth: 120,
+      align: 'center', headerAlign: 'center',
+      valueGetter: (value, row) => row.modalidad ?? '',
+      renderCell: (params) => params.row.modalidad || '—',
     },
     {
       field: 'intento1', headerName: '1°', flex: 0.06, minWidth: 80,
@@ -681,7 +757,7 @@ export default function CargadoresPage() {
   // Tarea 8: cada fila se pinta con el color de su categoria (un solo color por fila),
   // asi se identifica quien compite con quien.
   const categoriasEnTanda = useMemo(
-    () => [...new Set(atletasMostrados.map(a => a.categoria).filter(Boolean))],
+    () => [...new Set(atletasMostrados.map(claveCategoriaAtleta).filter(Boolean))],
     [atletasMostrados]
   )
   const tinteRowSx = useMemo(() => categoriasEnTanda.reduce((acc, cat, i) => {
@@ -693,7 +769,7 @@ export default function CargadoresPage() {
     return acc
   }, {}), [categoriasEnTanda])
   const getRowClassNameCategoria = useCallback((params) => {
-    const i = categoriasEnTanda.indexOf(params.row.categoria)
+    const i = categoriasEnTanda.indexOf(claveCategoriaAtleta(params.row))
     return i >= 0 ? `catgrp-${i}` : ''
   }, [categoriasEnTanda])
 
@@ -712,14 +788,24 @@ export default function CargadoresPage() {
   )
   const playPauseEl = (
     <Stack direction="row" spacing={1.5}>
-      <Button variant="contained" onClick={iniciarCronometro} disabled={estadoJueces?.corriendo}
-        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#ff6b35', '&:hover': { bgcolor: '#e55a27' }, borderRadius: 2 }}>
-        <PlayArrowIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
-      </Button>
-      <Button variant="contained" color="error" onClick={detenerCronometro} disabled={!estadoJueces?.corriendo}
-        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, borderRadius: 2 }}>
-        <PauseIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
-      </Button>
+      <Tooltip title="Iniciar cronómetro" placement="top" arrow>
+        <span>
+          <Button variant="contained" onClick={iniciarCronometro} disabled={estadoJueces?.corriendo}
+            aria-label="Iniciar cronómetro"
+            sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#ff6b35', '&:hover': { bgcolor: '#e55a27' }, borderRadius: 2 }}>
+            <PlayArrowIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+          </Button>
+        </span>
+      </Tooltip>
+      <Tooltip title="Pausar cronómetro" placement="top" arrow>
+        <span>
+          <Button variant="contained" color="error" onClick={detenerCronometro} disabled={!estadoJueces?.corriendo}
+            aria-label="Pausar cronómetro"
+            sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, borderRadius: 2 }}>
+            <PauseIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+          </Button>
+        </span>
+      </Tooltip>
     </Stack>
   )
   const juecesEl = (
@@ -741,30 +827,45 @@ export default function CargadoresPage() {
   )
   const accionesEl = (
     <Stack direction="row" spacing={1.5}>
-      <Button variant="contained" onClick={() => marcarIntento(true)}
-        disabled={!atletaSeleccionado || !pesoActual}
-        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#00e676', '&:hover': { bgcolor: '#00c853' }, borderRadius: 2 }}>
-        <CheckIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
-      </Button>
-      <Button variant="contained" onClick={() => marcarIntento(false)}
-        disabled={!atletaSeleccionado || !pesoActual}
-        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#ff1744', '&:hover': { bgcolor: '#d50000' }, borderRadius: 2 }}>
-        <BlockIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
-      </Button>
-      <Button variant="contained" onClick={restablecerIntento}
-        disabled={!atletaSeleccionado}
-        sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#FF9800', '&:hover': { bgcolor: '#F57C00' }, borderRadius: 2 }}>
-        <RestartAltIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
-      </Button>
+      <Tooltip title="Marcar intento válido" placement="top" arrow>
+        <span>
+          <Button variant="contained" onClick={() => marcarIntento(true)}
+            disabled={!atletaSeleccionado || !pesoActual}
+            aria-label="Marcar intento válido"
+            sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#00e676', '&:hover': { bgcolor: '#00c853' }, borderRadius: 2 }}>
+            <CheckIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+          </Button>
+        </span>
+      </Tooltip>
+      <Tooltip title="Marcar intento nulo" placement="top" arrow>
+        <span>
+          <Button variant="contained" onClick={() => marcarIntento(false)}
+            disabled={!atletaSeleccionado || !pesoActual}
+            aria-label="Marcar intento nulo"
+            sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#ff1744', '&:hover': { bgcolor: '#d50000' }, borderRadius: 2 }}>
+            <CloseIcon sx={{ fontSize: { xs: 34, md: 46 }, strokeWidth: 1.5 }} />
+          </Button>
+        </span>
+      </Tooltip>
+      <Tooltip title="Restablecer intento" placement="top" arrow>
+        <span>
+          <Button variant="contained" onClick={restablecerIntento}
+            disabled={!atletaSeleccionado}
+            aria-label="Restablecer intento"
+            sx={{ width: { xs: 56, md: 68 }, height: { xs: 56, md: 68 }, bgcolor: '#FF9800', '&:hover': { bgcolor: '#F57C00' }, borderRadius: 2 }}>
+            <RestartAltIcon sx={{ fontSize: { xs: 30, md: 40 } }} />
+          </Button>
+        </span>
+      </Tooltip>
     </Stack>
   )
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
-      {/* Header */}
-      <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-        <Box>
+      {/* Header + cola no bloqueante de próximos pesos */}
+      <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'stretch', md: 'center' }} gap={1.5}>
+        <Box sx={{ flex: '0 0 auto', minWidth: { md: 158 } }}>
           <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>Cargadores</Typography>
           <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 0.5 }}>
             <Chip label={ejercicioLabel} size="small" sx={{ bgcolor: ejercicioColor, color: '#fff', fontWeight: 700, fontSize: '0.75rem' }} />
@@ -773,6 +874,52 @@ export default function CargadoresPage() {
               <Chip label={pesoFiltro} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
             )}
           </Stack>
+        </Box>
+
+        <Box
+          aria-label="Próximos pesos pendientes"
+          sx={{
+            flex: 1, minWidth: 0, minHeight: 68, display: 'flex', alignItems: 'center',
+            gap: 1, overflowX: 'auto', overflowY: 'hidden',
+            pb: solicitudesPeso.length > 0 ? 0.5 : 0,
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${isDark ? 'rgba(255,255,255,.18)' : 'rgba(20,30,45,.16)'} transparent`,
+            '&::-webkit-scrollbar': {
+              height: 5,
+            },
+            '&::-webkit-scrollbar-track': {
+              background: 'transparent',
+              marginInline: 12,
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: isDark ? 'rgba(255,255,255,.18)' : 'rgba(20,30,45,.16)',
+              borderRadius: 999,
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              backgroundColor: isDark ? 'rgba(255,255,255,.32)' : 'rgba(20,30,45,.28)',
+            },
+          }}
+        >
+          {solicitudesPeso.length === 0 ? (
+            <Box
+              sx={{
+                width: '100%', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: `1px dashed ${border}`, borderRadius: 2, color: 'text.disabled',
+              }}
+            >
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                Los próximos pesos aparecerán acá
+              </Typography>
+            </Box>
+          ) : solicitudesPeso.map(solicitud => (
+            <TarjetaProximoPeso
+              key={solicitud.id}
+              data={solicitud}
+              onConfirm={confirmarSolicitudPeso}
+              onDismiss={descartarSolicitudPeso}
+              isDark={isDark}
+            />
+          ))}
         </Box>
       </Stack>
 
@@ -789,42 +936,78 @@ export default function CargadoresPage() {
           }}
         >
           {/* Filtros */}
-          <Box sx={{ px: { xs: 1, md: 2 }, py: 1.5, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            <Select
-              size="small"
-              value={ejercicioFiltro}
-              onChange={(e) => setEjercicioFiltro(e.target.value)}
-              sx={{ minWidth: 140, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
-            >
-              <MenuItem value="sentadilla">Sentadilla</MenuItem>
-              <MenuItem value="banco">Banco</MenuItem>
-              <MenuItem value="peso_muerto">Peso Muerto</MenuItem>
-            </Select>
-            <Select
-              size="small"
-              value={tandaFiltro}
-              onChange={(e) => setTandaFiltro(e.target.value)}
-              sx={{ minWidth: 120, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
-            >
-              <MenuItem value={1}>Tanda 1</MenuItem>
-              <MenuItem value={2}>Tanda 2</MenuItem>
-              <MenuItem value={3}>Tanda 3</MenuItem>
-              <MenuItem value={4}>Tanda 4</MenuItem>
-            </Select>
-            <Select
-              size="small"
-              value={pesoFiltro}
-              onChange={(e) => setPesoFiltro(e.target.value)}
-              sx={{ minWidth: 130, borderRadius: 2, flex: { xs: 1, sm: 'none' } }}
-            >
-              <MenuItem value="todos">Todas las categorías</MenuItem>
-              {todasLasCategorias.map(c => (
-                <MenuItem key={c} value={c}>{c}</MenuItem>
-              ))}
-            </Select>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 0.8fr 1.4fr' },
+              bgcolor: isDark ? '#111d18' : '#f5faf7',
+              borderBottom: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+            }}
+          >
+            {[
+              {
+                label: 'Ejercicio',
+                value: ejercicioFiltro,
+                onChange: (e) => setEjercicioFiltro(e.target.value),
+                options: [
+                  ['sentadilla', 'Sentadilla'],
+                  ['banco', 'Banco'],
+                  ['peso_muerto', 'Peso Muerto'],
+                ],
+              },
+              {
+                label: 'Tanda',
+                value: tandaFiltro,
+                onChange: (e) => setTandaFiltro(e.target.value),
+                options: [[1, 'Tanda 1'], [2, 'Tanda 2'], [3, 'Tanda 3'], [4, 'Tanda 4']],
+              },
+              {
+                label: 'Categoría',
+                value: pesoFiltro,
+                onChange: (e) => setPesoFiltro(e.target.value),
+                options: [['todos', 'Todas las categorías'], ...todasLasCategorias.map(c => [c, c])],
+              },
+            ].map((filtro, index) => (
+              <Box
+                key={filtro.label}
+                sx={{
+                  minWidth: 0, px: 1.25, pt: 1, pb: 0.65, textAlign: 'center',
+                  gridColumn: { xs: index === 2 ? '1 / -1' : 'auto', sm: 'auto' },
+                  borderLeft: {
+                    xs: index === 1 ? `1px solid ${isDark ? '#244238' : '#d6e7df'}` : 'none',
+                    sm: index > 0 ? `1px solid ${isDark ? '#244238' : '#d6e7df'}` : 'none',
+                  },
+                  borderTop: {
+                    xs: index === 2 ? `1px solid ${isDark ? '#244238' : '#d6e7df'}` : 'none',
+                    sm: 'none',
+                  },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.62rem', lineHeight: 1, letterSpacing: 1.05, textTransform: 'uppercase', color: '#8aa9a0' }}>
+                  {filtro.label}
+                </Typography>
+                <Select
+                  size="small"
+                  value={filtro.value}
+                  onChange={filtro.onChange}
+                  fullWidth
+                  inputProps={{ 'aria-label': filtro.label }}
+                  sx={{
+                    mt: 0.25, height: 32, borderRadius: 0, fontSize: '0.9rem', fontWeight: 800,
+                    '& .MuiOutlinedInput-notchedOutline': { border: 0 },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { border: 0 },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 0 },
+                    '& .MuiSelect-select': { py: 0.5, pl: 3, pr: '28px !important', textAlign: 'center' },
+                    '& .MuiSelect-icon': { right: 4, color: '#8aa9a0' },
+                  }}
+                >
+                  {filtro.options.map(([value, label]) => (
+                    <MenuItem key={value} value={value}>{label}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+            ))}
           </Box>
-
-          <Divider sx={{ borderColor: border }} />
 
           <Box sx={{ flex: 1, minHeight: 0, ...tinteRowSx }}>
             {isLoading ? (
@@ -843,7 +1026,7 @@ export default function CargadoresPage() {
                 processRowUpdate={processRowUpdate}
                 onProcessRowUpdateError={handleProcessRowUpdateError}
                 getRowClassName={getRowClassNameCategoria}
-                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile && !isTableCramped, equipo: !isMobile && !isTableCramped }}
+                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile && !isTableCramped, division: !isMobile && !isTableCramped }}
               />
             )}
           </Box>
@@ -862,122 +1045,102 @@ export default function CargadoresPage() {
           {atletaSeleccionado ? (
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: { xs: 1.5, md: 3 }, gap: 2, position: 'relative' }}>
 
-              {/* Header info — mobile: flujo normal (sin solapes); desktop: posicionado absoluto */}
-              {isMobile ? (
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                  {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') ? (
-                    <Stack direction="row" alignItems="baseline" gap={0.75} sx={{ flexShrink: 0 }}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                        Rack
+              {/* Ficha compacta de competencia */}
+              <Box
+                sx={{
+                  mx: { xs: -1.5, md: -3 },
+                  mt: { xs: -1.5, md: -3 },
+                  overflow: 'hidden',
+                  borderBottom: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+                  borderRadius: 0,
+                  bgcolor: isDark ? '#111d18' : '#f5faf7',
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr 1fr', md: '0.65fr 1.15fr 1.55fr 0.8fr' },
+                  }}
+                >
+                  {[
+                    {
+                      label: 'Rack',
+                      value: ejercicioFiltro === 'sentadilla'
+                        ? (atletaSeleccionado.altura_rack_sentadilla || '—')
+                        : ejercicioFiltro === 'banco'
+                          ? (atletaSeleccionado.altura_rack_banco || '—')
+                          : '—',
+                    },
+                    {
+                      label: 'Peso en barra',
+                      value: pesoActual > 0 ? `${pesoActual} kg` : '—',
+                      detail: pesoActual > 0 ? 'Barra 20 kg + Topes 5 kg' : null,
+                    },
+                    {
+                      label: 'Atleta',
+                      value: `${capitalizeWords(atletaSeleccionado.nombre)} ${capitalizeWords(atletaSeleccionado.apellido)}`,
+                      detail: claveCategoriaAtleta(atletaSeleccionado),
+                    },
+                    {
+                      label: 'Intento',
+                      value: `${intentoSeleccionado}°`,
+                      detail: ejercicioLabel,
+                    },
+                  ].map((dato, index) => (
+                    <Box
+                      key={dato.label}
+                      sx={{
+                        minWidth: 0, minHeight: { xs: 72, md: 82 }, px: { xs: 1.25, md: 2 }, py: 1.25,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        textAlign: 'center',
+                        borderLeft: {
+                          xs: index % 2 === 1 ? `1px solid ${isDark ? '#244238' : '#d6e7df'}` : 'none',
+                          md: index > 0 ? `1px solid ${isDark ? '#244238' : '#d6e7df'}` : 'none',
+                        },
+                        borderTop: {
+                          xs: index > 1 ? `1px solid ${isDark ? '#244238' : '#d6e7df'}` : 'none',
+                          md: 'none',
+                        },
+                      }}
+                    >
+                      <Typography sx={{ fontSize: '0.68rem', lineHeight: 1, letterSpacing: 1.1, textTransform: 'uppercase', color: '#8aa9a0' }}>
+                        {dato.label}
                       </Typography>
-                      <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
-                        {ejercicioFiltro === 'sentadilla'
-                          ? (atletaSeleccionado.altura_rack_sentadilla || '—')
-                          : (atletaSeleccionado.altura_rack_banco || '—')}
+                      <Typography
+                        noWrap
+                        sx={{
+                          width: '100%', mt: 0.65, color: dato.label === 'Peso en barra' ? ejercicioColor : 'text.primary',
+                          fontSize: dato.label === 'Peso en barra' ? { xs: '1.35rem', md: '1.7rem' } : { xs: '0.95rem', md: '1.05rem' },
+                          fontWeight: 900, lineHeight: 1.1,
+                        }}
+                      >
+                        {dato.value}
                       </Typography>
-                    </Stack>
-                  ) : <Box />}
-                  <Box sx={{ textAlign: 'right', minWidth: 0 }}>
-                    <Typography fontWeight={800} sx={{ fontSize: '0.95rem', lineHeight: 1.15, color: ejercicioColor }}>
-                      {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
-                      <Chip label={atletaSeleccionado.categoria} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
-                      <Typography variant="body2" fontWeight={700} color="text.secondary">
-                        Intento {intentoSeleccionado}°
-                      </Typography>
-                    </Stack>
-                  </Box>
-                </Stack>
-              ) : (
-                <>
-                  {/* Datos del atleta (compacto, arriba a la derecha) */}
-                  <Box sx={{ position: 'absolute', top: 16, right: 16, textAlign: 'right', maxWidth: '55%' }}>
-                    <Typography fontWeight={800} sx={{ fontSize: '1.25rem', lineHeight: 1.1, color: ejercicioColor }}>
-                      {capitalizeWords(atletaSeleccionado.nombre)} {capitalizeWords(atletaSeleccionado.apellido)}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
-                      <Chip label={atletaSeleccionado.categoria} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
-                      <Typography variant="body2" fontWeight={700} color="text.secondary">
-                        Intento {intentoSeleccionado}°
-                      </Typography>
-                    </Stack>
-                  </Box>
-
-                  {/* Altura del rack */}
-                  {(ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco') && (
-                    <Box sx={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Stack direction="row" alignItems="baseline" gap={1}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                          Rack
+                      {dato.detail && (
+                        <Typography noWrap sx={{ width: '100%', mt: 0.45, fontSize: '0.67rem', color: 'text.secondary', fontWeight: 600 }}>
+                          {dato.detail}
                         </Typography>
-                        <Typography sx={{ fontSize: '2.2rem', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
-                          {ejercicioFiltro === 'sentadilla'
-                            ? (atletaSeleccionado.altura_rack_sentadilla || '—')
-                            : (atletaSeleccionado.altura_rack_banco || '—')}
-                        </Typography>
-                      </Stack>
+                      )}
                     </Box>
-                  )}
-                </>
-              )}
-
-              {/* Peso total destacado */}
-              {pesoActual > 0 && (
-                <Box sx={{ textAlign: 'center', mt: { xs: 1.5, md: 0 } }}>
-                  <Typography sx={{ fontSize: 'clamp(2.4rem, 8vh, 5rem)', fontWeight: 900, lineHeight: 1, color: ejercicioColor }}>
-                    {pesoActual}
-                    <Typography component="span" sx={{ fontSize: 'clamp(1.2rem, 4vh, 2.5rem)', fontWeight: 700, ml: 1, color: 'text.secondary' }}>kg</Typography>
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Barra 20 kg + Topes 5 kg
-                  </Typography>
+                  ))}
                 </Box>
-              )}
 
-              {/* Presentación equipo + coach */}
-              {atletaSeleccionado.equipo_nombre && (
-                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                  <Stack
-                    direction="row"
-                    spacing={{ xs: 1.25, md: 2 }}
-                    alignItems="center"
-                    divider={<Divider orientation="vertical" flexItem sx={{ borderColor: border }} />}
+                {atletaSeleccionado.modalidad && (
+                  <Box
                     sx={{
-                      px: { xs: 1.5, md: 2.5 }, py: 1, borderRadius: 3, maxWidth: '100%',
-                      border: `1px solid ${border}`,
-                      backgroundColor: isDark ? '#242424' : '#fafafa',
+                      borderTop: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+                      px: 1.5, py: 1, textAlign: 'center',
                     }}
                   >
-                    {/* Equipo */}
-                    <Stack direction="row" spacing={1.25} alignItems="center">
-                      <Avatar
-                        src={atletaSeleccionado.equipo_foto || undefined}
-                        sx={{ width: { xs: 36, md: 44 }, height: { xs: 36, md: 44 }, bgcolor: '#bdbdbd' }}
-                      >
-                        <GroupsIcon />
-                      </Avatar>
-                    </Stack>
-
-                    {/* Coach */}
-                    {atletaSeleccionado.equipo_coach_nombre && (
-                      <Stack direction="row" spacing={1.25} alignItems="center">
-                        <Avatar src={atletaSeleccionado.equipo_coach_foto || undefined} sx={{ width: { xs: 36, md: 44 }, height: { xs: 36, md: 44 }, bgcolor: '#bdbdbd' }}>
-                          <PersonIcon />
-                        </Avatar>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 1 }}>
-                            Coach
-                          </Typography>
-                          <Typography fontWeight={800} noWrap sx={{ lineHeight: 1.1, maxWidth: { xs: 100, md: 'none' } }}>
-                            {capitalizeWords(atletaSeleccionado.equipo_coach_nombre)}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    )}
-                  </Stack>
-                </Box>
-              )}
+                    <Typography sx={{ fontSize: '0.62rem', lineHeight: 1, letterSpacing: 1, textTransform: 'uppercase', color: '#8aa9a0' }}>
+                      División
+                    </Typography>
+                    <Typography noWrap sx={{ mt: 0.35, fontSize: '0.88rem', fontWeight: 800 }}>
+                      {atletaSeleccionado.modalidad}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
 
               {/* Discos */}
               <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1077,9 +1240,6 @@ export default function CargadoresPage() {
           )}
         </Paper>
       </Box>
-
-      {/* Modal "próximo peso" (timer 60s) — solo en Cargadores */}
-      <ModalProximoPeso data={modalPeso} onConfirm={asignarProximoPeso} onClose={cerrarModalPeso} />
     </Box>
   )
 }

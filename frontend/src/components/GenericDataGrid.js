@@ -24,6 +24,8 @@ export function GenericDataGrid({
   const { isDark } = useDarkMode()
 
   const bg = isDark ? '#141414' : 'white'
+  const headerBg = isDark ? '#111d18' : '#f5faf7'
+  const headerBorder = isDark ? '#244238' : '#d6e7df'
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
@@ -31,10 +33,14 @@ export function GenericDataGrid({
         sx={{
           backgroundColor: bg,
           height: '100%',
+          border: 0,
           '& .MuiDataGrid-main': { backgroundColor: bg },
-          '& .MuiDataGrid-columnHeaders': { backgroundColor: bg },
-          '& .MuiDataGrid-columnHeader': { backgroundColor: bg },
-          '& .MuiDataGrid-columnHeadersInner': { backgroundColor: bg },
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: `${headerBg} !important`,
+            borderBottom: `1px solid ${headerBorder}`,
+          },
+          '& .MuiDataGrid-columnHeader': { backgroundColor: `${headerBg} !important` },
+          '& .MuiDataGrid-columnHeadersInner': { backgroundColor: `${headerBg} !important` },
           '& .MuiDataGrid-virtualScroller': {
             backgroundColor: bg,
             scrollbarWidth: 'none',
@@ -42,17 +48,34 @@ export function GenericDataGrid({
           },
           '& .MuiDataGrid-footerContainer': { backgroundColor: bg },
           '& .MuiDataGrid-cell': { fontSize: '0.9rem' },
-          // Celda de categoria pintada de borde a borde
-          '& .cat-cell': { padding: 0 },
-          '& .MuiDataGrid-columnHeaderTitle': { fontSize: '0.9rem', fontWeight: 700 },
+          // Celda de categoría pintada de borde a borde, incluso cuando MUI
+          // aplica estados de foco, edición o selección.
+          '& .cat-cell': {
+            position: 'relative',
+            overflow: 'hidden',
+            padding: '0 !important',
+          },
+          '& .cat-cell > div': {
+            position: 'absolute',
+            inset: 0,
+            width: 'auto !important',
+            height: 'auto !important',
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            color: '#8aa9a0',
+            fontSize: '0.7rem',
+            fontWeight: 800,
+            letterSpacing: 0.8,
+            textTransform: 'uppercase',
+          },
           '& .MuiDataGrid-row': {
             cursor: onRowClick || onCellClick ? 'pointer' : 'default',
           },
           // Colores de fila por tanda
-          '& .row-tanda-1': { borderLeft: '3px solid #1976d2' },
-          '& .row-tanda-2': { borderLeft: '3px solid #388e3c' },
-          '& .row-tanda-3': { borderLeft: '3px solid #F57C00' },
-          '& .row-tanda-4': { borderLeft: '3px solid #7b1fa2' },
+          '& .row-tanda-1': { boxShadow: 'inset 3px 0 #1976d2' },
+          '& .row-tanda-2': { boxShadow: 'inset 3px 0 #388e3c' },
+          '& .row-tanda-3': { boxShadow: 'inset 3px 0 #F57C00' },
+          '& .row-tanda-4': { boxShadow: 'inset 3px 0 #7b1fa2' },
           // Colores para Sentadilla (S1, S2, S3)
           '& .header-sentadilla': {
             backgroundColor: isDark ? '#1a3a5c !important' : '#BBDEFB !important',
@@ -104,10 +127,10 @@ export function GenericDataGrid({
         {...(paginationMode === 'client' && {
           initialState: {
             sorting: { sortModel: [{ field: 'nombre', sort: 'asc' }] },
-            pagination: { paginationModel: { page: 0, pageSize: 19 } },
+            pagination: { paginationModel: { page: 0, pageSize: 25 } },
           },
         })}
-        pageSizeOptions={[19]}
+        pageSizeOptions={[25]}
       />
     </Box>
   );

@@ -2,50 +2,51 @@
 
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
   Box,
-  CircularProgress,
 } from '@mui/material'
+import { ModalFooterActions } from './ModalFooterActions'
+import { ModalHeader, modalContentSx, modalPaperSx } from './ModalLayout'
 
-export function GenericModal({ open, title, children, onClose, onSave, loading = false }) {
+export function GenericModal({
+  open,
+  title,
+  subtitle,
+  children,
+  onClose,
+  onSave,
+  loading = false,
+  size = 'standard',
+  saveLabel = 'Guardar',
+  saveDisabled = false,
+}) {
   return (
     <Dialog
       open={open}
       onClose={loading ? null : onClose}
       fullWidth
-      maxWidth="sm"
+      maxWidth={false}
       slotProps={{
-        paper: { sx: { borderRadius: 2, p: 1.5} },
+        paper: { sx: modalPaperSx(size) },
       }}
     >
-      <DialogTitle sx={{ fontWeight: 600 }}>{title}</DialogTitle>
-      <DialogContent dividers>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
+      <ModalHeader
+        title={title}
+        subtitle={subtitle}
+        onClose={onClose}
+        disabled={loading}
+      />
+      <DialogContent dividers sx={modalContentSx}>
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
           {children}
         </Box>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit" disabled={loading}>
-          Cancelar
-        </Button>
-        <Button 
-          onClick={onSave} 
-          variant="contained" 
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
-          sx={{
-            backgroundColor: '#F57C00',
-            '&:hover': {
-              backgroundColor: '#FF9800'
-            }
-          }}
-        >
-          {loading ? 'Guardando...' : 'Guardar'}
-        </Button>
-      </DialogActions>
+      <ModalFooterActions
+        actions={[
+          { label: 'Cancelar', tone: 'neutral', onClick: onClose, disabled: loading },
+          { label: saveLabel, onClick: onSave, loading, disabled: saveDisabled },
+        ]}
+      />
     </Dialog>
   )
 }
