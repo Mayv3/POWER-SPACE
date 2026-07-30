@@ -29,7 +29,18 @@ app.use('/api/jueces', juecesRoutes)
 app.use('/api/historico', protectMutations, historicoRoutes);
 app.use('/api/coaches', protectMutations, coachesRoutes);
 app.use('/api/equipos', protectMutations, equiposRoutes);
-app.get('/ping', (req, res) => res.json({ pong: true, uptime: process.uptime(), timestamp: new Date().toISOString() }));
+const healthCheck = (req, res) => res
+    .set("Cache-Control", "no-store, max-age=0")
+    .json({
+        status: "ok",
+        service: "powerspace-api",
+        pong: true,
+        uptime: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+    });
+
+app.get("/ping", healthCheck);
+app.get("/api/health", healthCheck);
 
 app.use((err, req, res, next) => {
     console.error("Error:", err);

@@ -280,10 +280,10 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
 
     const ch = supabase
       .channel('public:board_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, scheduleReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'atletas' }, scheduleReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipos' }, scheduleReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'coaches' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, () => scheduleReload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'atletas' }, () => scheduleReload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipos' }, () => scheduleReload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coaches' }, () => scheduleReload())
       .subscribe((status, error) => {
         if (status === 'SUBSCRIBED') scheduleReload(0)
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
