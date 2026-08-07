@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient'
 
-// Canal de Broadcast para overlay INSTANTÁNEO del estado en vivo (luces de jueces,
+// Canal de Broadcast para overlay INSTANTÁNEO del estado en vivo (luces de referees,
 // atleta seleccionado, arranque de cronómetro). Broadcast no pasa por el WAL, así que
 // llega en ~50-150ms vs ~300-700ms de postgres_changes.
 //

@@ -6,15 +6,18 @@ import {
   CircularProgress, Paper, useMediaQuery, useTheme,
 } from '@mui/material'
 import { Search as SearchIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material'
+import { UploadSimple as UploadIcon, DownloadSimple as DownloadIcon } from '@phosphor-icons/react'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { EditAtletaForm } from '../../../components/modales/EditAtletaForm'
 import { DeleteConfirmModal } from '../../../components/modales/DeleteConfirmModal'
 import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
+import { ImportAtletasModal } from '../../../components/modales/ImportAtletasModal'
 import { isAtletaFormValid } from '../../../components/modales/AtletaForm'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
+import { descargarPlantillaAtletas } from '../../../lib/atletasImport'
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])
@@ -51,9 +54,11 @@ export default function AtletasPage() {
     altura_rack_banco: null,
     equipo_id: null,
     foto: null,
+    descalificado: false,
   })
 
   const [equipos, setEquipos] = useState([])
+  const [openImport, setOpenImport] = useState(false)
 
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
@@ -147,7 +152,7 @@ export default function AtletasPage() {
         primer_intento_sentadilla: null, primer_intento_banco: null,
         primer_intento_peso_muerto: null, sexo: '',
         altura_rack_sentadilla: null, altura_rack_banco: null, equipo_id: null,
-        foto: null,
+        foto: null, descalificado: false,
       })
     } catch (err) {
       console.error('Error al crear atleta:', err)
@@ -196,7 +201,7 @@ export default function AtletasPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'minmax(0, 1fr) 116px', sm: 'minmax(0, 1fr) 164px' },
+            gridTemplateColumns: { xs: 'minmax(0, 1fr) 140px', sm: 'minmax(0, 1fr) 460px' },
             minHeight: { xs: 62, sm: 70 },
             bgcolor: isDark ? '#111d18' : '#f5faf7',
             border: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
@@ -223,24 +228,69 @@ export default function AtletasPage() {
               }}
             />
           </Box>
-          <Button
-            onClick={() => setOpenCreate(true)}
-            sx={{
-              borderRadius: 0,
-              borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
-              color: '#F57C00',
-              textTransform: 'none',
-              whiteSpace: 'nowrap',
-              '&:hover': { bgcolor: isDark ? 'rgba(245,124,0,.09)' : 'rgba(245,124,0,.07)' },
-            }}
-          >
-            <Stack direction="row" spacing={0.75} alignItems="center">
-              <PersonAddIcon sx={{ fontSize: 20 }} />
-              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900 }}>
-                {isMobile ? 'Nuevo' : 'Nuevo atleta'}
-              </Typography>
-            </Stack>
-          </Button>
+          <Stack direction="row" sx={{ borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
+            <Button
+              onClick={() => descargarPlantillaAtletas()}
+              sx={{
+                borderRadius: 0,
+                borderRight: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+                color: 'text.secondary',
+                textTransform: 'none',
+                whiteSpace: 'nowrap',
+                minWidth: { xs: 44, sm: 'auto' },
+                px: { xs: 1, sm: 2 },
+                '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)' },
+              }}
+            >
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <DownloadIcon size={20} />
+                {!isMobile && (
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 900 }}>
+                    Plantilla
+                  </Typography>
+                )}
+              </Stack>
+            </Button>
+            <Button
+              onClick={() => setOpenImport(true)}
+              sx={{
+                borderRadius: 0,
+                borderRight: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+                color: 'text.secondary',
+                textTransform: 'none',
+                whiteSpace: 'nowrap',
+                minWidth: { xs: 44, sm: 'auto' },
+                px: { xs: 1, sm: 2 },
+                '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)' },
+              }}
+            >
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <UploadIcon size={20} />
+                {!isMobile && (
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 900 }}>
+                    Importar Excel
+                  </Typography>
+                )}
+              </Stack>
+            </Button>
+            <Button
+              onClick={() => setOpenCreate(true)}
+              sx={{
+                borderRadius: 0,
+                color: '#F57C00',
+                textTransform: 'none',
+                whiteSpace: 'nowrap',
+                '&:hover': { bgcolor: isDark ? 'rgba(245,124,0,.09)' : 'rgba(245,124,0,.07)' },
+              }}
+            >
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <PersonAddIcon sx={{ fontSize: 20 }} />
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 900 }}>
+                  {isMobile ? 'Nuevo' : 'Nuevo atleta'}
+                </Typography>
+              </Stack>
+            </Button>
+          </Stack>
         </Box>
 
         <Box
@@ -306,6 +356,13 @@ export default function AtletasPage() {
       >
         <CreateAtletaForm atleta={newAtleta} onChange={setNewAtleta} equipos={equipos} />
       </GenericModal>
+
+      {/* Modal importar Excel */}
+      <ImportAtletasModal
+        open={openImport}
+        onClose={() => setOpenImport(false)}
+        onImported={fetchAtletas}
+      />
 
       {/* Modal eliminar */}
       <DeleteConfirmModal

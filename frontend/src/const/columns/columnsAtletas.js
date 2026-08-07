@@ -3,6 +3,23 @@ import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Chip, Divi
 import { Groups as GroupsIcon, Person as PersonIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { capitalizeWords } from '../../utils/textUtils'
 import { colorCategoria } from '../../utils/colorCategoria'
+import { abreviarCategoriasEdad } from '../categorias/categorias'
+import { letraTanda } from '../tandas'
+
+const TANDA_COLORS = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2', 5: '#00838f', 6: '#c2185b' }
+
+// Fila pintada de borde a borde con el color de la categoría del atleta (misma
+// paleta determinística que columnsIntentos.js), para que toda la fila se lea
+// como un bloque. Tanda y Equipo son la excepción: cada uno con su propio color.
+const renderCeldaConCategoria = (row, contenido) => (
+  <Box sx={{
+    width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
+    bgcolor: row.categoria ? colorCategoria(row.categoria) : 'transparent',
+    color: row.categoria ? '#fff' : 'inherit', fontWeight: 600,
+  }}>
+    {contenido}
+  </Box>
+)
 
 function ActionsMenu({ row, handleEdit, handleDelete }) {
   const [anchor, setAnchor] = useState(null)
@@ -45,7 +62,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     align: 'center',
     headerAlign: 'center',
     type: 'number',
-    renderCell: (params) => params.value ?? '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-'),
   },
   {
     field: 'nombre',
@@ -53,15 +71,16 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     flex: 0.2,
     align: 'left',
     headerAlign: 'left',
+    cellClassName: 'cat-cell',
     valueGetter: (value, row) => `${row.nombre ?? ''} ${row.apellido ?? ''}`.trim(),
-    renderCell: (params) => (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    renderCell: (params) => renderCeldaConCategoria(params.row, (
+      <>
         <Avatar src={params.row.foto || undefined} sx={{ width: 28, height: 28 }}>
           <PersonIcon sx={{ fontSize: 16 }} />
         </Avatar>
         {capitalizeWords(params.value)}
-      </Box>
-    ),
+      </>
+    )),
   },
   {
     field: 'peso_corporal',
@@ -70,7 +89,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     align: 'center',
     headerAlign: 'center',
     type: 'number',
-    renderCell: (params) => params.value ? `${params.value} kg` : '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
   },
   {
     field: 'categoria',
@@ -95,7 +115,11 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     flex: 0.14,
     align: 'center',
     headerAlign: 'center',
-    renderCell: (params) => Array.isArray(params.value) ? params.value.join(' / ') : (params.value || '-'),
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(
+      params.row,
+      abreviarCategoriasEdad(params.row.sexo, params.value).join(' / ') || '-'
+    ),
   },
   {
     field: 'tanda_id',
@@ -103,17 +127,17 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     flex: 0.1,
     align: 'center',
     headerAlign: 'center',
-    cellClassName: (params) => params.value ? `tanda-${params.value}` : '',
+    cellClassName: 'cat-cell',
     renderCell: (params) => {
-      const colors = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2' }
-      const color = colors[params.value]
-      return params.value ? (
-        <Chip
-          label={`Tanda ${params.value}`}
-          size="small"
-          sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: color, color: '#fff', border: 'none' }}
-        />
-      ) : '-'
+      const color = TANDA_COLORS[params.value]
+      return (
+        <Box sx={{
+          width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: color || 'transparent', color: color ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
+        }}>
+          {params.value ? `Tanda ${letraTanda(params.value)}` : '-'}
+        </Box>
+      )
     },
   },
   {
@@ -122,28 +146,25 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     flex: 0.15,
     align: 'center',
     headerAlign: 'center',
+    cellClassName: 'cat-cell',
     valueGetter: (value, row) => row.equipo?.nombre ?? '',
     renderCell: (params) => {
       const eq = params.row.equipo
-      if (!eq) return '-'
+      const color = eq?.color
       return (
-        <Chip
-          avatar={
-            <Avatar src={eq.foto || undefined} sx={{ bgcolor: eq.color || '#bdbdbd' }}>
-              <GroupsIcon sx={{ fontSize: 14 }} />
-            </Avatar>
-          }
-          label={eq.nombre}
-          size="small"
-          sx={{
-            fontWeight: 600,
-            fontSize: '0.72rem',
-            bgcolor: eq.color || '#9e9e9e',
-            color: '#fff',
-            border: 'none',
-            '& .MuiChip-avatar': { color: '#fff' },
-          }}
-        />
+        <Box sx={{
+          width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75,
+          bgcolor: color || 'transparent', color: color ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.78rem',
+        }}>
+          {eq ? (
+            <>
+              <Avatar src={eq.foto || undefined} sx={{ width: 22, height: 22, bgcolor: 'rgba(255,255,255,.25)' }}>
+                <GroupsIcon sx={{ fontSize: 14 }} />
+              </Avatar>
+              {capitalizeWords(eq.nombre)}
+            </>
+          ) : '-'}
+        </Box>
       )
     },
   },
@@ -155,7 +176,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     headerAlign: 'center',
     type: 'number',
     headerClassName: 'header-sentadilla',
-    renderCell: (params) => params.value ? `${params.value} kg` : '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
   },
   {
     field: 'primer_intento_banco',
@@ -165,7 +187,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     headerAlign: 'center',
     type: 'number',
     headerClassName: 'header-banco',
-    renderCell: (params) => params.value ? `${params.value} kg` : '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
   },
   {
     field: 'primer_intento_peso_muerto',
@@ -175,7 +198,23 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     headerAlign: 'center',
     type: 'number',
     headerClassName: 'header-peso-muerto',
-    renderCell: (params) => params.value ? `${params.value} kg` : '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
+  },
+  {
+    field: 'descalificado',
+    headerName: 'Estado',
+    flex: 0.1,
+    align: 'center',
+    headerAlign: 'center',
+    type: 'boolean',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(
+      params.row,
+      params.value
+        ? <Chip label="Descalificado" size="small" color="error" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+        : '-'
+    ),
   },
   {
     field: 'acciones',

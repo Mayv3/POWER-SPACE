@@ -1,8 +1,7 @@
 import PublicoClient from './PublicoClient'
 import {
   fetchAtletasConIntentosServer,
-  fetchEstadoCompetenciaServer,
-  fetchAtletaServer,
+  fetchEstadoConAtletaServer,
 } from '../../lib/supabaseServer'
 
 // Datos en vivo: render dinámico por request, sin cache estática.
@@ -14,15 +13,15 @@ export default async function PublicoPage() {
   let initialAtletaEnVivo = null
 
   try {
-    const [atletas, estado] = await Promise.all([
+    // 2 queries en paralelo: el atleta en vivo viene en el join del estado, así
+    // que no hay que encadenar un tercer round-trip a sa-east-1 en el TTFB.
+    const [atletas, { estado, atleta }] = await Promise.all([
       fetchAtletasConIntentosServer({ tandaId: 'todas' }),
-      fetchEstadoCompetenciaServer(),
+      fetchEstadoConAtletaServer(),
     ])
     initialAtletas = atletas
     initialEstado = estado
-    if (estado?.atleta_id) {
-      initialAtletaEnVivo = await fetchAtletaServer(estado.atleta_id)
-    }
+    initialAtletaEnVivo = atleta
   } catch (e) {
     // Si el fetch SSR falla, el cliente igual rehidrata y carga por su cuenta.
     console.error('SSR /publico fetch inicial falló:', e)

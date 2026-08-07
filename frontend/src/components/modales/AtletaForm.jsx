@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import {
   Box,
+  Checkbox,
+  FormControlLabel,
   MenuItem,
   TextField,
   Typography,
@@ -17,11 +19,17 @@ import {
 } from '../../const/categorias/categorias'
 import { supabase } from '../../lib/supabaseClient'
 import { optimizeImage } from '../../utils/optimizeImage'
+import { TANDA_IDS, letraTanda } from '../../const/tandas'
 import { ModalSection } from './ModalLayout'
 import { PhotoUploadField } from './PhotoUploadField'
 
-const TANDAS = [1, 2, 3, 4]
+const TANDAS = TANDA_IDS
 const ALTURAS_RACK = Array.from({ length: 20 }, (_, index) => index + 1)
+
+const ITEM_HEIGHT = 36
+const menuPropsVisibles = (cantidad) => ({
+  PaperProps: { style: { maxHeight: ITEM_HEIGHT * cantidad + 8 } },
+})
 
 const fieldsGridSx = {
   display: 'grid',
@@ -304,7 +312,7 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
             {...requiredProps(atleta.tanda_id)}
           >
             {TANDAS.map((tanda) => (
-              <MenuItem key={tanda} value={tanda}>Tanda {tanda}</MenuItem>
+              <MenuItem key={tanda} value={tanda}>Tanda {letraTanda(tanda)}</MenuItem>
             ))}
           </TextField>
 
@@ -323,6 +331,18 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
               </MenuItem>
             ))}
           </TextField>
+
+          <FormControlLabel
+            sx={{ gridColumn: '1 / -1', m: 0 }}
+            control={
+              <Checkbox
+                checked={Boolean(atleta.descalificado)}
+                onChange={(event) => onChange({ ...atleta, descalificado: event.target.checked })}
+                color="error"
+              />
+            }
+            label="Descalificado (no cuenta en premiación)"
+          />
         </Box>
       </ModalSection>
 
@@ -334,6 +354,7 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
             name="altura_rack_sentadilla"
             label="Sentadilla"
             value={atleta.altura_rack_sentadilla || ''}
+            SelectProps={{ MenuProps: menuPropsVisibles(5) }}
           >
             {ALTURAS_RACK.map((altura) => (
               <MenuItem key={altura} value={altura}>{altura}</MenuItem>
@@ -345,6 +366,7 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
             name="altura_rack_banco"
             label="Press de banco"
             value={atleta.altura_rack_banco || ''}
+            SelectProps={{ MenuProps: menuPropsVisibles(5) }}
           >
             {ALTURAS_RACK.map((altura) => (
               <MenuItem key={altura} value={altura}>{altura}</MenuItem>

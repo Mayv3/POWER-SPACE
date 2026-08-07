@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useState, useMemo, useRef, Children } from 'react'
+import { useEffect, useLayoutEffect, useState, useMemo, useRef, useCallback, memo, Children } from 'react'
 import { CaretLeft } from '@phosphor-icons/react'
 import { Calculate_DOTS } from '../../utils/calcularDots'
 import { supabase, fetchAtletasConIntentos } from '../../lib/supabaseClient'
@@ -17,9 +17,10 @@ const T = {
   txt: '#f4f5f7', txt2: '#9aa0ab', txt3: '#6b7280', txt4: '#4b515c',
   ok: '#dff79a', okBg: 'rgba(192,249,59,.1)', fail: '#ef5a54', failBg: 'rgba(239,90,84,.1)',
 }
-const FO = "'Oswald',sans-serif"
-const FB = "'Barlow',sans-serif"
-const FM = "'IBM Plex Mono',monospace"
+// Definidas por next/font en publico/layout.js (auto-hospedadas y precargadas).
+const FO = 'var(--ps-font-oswald),sans-serif'
+const FB = 'var(--ps-font-barlow),sans-serif'
+const FM = 'var(--ps-font-mono),monospace'
 
 const LIFTS = [
   { name: 'Sentadilla', key: 'sentadilla', prefix: 's', best: 'mejorSentadilla' },
@@ -28,6 +29,36 @@ const LIFTS = [
 ]
 const LIFT_LABEL = { sentadilla: 'Sentadilla', banco: 'Press banca', peso_muerto: 'Peso muerto' }
 const ORD_WORD = ['primer', 'segundo', 'tercer']
+
+// Mapeo de una fila de `intentos` a las columnas que la view agrega por atleta.
+// Permite aplicar un UPDATE como patch de una fila en vez de recargar el padrón.
+const MOV_LIFT = { 1: 'sentadilla', 2: 'banco', 3: 'peso_muerto' }
+const MOV_PREFIX = { 1: 's', 2: 'b', 3: 'd' }
+
+// Si no llega ningún evento de realtime en esta ventana, el polling asume que
+// el socket está caído y reconcilia. Con el realtime sano no dispara nunca.
+const REALTIME_STALE_MS = 15000
+
+// Constante: se armaba con template literal adentro del render, así que se
+// re-serializaba entero en cada actualización del padrón.
+const PS_CSS = `
+  @keyframes psEq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+  @keyframes psDot{0%,100%{opacity:.25}50%{opacity:1}}
+  .ps-x{scrollbar-width:none;-ms-overflow-style:none}
+  .ps-x::-webkit-scrollbar{display:none;width:0;height:0}
+  .ps-bar{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${T.lime},transparent);z-index:99;animation:psBar 1s linear infinite}
+  @keyframes psBar{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+  .ps-view{animation:psIn .4s cubic-bezier(.22,.61,.36,1) both}
+  @keyframes psIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes psHero{from{transform:scale(1.12);opacity:.3}to{transform:scale(1);opacity:1}}
+  @keyframes psRow{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .ps-select-option:hover,.ps-select-option:focus-visible{background:rgba(255,106,0,.09)!important;color:#ff6a00!important;outline:none}
+  .ps-outer{min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:40px 24px;background:${T.pageBg};font-family:${FB}}
+  .ps-frame{width:430px;max-width:100%;background:${T.frame};border-radius:30px;overflow:hidden;box-shadow:0 30px 80px rgba(20,18,14,.32);border:1px solid rgba(0,0,0,.5)}
+  @media (max-width:600px){
+    .ps-outer{padding:0;background:${T.frame};align-items:stretch}
+    .ps-frame{width:100%;max-width:100%;border-radius:0;border:none;box-shadow:none;min-height:100vh}
+  }`
 
 /* ============ CÁLCULOS ============ */
 function computeAtleta(a) {
@@ -63,6 +94,18 @@ function computeAtleta(a) {
   return { ...a, mejorSentadilla, mejorBanco, mejorPesoMuerto, total, dots }
 }
 
+// Orden de las vistas en vivo (tanda y categoría): mayor peso levantado hasta
+// el momento, o sea el total acumulado -suma de los mejores intentos válidos
+// de cada movimiento-. A diferencia de DOTS, existe desde el primer tiro
+// válido, así que el ranking se mueve durante toda la competencia.
+// `lot` desempata para que el orden sea determinístico y no salte entre
+// recargas cuando dos atletas van iguales en kilos.
+const porTotal = (a, b) => {
+  const dif = (b.total || 0) - (a.total || 0)
+  if (dif !== 0) return dif
+  return (Number(a.lot) || Number.POSITIVE_INFINITY) - (Number(b.lot) || Number.POSITIVE_INFINITY)
+}
+
 const fmtTimer = (s) => {
   const n = Math.max(0, parseInt(s) || 0)
   return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`
@@ -84,6 +127,27 @@ function Attempt({ status, label, big, joined = false }) {
   )
   if (status === 'pending') return <div style={{ ...base, color: T.txt2, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)' }}>{label}</div>
   return <div style={{ ...base, color: '#4b515c', background: 'rgba(255,255,255,.03)' }}>{label}</div>
+}
+
+/* ============ FOTO DE ATLETA ============ */
+const FOTO_STYLE = { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }
+
+// `width`/`height` intrínsecos + decode asíncrono. `eager` solo para la foto
+// del atleta en plataforma; el resto se difiere hasta entrar en viewport
+// (el ranking completo puede ser una lista larga).
+function Foto({ src, size, eager = false }) {
+  return (
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      decoding="async"
+      loading={eager ? 'eager' : 'lazy'}
+      fetchPriority={eager ? 'high' : 'auto'}
+      style={FOTO_STYLE}
+    />
+  )
 }
 
 /* ============ BARRITAS EN VIVO ============ */
@@ -121,6 +185,94 @@ function Carousel({ children }) {
     </>
   )
 }
+
+/* ============ ESTADO DE INTENTO ============ */
+// `livePtr` son los 3 campos del estado que afectan a una celda: puntero al
+// atleta/movimiento/intento en plataforma. Se pasa como objeto memoizado para
+// que el tick del cronómetro (1 Hz) no invalide las filas memoizadas.
+function attStatusOf(a, liftKey, prefix, i, livePtr) {
+  const peso = a[`${ORD_WORD[i - 1]}_intento_${liftKey}`]
+  const valido = a[`valido_${prefix}${i}`]
+  let status = 'empty'
+  if (valido === true) status = 'ok'
+  else if (valido === false) status = 'fail'
+  else if (peso) {
+    const cur = livePtr.atletaId === a.id && livePtr.ejercicio === liftKey && livePtr.intento === i
+    status = cur ? 'current' : 'pending'
+  }
+  return { status, label: peso ? String(peso) : '—' }
+}
+
+function palette(pos, isLive) {
+  if (isLive) return { border: 'rgba(255,106,0,.4)', posBg: 'rgba(255,106,0,.12)', posColor: T.lime, posTag: 'LIVE' }
+  if (pos === 1) return { border: 'rgba(255,106,0,.22)', posBg: 'rgba(255,106,0,.1)', posColor: T.lime, posTag: 'LÍDER' }
+  return { border: 'rgba(255,255,255,.06)', posBg: 'rgba(255,255,255,.04)', posColor: '#e6e8ec', posTag: '' }
+}
+
+/* ============ TARJETA DE RANKING ============ */
+// Memoizada: el cronómetro re-renderiza el componente raíz cada segundo y sin
+// esto se reconciliaba el ranking entero (por atleta: 9 celdas de intento).
+// Solo se re-renderiza si cambia su propio atleta o el puntero en vivo.
+const RankingCard = memo(function RankingCard({ item, pos, livePtr, onOpen }) {
+  const isLive = livePtr.atletaId === item.id
+  const pal = palette(pos, isLive)
+  return (
+    <div onClick={() => onOpen(item)} style={{ background: T.card, border: `1px solid ${pal.border}`, borderRadius: 18, overflow: 'hidden', cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <div style={{ flex: 1, minWidth: 0, padding: '13px 15px', display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+          <div style={{ flex: 'none', width: 46, height: 46, borderRadius: '50%', overflow: 'hidden', background: pal.posBg, border: `1px solid ${pal.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {item.foto ? (
+              <Foto src={item.foto} size={46} />
+            ) : (
+              <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 16, color: pal.posColor }}>{(item.nombre?.[0] || '') + (item.apellido?.[0] || '')}</span>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1 }}>{item.nombre} {item.apellido}</span>
+              {isLive && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: T.lime, borderRadius: 5, padding: '3px 6px' }}>
+                  <Eq color="#fff" h={8} w={2} />
+                  <span style={{ fontFamily: FM, fontSize: 8, letterSpacing: '.08em', fontWeight: 600, color: '#fff' }}>EN VIVO</span>
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: T.txt2, marginTop: 4 }}>{item.peso_corporal ?? '—'} kg · {item.edad ?? '—'} años · {item.modalidad ?? '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 7, padding: '4px 15px 0' }}>
+        {LIFTS.map(L => (
+          <div key={L.key} style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.04em', color: T.txt3, textAlign: 'center', marginBottom: 6, textTransform: 'uppercase' }}>{L.name}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {[1, 2, 3].map(i => { const s = attStatusOf(item, L.key, L.prefix, i, livePtr); return <Attempt key={i} status={s.status} label={s.label} /> })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', marginTop: 14 }}>
+        <div style={{ flex: 1, padding: '13px 15px', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div>
+            <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>POS</div>
+            <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{pos || '—'}</span><span style={{ fontSize: 13, color: 'rgba(255,106,0,.6)', marginLeft: 1 }}>°</span></div>
+          </div>
+          <div style={{ flex: 'none', width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.12)' }} />
+          <div>
+            <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>TOTAL</div>
+            <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 2 }}><span style={{ fontSize: 30 }}>{item.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
+          </div>
+        </div>
+        <div style={{ flex: 'none', padding: '13px 16px', textAlign: 'right', background: 'rgba(255,106,0,.08)' }}>
+          <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>DOTS</div>
+          <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, lineHeight: .9, color: T.lime, marginTop: 2 }}>{item.dots ? item.dots.toFixed(2) : '—'}</div>
+        </div>
+      </div>
+    </div>
+  )
+})
 
 /* ============ SELECT PROPIO POWERSPACE ============ */
 function PowerSelect({ value, options, onChange, label, divider = false }) {
@@ -244,17 +396,30 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const viewStateRef = useRef({ view, selectedId, versusCat })
   const lastBackRef = useRef(0)
   const exitHintTimer = useRef(null)
-  const reloadAtletasRef = useRef(() => {})
+  // Espejo de `atletas` para decidir sincrónicamente si un patch por fila
+  // aplica, sin leer estado dentro del updater de setState.
+  const atletasRef = useRef(atletas)
+  useEffect(() => { atletasRef.current = atletas }, [atletas])
 
-  /* ---- carga + realtime del padrón completo ----
-     Todo en vivo: tiros válidos (intentos), posiciones (derivadas de atletas+intentos),
-     altas/bajas/ediciones de atletas y cambios de equipo/coach. Reload full debounced
-     para reflejar reordenamientos y filas nuevas/eliminadas (un map por-atleta no alcanza).
-     El debounce coalesce ráfagas (ej: upsert batch de resultados). */
+  /* ---- carga + realtime: padrón y estado en vivo ----
+     Un solo efecto para las dos cosas: un canal de postgres_changes, un canal
+     de broadcast, un interval y un juego de listeners. Antes eran dos efectos
+     con timers y listeners duplicados haciendo trabajo solapado.
+
+     Todo en vivo: tiros válidos (intentos), posiciones (derivadas de
+     atletas+intentos), altas/bajas/ediciones de atletas y cambios de
+     equipo/coach. Los UPDATE de `intentos` -sobre lo que pasa en cada tiro-
+     se aplican como patch de una fila; el resto de los eventos recarga el
+     padrón completo porque cambia el conjunto de filas y un map por-atleta
+     no alcanza. El debounce coalesce ráfagas (ej: upsert batch). */
   useEffect(() => {
     let alive = true
     let debounceTimer = null
     let updatingTimer = null
+    let lastAtletaId = initialEstado?.atleta_id ?? null
+    let lastEventAt = Date.now()
+
+    const marcarEvento = () => { lastEventAt = Date.now() }
 
     const reload = async () => {
       setUpdating(true)
@@ -273,49 +438,31 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       clearTimeout(debounceTimer)
       debounceTimer = setTimeout(reload, delay)
     }
-    reloadAtletasRef.current = scheduleReload
 
-    // Cierra la ventana entre el fetch SSR y la hidratación del cliente.
-    reload()
-
-    const ch = supabase
-      .channel('public:board_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, () => scheduleReload())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'atletas' }, () => scheduleReload())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipos' }, () => scheduleReload())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'coaches' }, () => scheduleReload())
-      .subscribe((status, error) => {
-        if (status === 'SUBSCRIBED') scheduleReload(0)
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('Realtime del ranking público no disponible:', error || status)
-        }
-      })
-
-    const reconcile = () => {
-      if (document.visibilityState === 'visible') scheduleReload(0)
+    // Aplica un UPDATE de `intentos` sobre la fila del atleta. Devuelve false
+    // si el atleta no está cargado todavía, y ahí el llamador recarga.
+    const patchIntento = (row) => {
+      if (!row) return false
+      const lift = MOV_LIFT[row.movimiento_id]
+      const prefix = MOV_PREFIX[row.movimiento_id]
+      const ord = ORD_WORD[row.intento_numero - 1]
+      if (!lift || !ord) return false
+      const id = Number(row.atleta_id)
+      if (!atletasRef.current.some(a => Number(a.id) === id)) return false
+      setAtletas(prev => prev.map(a => (
+        Number(a.id) === id
+          ? computeAtleta({
+              ...a,
+              [`${ord}_intento_${lift}`]: row.peso,
+              [`valido_${prefix}${row.intento_numero}`]: row.valido,
+              // La view no trae `dots`: se deriva del total. Hay que limpiarlo
+              // para que computeAtleta no conserve el de antes del tiro.
+              dots: undefined,
+            })
+          : a
+      )))
+      return true
     }
-    const interval = setInterval(reconcile, 10000)
-    window.addEventListener('focus', reconcile)
-    window.addEventListener('online', reconcile)
-    document.addEventListener('visibilitychange', reconcile)
-
-    return () => {
-      alive = false
-      reloadAtletasRef.current = () => {}
-      clearTimeout(debounceTimer)
-      clearTimeout(updatingTimer)
-      clearInterval(interval)
-      window.removeEventListener('focus', reconcile)
-      window.removeEventListener('online', reconcile)
-      document.removeEventListener('visibilitychange', reconcile)
-      supabase.removeChannel(ch)
-    }
-  }, [])
-
-  /* ---- estado en vivo ---- */
-  useEffect(() => {
-    let alive = true
-    let lastAtletaId = initialEstado?.atleta_id ?? null
 
     const fetchAtletaEnVivo = async (atletaId) => {
       if (!atletaId) {
@@ -345,37 +492,53 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       lastAtletaId = est.atleta_id ?? null
     }
 
-    // También se ejecuta con SSR para reconciliar cambios ocurridos durante la hidratación.
+    // Cierra la ventana entre el fetch SSR y la hidratación del cliente.
+    reload()
     fetchEstado()
 
     const ch = supabase
-      .channel('public:estado_competencia_publico')
+      .channel('public:publico_realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'intentos' }, (payload) => {
+        marcarEvento()
+        if (!patchIntento(payload.new)) scheduleReload()
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'intentos' }, () => { marcarEvento(); scheduleReload() })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'intentos' }, () => { marcarEvento(); scheduleReload() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'atletas' }, () => { marcarEvento(); scheduleReload() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipos' }, () => { marcarEvento(); scheduleReload() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coaches' }, () => { marcarEvento(); scheduleReload() })
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'estado_competencia', filter: 'id=eq.1' },
-        (payload) => aplicarEstado(payload.new, true)
+        (payload) => { marcarEvento(); aplicarEstado(payload.new, true) }
       )
       .subscribe((status, error) => {
-        if (status === 'SUBSCRIBED') fetchEstado()
+        if (status === 'SUBSCRIBED') { marcarEvento(); scheduleReload(0); fetchEstado() }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('Realtime del estado público no disponible:', error || status)
+          console.error('Realtime público no disponible:', error || status)
         }
       })
 
-    // Fast-path compartido con cargadores y jueces.
+    // Fast-path compartido con cargadores y referees.
     const live = joinCompetenciaLive(
-      (parcial) => aplicarEstado(parcial, false),
-      () => reloadAtletasRef.current(80)
+      (parcial) => { marcarEvento(); aplicarEstado(parcial, false) },
+      () => { marcarEvento(); scheduleReload(80) }
     )
 
+    // Forzado: se viene de un gap real (pestaña dormida, red caída). No marca
+    // evento a propósito: `lastEventAt` mide solo tráfico de realtime, así que
+    // con el socket caído el polling sigue firme cada 10s.
     const reconcile = () => {
-      if (document.visibilityState === 'visible') {
-        fetchEstado()
-        reloadAtletasRef.current(0)
-      }
+      if (document.visibilityState !== 'visible') return
+      fetchEstado()
+      scheduleReload(0)
     }
+    // Periódico: solo si el realtime quedó callado. Con el socket sano no
+    // dispara, en vez de refetchear el padrón entero cada 10s por espectador.
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchEstado()
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastEventAt < REALTIME_STALE_MS) return
+      reconcile()
     }, 10000)
     window.addEventListener('focus', reconcile)
     window.addEventListener('online', reconcile)
@@ -383,6 +546,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
 
     return () => {
       alive = false
+      clearTimeout(debounceTimer)
+      clearTimeout(updatingTimer)
       clearInterval(interval)
       window.removeEventListener('focus', reconcile)
       window.removeEventListener('online', reconcile)
@@ -401,10 +566,23 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     return () => clearInterval(t)
   }, [estado?.tiempo_restante, estado?.corriendo])
 
+  /* ---- puntero en vivo (atleta/movimiento/intento en plataforma) ----
+     Se aísla de `estado` para que las tarjetas memoizadas no se invaliden con
+     el tick del cronómetro ni con las luces de los referees. */
+  const livePtr = useMemo(() => ({
+    atletaId: estado?.atleta_id ?? null,
+    ejercicio: estado?.ejercicio ?? null,
+    intento: estado?.intento ?? null,
+  }), [estado?.atleta_id, estado?.ejercicio, estado?.intento])
+
+  // Descalificados quedan fuera de todo ranking/premiación (no cuentan ni
+  // ocupan puesto), pero se mantienen en `atletas` para búsqueda/detalle.
+  const atletasVigentes = useMemo(() => atletas.filter(a => !a.descalificado), [atletas])
+
   /* ---- posición por categoría (sobre todo el padrón) ---- */
   const posMap = useMemo(() => {
     const groups = {}
-    atletas.forEach(a => {
+    atletasVigentes.forEach(a => {
       clavesCategoriasAtleta(a).forEach((clave) => { (groups[clave] ??= []).push(a) })
     })
     const m = {}
@@ -414,20 +592,20 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       })
     })
     return m
-  }, [atletas])
+  }, [atletasVigentes])
 
   /* ---- filtrado ---- */
   const filtrados = useMemo(() => {
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase()
-      return atletas.filter(a =>
+      return atletasVigentes.filter(a =>
         `${a.nombre ?? ''} ${a.apellido ?? ''}`.toLowerCase().includes(q))
     }
     const sx = sexoSel === 'Masculino' ? 'M' : 'F'
-    let r = atletas.filter(a => a.sexo === sx)
+    let r = atletasVigentes.filter(a => a.sexo === sx)
     if (catSel !== 'todas') r = r.filter(a => a.categoria === catSel)
     return r
-  }, [atletas, busqueda, sexoSel, catSel])
+  }, [atletasVigentes, busqueda, sexoSel, catSel])
 
   /* ---- agrupado por categoría (ordenado) ---- */
   const grupos = useMemo(() => {
@@ -516,30 +694,19 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   /* ---- lista versus (categoría en vivo) + reordenamiento FLIP ---- */
   const versusList = useMemo(() => {
     if (!versusCat) return []
-    return atletas
+    return atletasVigentes
       .filter(a => clavesCategoriasAtleta(a).includes(versusCat))
-      .sort((x, y) => (y.dots || 0) - (x.dots || 0))
-  }, [atletas, versusCat])
+      .sort(porTotal)
+  }, [atletasVigentes, versusCat])
 
-  /* ---- tanda que se está disputando + orden operativo ---- */
+  /* ---- tanda que se está disputando (ranking por total levantado) ---- */
   const tandaActual = liveA?.tanda_id ?? atletaEnVivo?.tanda_id ?? null
   const tandaList = useMemo(() => {
     if (tandaActual == null) return []
-    const liveId = estado?.atleta_id
-    const ordenProximos = Array.isArray(estado?.orden_proximos) ? estado.orden_proximos : []
-    const ordenPorId = new Map(ordenProximos.map((id, index) => [Number(id), index]))
-
-    return atletas
+    return atletasVigentes
       .filter((atleta) => String(atleta.tanda_id) === String(tandaActual))
-      .sort((a, b) => {
-        if (a.id === liveId) return -1
-        if (b.id === liveId) return 1
-        const ordenA = ordenPorId.has(Number(a.id)) ? ordenPorId.get(Number(a.id)) : Number.POSITIVE_INFINITY
-        const ordenB = ordenPorId.has(Number(b.id)) ? ordenPorId.get(Number(b.id)) : Number.POSITIVE_INFINITY
-        if (ordenA !== ordenB) return ordenA - ordenB
-        return (Number(a.lot) || Number.POSITIVE_INFINITY) - (Number(b.lot) || Number.POSITIVE_INFINITY)
-      })
-  }, [atletas, tandaActual, estado?.atleta_id, estado?.orden_proximos])
+      .sort(porTotal)
+  }, [atletasVigentes, tandaActual])
 
   const rowRefs = useRef({})
   const prevTops = useRef({})
@@ -596,16 +763,18 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     return () => { window.removeEventListener('popstate', onPop); window.clearTimeout(exitHintTimer.current) }
   }, [])
 
-  const pushNav = (next) => {
+  // Estables (solo tocan refs y setters de estado): así `onOpen` no invalida
+  // las tarjetas memoizadas en cada render.
+  const pushNav = useCallback((next) => {
     navStackRef.current.push({ ...viewStateRef.current })
     if (typeof window !== 'undefined') window.history.pushState({ ...(window.history.state || {}), psGuard: true }, '')
     setView(next.view)
     if ('selectedId' in next) setSelectedId(next.selectedId)
     if ('versusCat' in next) setVersusCat(next.versusCat)
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
-  }
+  }, [])
 
-  const openDetail = (a) => pushNav({ view: 'detail', selectedId: a.id })
+  const openDetail = useCallback((a) => pushNav({ view: 'detail', selectedId: a.id }), [pushNav])
   const back = () => { if (typeof window !== 'undefined') window.history.back() }
   const verCategoria = (cat) => {
     const c = cat || clavesCategoriasAtleta(atletaEnVivo)[0]
@@ -618,48 +787,14 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   }
 
   /* ---- estado de intento ---- */
-  const attStatus = (a, liftKey, prefix, i) => {
-    const peso = a[`${ORD_WORD[i - 1]}_intento_${liftKey}`]
-    const valido = a[`valido_${prefix}${i}`]
-    let status = 'empty'
-    if (valido === true) status = 'ok'
-    else if (valido === false) status = 'fail'
-    else if (peso) {
-      const cur = estado?.atleta_id === a.id && estado?.ejercicio === liftKey && estado?.intento === i
-      status = cur ? 'current' : 'pending'
-    }
-    return { status, label: peso ? String(peso) : '—' }
-  }
-
-  const palette = (pos, isLive) => {
-    if (isLive) return { border: 'rgba(255,106,0,.4)', posBg: 'rgba(255,106,0,.12)', posColor: T.lime, posTag: 'LIVE' }
-    if (pos === 1) return { border: 'rgba(255,106,0,.22)', posBg: 'rgba(255,106,0,.1)', posColor: T.lime, posTag: 'LÍDER' }
-    return { border: 'rgba(255,255,255,.06)', posBg: 'rgba(255,255,255,.04)', posColor: '#e6e8ec', posTag: '' }
-  }
+  const attStatus = (a, liftKey, prefix, i) => attStatusOf(a, liftKey, prefix, i, livePtr)
 
   const catsDisponibles = sexoSel === 'Masculino' ? categorias.M : categorias.F
   const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
 
   return (
     <div className="ps-outer">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Oswald:wght@400;500;600;700&display=swap');
-        @keyframes psEq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
-        @keyframes psDot{0%,100%{opacity:.25}50%{opacity:1}}
-        .ps-x{scrollbar-width:none;-ms-overflow-style:none}
-        .ps-x::-webkit-scrollbar{display:none;width:0;height:0}
-        .ps-bar{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${T.lime},transparent);z-index:99;animation:psBar 1s linear infinite}
-        @keyframes psBar{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
-        .ps-view{animation:psIn .4s cubic-bezier(.22,.61,.36,1) both}
-        @keyframes psIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-        @keyframes psHero{from{transform:scale(1.12);opacity:.3}to{transform:scale(1);opacity:1}}
-        @keyframes psRow{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-        .ps-select-option:hover,.ps-select-option:focus-visible{background:rgba(255,106,0,.09)!important;color:#ff6a00!important;outline:none}
-        .ps-outer{min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:40px 24px;background:${T.pageBg};font-family:${FB}}
-        .ps-frame{width:430px;max-width:100%;background:${T.frame};border-radius:30px;overflow:hidden;box-shadow:0 30px 80px rgba(20,18,14,.32);border:1px solid rgba(0,0,0,.5)}
-        @media (max-width:600px){
-          .ps-outer{padding:0;background:${T.frame};align-items:stretch}
-          .ps-frame{width:100%;max-width:100%;border-radius:0;border:none;box-shadow:none;min-height:100vh}
-        }`}</style>
+      <style>{PS_CSS}</style>
 
       {updating && <div className="ps-bar" />}
 
@@ -675,7 +810,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
         <div style={{ position: 'sticky', top: 0, zIndex: 20, backdropFilter: 'blur(14px)', background: 'rgba(8,9,11,.82)', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src="/Gymspace-logo.png" alt="GYMSPACE" style={{ height: 34, width: 34, borderRadius: 8, objectFit: 'contain', flex: 'none' }} />
+              <img src="/Gymspace-logo.png" alt="GYMSPACE" width={34} height={34} decoding="async" style={{ height: 34, width: 34, borderRadius: 8, objectFit: 'contain', flex: 'none' }} />
               <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, letterSpacing: '.02em', color: T.txt, position: 'relative', paddingBottom: 5 }}>
                 POWERSPACE<span style={{ position: 'absolute', left: 0, bottom: 0, width: 38, height: 4, background: T.lime }} />
               </div>
@@ -707,7 +842,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                     <div style={{ flex: 'none', width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,106,0,.12)', border: '2px solid rgba(255,106,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {liveA?.foto ? (
-                        <img src={liveA.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                        <Foto src={liveA.foto} size={72} eager />
                       ) : (
                         <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 26, color: T.lime }}>{(atletaEnVivo?.nombre?.[0] || '') + (atletaEnVivo?.apellido?.[0] || '')}</span>
                       )}
@@ -767,7 +902,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       <span style={{ width: 26, height: 26, borderRadius: 8, background: T.lime, color: '#fff', fontFamily: FO, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
                       <span style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {np.foto ? (
-                          <img src={np.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                          <Foto src={np.foto} size={30} />
                         ) : (
                           <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 11, color: T.txt2 }}>{(np.nombre?.[0] || '') + (np.apellido?.[0] || '')}</span>
                         )}
@@ -836,67 +971,15 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 </div>
 
                 <Carousel>
-                  {list.map((item) => {
-                    const isLive = estado?.atleta_id === item.id
-                    const pos = posMap[item.id] || 0
-                    const pal = palette(pos, isLive)
-                    return (
-                      <div key={item.id} onClick={() => openDetail(item)} style={{ background: T.card, border: `1px solid ${pal.border}`, borderRadius: 18, overflow: 'hidden', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                          <div style={{ flex: 1, minWidth: 0, padding: '13px 15px', display: 'flex', alignItems: 'flex-start', gap: 11 }}>
-                            <div style={{ flex: 'none', width: 46, height: 46, borderRadius: '50%', overflow: 'hidden', background: pal.posBg, border: `1px solid ${pal.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {item.foto ? (
-                                <img src={item.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
-                              ) : (
-                                <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 16, color: pal.posColor }}>{(item.nombre?.[0] || '') + (item.apellido?.[0] || '')}</span>
-                              )}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 21, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1 }}>{item.nombre} {item.apellido}</span>
-                                {isLive && (
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: T.lime, borderRadius: 5, padding: '3px 6px' }}>
-                                    <Eq color="#fff" h={8} w={2} />
-                                    <span style={{ fontFamily: FM, fontSize: 8, letterSpacing: '.08em', fontWeight: 600, color: '#fff' }}>EN VIVO</span>
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: 12, color: T.txt2, marginTop: 4 }}>{item.peso_corporal ?? '—'} kg · {item.edad ?? '—'} años · {item.modalidad ?? '—'}</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 7, padding: '4px 15px 0' }}>
-                          {LIFTS.map(L => (
-                            <div key={L.key} style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.04em', color: T.txt3, textAlign: 'center', marginBottom: 6, textTransform: 'uppercase' }}>{L.name}</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                                {[1, 2, 3].map(i => { const s = attStatus(item, L.key, L.prefix, i); return <Attempt key={i} status={s.status} label={s.label} /> })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', marginTop: 14 }}>
-                          <div style={{ flex: 1, padding: '13px 15px', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <div>
-                              <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>POS</div>
-                              <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: T.lime, marginTop: 2 }}><span style={{ fontSize: 30 }}>{pos || '—'}</span><span style={{ fontSize: 13, color: 'rgba(255,106,0,.6)', marginLeft: 1 }}>°</span></div>
-                            </div>
-                            <div style={{ flex: 'none', width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.12)' }} />
-                            <div>
-                              <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>TOTAL</div>
-                              <div style={{ fontFamily: FO, fontWeight: 700, lineHeight: .9, color: '#f7f8fa', marginTop: 2 }}><span style={{ fontSize: 30 }}>{item.total || 0}</span><span style={{ fontSize: 13, color: T.txt2, marginLeft: 3 }}>kg</span></div>
-                            </div>
-                          </div>
-                          <div style={{ flex: 'none', padding: '13px 16px', textAlign: 'right', background: 'rgba(255,106,0,.08)' }}>
-                            <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '.18em', color: T.txt3 }}>DOTS</div>
-                            <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, lineHeight: .9, color: T.lime, marginTop: 2 }}>{item.dots ? item.dots.toFixed(2) : '—'}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {list.map((item) => (
+                    <RankingCard
+                      key={item.id}
+                      item={item}
+                      pos={posMap[item.id] || 0}
+                      livePtr={livePtr}
+                      onOpen={openDetail}
+                    />
+                  ))}
                 </Carousel>
               </div>
             ))}
@@ -1073,7 +1156,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <span style={{ fontFamily: FM, fontSize: 10, color: T.txt3 }}>{vlist.length} atletas · puestos provisionales</span>
-                <span style={{ fontFamily: FM, fontSize: 10, color: T.txt3 }}>ORD. POR DOTS</span>
+                <span style={{ fontFamily: FM, fontSize: 10, color: T.txt3 }}>ORD. POR TOTAL</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1088,7 +1171,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       <span style={{ flex: 'none', width: 28, textAlign: 'center', fontFamily: FO, fontWeight: 700, fontSize: 22, color: podio, lineHeight: 1 }}>{pos}</span>
                       <div style={{ flex: 'none', width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {a.foto ? (
-                          <img src={a.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                          <Foto src={a.foto} size={38} />
                         ) : (
                           <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 14, color: T.txt2 }}>{(a.nombre?.[0] || '') + (a.apellido?.[0] || '')}</span>
                         )}
@@ -1168,7 +1251,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                     color: T.lime,
                   }}
                 >
-                  ORDEN DE PLATAFORMA
+                  MAYOR PESO LEVANTADO
                 </span>
                 <span
                   style={{
@@ -1215,7 +1298,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       </div>
                       <div style={{ flex: 'none', width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: `1px solid ${isLive ? 'rgba(255,106,0,.5)' : 'rgba(255,255,255,.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {a.foto ? (
-                          <img src={a.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                          <Foto src={a.foto} size={40} />
                         ) : (
                           <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 14, color: isLive ? T.lime : T.txt2 }}>{(a.nombre?.[0] || '') + (a.apellido?.[0] || '')}</span>
                         )}

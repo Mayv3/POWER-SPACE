@@ -20,21 +20,7 @@ export async function fetchAtletasConIntentosServer({ tandaId, atletaId } = {}) 
     .order('lot', { ascending: true })
   const { data, error } = await q
   if (error) throw error
-  const filas = data ?? []
-  if (filas.length === 0) return []
-
-  const ids = filas.map((atleta) => atleta.id)
-  const { data: edades, error: edadesError } = await supabaseServer
-    .from('atletas')
-    .select('id, categoria_edad')
-    .in('id', ids)
-  if (edadesError) throw edadesError
-
-  const categoriaEdadPorId = new Map((edades ?? []).map((atleta) => [atleta.id, atleta.categoria_edad]))
-  return filas.map((atleta) => ({
-    ...atleta,
-    categoria_edad: categoriaEdadPorId.get(atleta.id) ?? [],
-  }))
+  return data ?? []
 }
 
 export async function fetchEstadoCompetenciaServer() {
@@ -46,11 +32,17 @@ export async function fetchEstadoCompetenciaServer() {
   return data ?? null
 }
 
-export async function fetchAtletaServer(id) {
+// Estado + atleta en vivo en 1 round-trip vía join embebido (FK
+// estado_competencia.atleta_id -> atletas), en vez de encadenar un segundo
+// fetch después de conocer atleta_id. Misma forma que el cliente en
+// PublicoClient.
+export async function fetchEstadoConAtletaServer() {
   const { data } = await supabaseServer
-    .from('atletas')
-    .select('*')
-    .eq('id', id)
+    .from('estado_competencia')
+    .select('*, atleta:atletas(*)')
+    .eq('id', 1)
     .maybeSingle()
-  return data ?? null
+  if (!data) return { estado: null, atleta: null }
+  const { atleta, ...estado } = data
+  return { estado, atleta: estado.atleta_id ? (atleta ?? null) : null }
 }

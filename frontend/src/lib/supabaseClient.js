@@ -18,21 +18,8 @@ export async function fetchAtletasConIntentos({ tandaId, atletaId } = {}) {
     .order('lot', { ascending: true })
   const { data, error } = await q
   if (error) throw error
-  const filas = data ?? []
-  if (filas.length === 0) return []
-
-  // Las views de Postgres expanden `*` al momento de crearse, por lo que una
-  // columna nueva de atletas no aparece automáticamente en la view existente.
-  const ids = filas.map((atleta) => atleta.id)
-  const { data: edades, error: edadesError } = await supabase
-    .from('atletas')
-    .select('id, categoria_edad')
-    .in('id', ids)
-  if (edadesError) throw edadesError
-
-  const categoriaEdadPorId = new Map((edades ?? []).map((atleta) => [atleta.id, atleta.categoria_edad]))
-  return filas.map((atleta) => ({
-    ...atleta,
-    categoria_edad: categoriaEdadPorId.get(atleta.id) ?? [],
-  }))
+  // `categoria_edad` viene en la view desde la migración
+  // 20260803120000_add_categoria_edad_to_atletas_con_intentos: un solo
+  // round-trip por recarga del padrón.
+  return data ?? []
 }

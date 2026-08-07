@@ -7,7 +7,7 @@ import {
   Button, Stack, CircularProgress, Divider, Chip,
   TextField, LinearProgress, IconButton, Tooltip,
 } from '@mui/material'
-import { CheckCircle as CheckCircleIcon, Cancel as CancelIcon, PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
+import { PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
@@ -16,10 +16,12 @@ import { apiFetch } from '../../../lib/api'
 import { capitalizeWords } from '../../../utils/textUtils'
 import { colorCategoria } from '../../../utils/colorCategoria'
 import { useDarkMode } from '../../../context/ThemeContext'
-import categorias, { claveCategoriaAtleta } from '../../../const/categorias/categorias'
+import categorias, { claveCategoriaPlataforma } from '../../../const/categorias/categorias'
+import { TANDA_IDS, letraTanda } from '../../../const/tandas'
 
 // ── Helpers puros a nivel módulo (refs estables -> columns memoizable) ──
 const MOVIMIENTO_MAP = { sentadilla: 1, banco: 2, peso_muerto: 3 }
+const ALTURAS_RACK = Array.from({ length: 20 }, (_, index) => index + 1)
 const PESO_FIELDS = {
   sentadilla: ['primer_intento_sentadilla', 'segundo_intento_sentadilla', 'tercer_intento_sentadilla'],
   banco: ['primer_intento_banco', 'segundo_intento_banco', 'tercer_intento_banco'],
@@ -71,6 +73,35 @@ function getMejorIntento(atleta, ejercicio) {
     if (peso && valido === true && peso > mejorPeso) { mejorPeso = peso; mejorNumero = n }
   }
   return mejorNumero
+}
+
+// Mismo esquema de color que columnsIntentos.js (renderIntentoCell): válido -> verde
+// (más claro si es el mejor), nulo -> rojo tachado, sin juzgar -> gris neutro.
+function renderIntentoCellCargadores(atleta, ejercicio, numero) {
+  const peso = obtenerPesoSegunEjercicio(atleta, ejercicio, numero)
+  const valido = obtenerValidoSegunEjercicio(atleta, ejercicio, numero)
+  const esMejor = getMejorIntento(atleta, ejercicio) === numero
+
+  if (!peso && peso !== 0) return (
+    <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(128, 128, 128, 0.15)' }}>
+      -
+    </Box>
+  )
+
+  const bgcolor = valido === true ? (esMejor ? '#66bb6a' : '#2e7d32')
+    : valido === false ? '#c62828'
+    : 'rgba(128, 128, 128, 0.15)'
+  const juzgado = valido === true || valido === false
+
+  return (
+    <Box sx={{
+      width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      bgcolor, color: juzgado ? '#fff' : 'inherit', fontWeight: juzgado ? 'bold' : 'normal',
+      textDecoration: valido === false ? 'line-through' : 'none',
+    }}>
+      {peso} kg
+    </Box>
+  )
 }
 
 // Mejor levantamiento válido (misma lógica que el backend getAtletasConIntentos).
@@ -527,6 +558,47 @@ export default function CargadoresPage() {
     }
   }, [atletaSeleccionado, ejercicioFiltro, intentoSeleccionado, fetchAtletas])
 
+  // Rack solo aplica a sentadilla/banco. Optimista + PUT al atleta (mismo
+  // patrón que el resto de la página: campo puntual sobre el registro completo).
+  const actualizarAlturaRack = useCallback(async (nuevaAltura) => {
+    if (!atletaSeleccionado) return
+    const campo = ejercicioFiltro === 'sentadilla' ? 'altura_rack_sentadilla'
+      : ejercicioFiltro === 'banco' ? 'altura_rack_banco' : null
+    if (!campo) return
+    const atletaId = atletaSeleccionado.id
+    const anterior = atletaSeleccionado[campo]
+    setAtletas(prev => prev.map(a => a.id === atletaId ? { ...a, [campo]: nuevaAltura } : a))
+    setAtletaSeleccionado(prev => prev?.id === atletaId ? { ...prev, [campo]: nuevaAltura } : prev)
+    try {
+      // atletaSeleccionado viene de la vista atletas_con_intentos (trae
+      // segundo_intento_*/tercer_intento_* calculados que NO existen como
+      // columnas en la tabla atletas real) -> nunca spreadear el objeto
+      // entero acá, solo los campos que updateAtleta espera.
+      const {
+        nombre, apellido, dni, fecha_nacimiento, categoria, categoria_edad,
+        peso_corporal, modalidad, tanda_id, primer_intento_sentadilla,
+        primer_intento_banco, primer_intento_peso_muerto, sexo,
+        altura_rack_sentadilla, altura_rack_banco, equipo_id, foto,
+      } = atletaSeleccionado
+      await apiFetch(`/api/atletas/${atletaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre, apellido, dni, fecha_nacimiento, categoria, categoria_edad,
+          peso_corporal, modalidad, tanda_id, primer_intento_sentadilla,
+          primer_intento_banco, primer_intento_peso_muerto, sexo,
+          altura_rack_sentadilla, altura_rack_banco, equipo_id, foto,
+          [campo]: nuevaAltura,
+        }),
+      })
+    } catch (err) {
+      console.error('Error al actualizar altura de rack:', err)
+      toast.error('No se pudo guardar la altura del rack')
+      setAtletas(prev => prev.map(a => a.id === atletaId ? { ...a, [campo]: anterior } : a))
+      setAtletaSeleccionado(prev => prev?.id === atletaId ? { ...prev, [campo]: anterior } : prev)
+    }
+  }, [atletaSeleccionado, ejercicioFiltro])
+
   const descartarSolicitudPeso = useCallback((solicitudId) => {
     setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
   }, [])
@@ -649,6 +721,11 @@ export default function CargadoresPage() {
   // Memoizado: solo se reconstruye al cambiar de ejercicio, no en cada render/tick.
   const columns = useMemo(() => [
     {
+      field: 'lot', headerName: 'Lot', flex: 0.04, minWidth: 60,
+      align: 'center', headerAlign: 'center', type: 'number',
+      renderCell: (params) => params.value ?? '-',
+    },
+    {
       field: 'apellido', headerName: 'Apellido', flex: 0.06, minWidth: 100,
       align: 'center', headerAlign: 'center',
       renderCell: (params) => capitalizeWords(params.value),
@@ -656,17 +733,12 @@ export default function CargadoresPage() {
     {
       field: 'categoria', headerName: 'Categoría', flex: 0.07, minWidth: 150,
       align: 'center', headerAlign: 'center',
-      valueGetter: (value, row) => claveCategoriaAtleta(row),
-    },
-    {
-      field: 'division', headerName: 'División', flex: 0.06, minWidth: 120,
-      align: 'center', headerAlign: 'center',
-      valueGetter: (value, row) => row.modalidad ?? '',
-      renderCell: (params) => params.row.modalidad || '—',
+      valueGetter: (value, row) => claveCategoriaPlataforma(row),
     },
     {
       field: 'intento1', headerName: '1°', flex: 0.06, minWidth: 80,
       align: 'center', headerAlign: 'center', editable: true, type: 'number',
+      cellClassName: 'full-bleed-cell',
       valueGetter: (value, row) => {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return row[`primer_intento_${ek}`] || null
@@ -675,23 +747,12 @@ export default function CargadoresPage() {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return { ...row, [`primer_intento_${ek}`]: value }
       },
-      renderCell: (params) => {
-        const peso = obtenerPesoSegunEjercicio(params.row, ejercicioFiltro, 1)
-        const valido = obtenerValidoSegunEjercicio(params.row, ejercicioFiltro, 1)
-        const esMejor = getMejorIntento(params.row, ejercicioFiltro) === 1
-        if (!peso && peso !== 0) return <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</Box>
-        return (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
-            <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
-            {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
-          </Box>
-        )
-      },
+      renderCell: (params) => renderIntentoCellCargadores(params.row, ejercicioFiltro, 1),
     },
     {
       field: 'intento2', headerName: '2°', flex: 0.06, minWidth: 80,
       align: 'center', headerAlign: 'center', editable: true, type: 'number',
+      cellClassName: 'full-bleed-cell',
       valueGetter: (value, row) => {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return row[`segundo_intento_${ek}`] || null
@@ -700,23 +761,12 @@ export default function CargadoresPage() {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return { ...row, [`segundo_intento_${ek}`]: value }
       },
-      renderCell: (params) => {
-        const peso = obtenerPesoSegunEjercicio(params.row, ejercicioFiltro, 2)
-        const valido = obtenerValidoSegunEjercicio(params.row, ejercicioFiltro, 2)
-        const esMejor = getMejorIntento(params.row, ejercicioFiltro) === 2
-        if (!peso && peso !== 0) return <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</Box>
-        return (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
-            <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
-            {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
-          </Box>
-        )
-      },
+      renderCell: (params) => renderIntentoCellCargadores(params.row, ejercicioFiltro, 2),
     },
     {
       field: 'intento3', headerName: '3°', flex: 0.06, minWidth: 80,
       align: 'center', headerAlign: 'center', editable: true, type: 'number',
+      cellClassName: 'full-bleed-cell',
       valueGetter: (value, row) => {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return row[`tercer_intento_${ek}`] || null
@@ -725,19 +775,7 @@ export default function CargadoresPage() {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return { ...row, [`tercer_intento_${ek}`]: value }
       },
-      renderCell: (params) => {
-        const peso = obtenerPesoSegunEjercicio(params.row, ejercicioFiltro, 3)
-        const valido = obtenerValidoSegunEjercicio(params.row, ejercicioFiltro, 3)
-        const esMejor = getMejorIntento(params.row, ejercicioFiltro) === 3
-        if (!peso && peso !== 0) return <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</Box>
-        return (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, bgcolor: esMejor ? '#fff3e0' : 'transparent', borderRadius: 1, fontWeight: esMejor ? 'bold' : 'normal', color: esMejor ? '#e65100' : 'inherit' }}>
-            <span>{peso} kg</span>
-            {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
-            {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
-          </Box>
-        )
-      },
+      renderCell: (params) => renderIntentoCellCargadores(params.row, ejercicioFiltro, 3),
     },
   ], [ejercicioFiltro])
 
@@ -757,7 +795,7 @@ export default function CargadoresPage() {
   // Tarea 8: cada fila se pinta con el color de su categoria (un solo color por fila),
   // asi se identifica quien compite con quien.
   const categoriasEnTanda = useMemo(
-    () => [...new Set(atletasMostrados.map(claveCategoriaAtleta).filter(Boolean))],
+    () => [...new Set(atletasMostrados.map(claveCategoriaPlataforma).filter(Boolean))],
     [atletasMostrados]
   )
   const tinteRowSx = useMemo(() => categoriasEnTanda.reduce((acc, cat, i) => {
@@ -769,7 +807,7 @@ export default function CargadoresPage() {
     return acc
   }, {}), [categoriasEnTanda])
   const getRowClassNameCategoria = useCallback((params) => {
-    const i = categoriasEnTanda.indexOf(claveCategoriaAtleta(params.row))
+    const i = categoriasEnTanda.indexOf(claveCategoriaPlataforma(params.row))
     return i >= 0 ? `catgrp-${i}` : ''
   }, [categoriasEnTanda])
 
@@ -869,7 +907,7 @@ export default function CargadoresPage() {
           <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>Cargadores</Typography>
           <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 0.5 }}>
             <Chip label={ejercicioLabel} size="small" sx={{ bgcolor: ejercicioColor, color: '#fff', fontWeight: 700, fontSize: '0.75rem' }} />
-            <Chip label={`Tanda ${tandaFiltro}`} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
+            <Chip label={`Tanda ${letraTanda(tandaFiltro)}`} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
             {pesoFiltro !== 'todos' && (
               <Chip label={pesoFiltro} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
             )}
@@ -959,7 +997,7 @@ export default function CargadoresPage() {
                 label: 'Tanda',
                 value: tandaFiltro,
                 onChange: (e) => setTandaFiltro(e.target.value),
-                options: [[1, 'Tanda 1'], [2, 'Tanda 2'], [3, 'Tanda 3'], [4, 'Tanda 4']],
+                options: TANDA_IDS.map((id) => [id, `Tanda ${letraTanda(id)}`]),
               },
               {
                 label: 'Categoría',
@@ -1026,7 +1064,7 @@ export default function CargadoresPage() {
                 processRowUpdate={processRowUpdate}
                 onProcessRowUpdateError={handleProcessRowUpdateError}
                 getRowClassName={getRowClassNameCategoria}
-                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile && !isTableCramped, division: !isMobile && !isTableCramped }}
+                columnVisibilityModel={{ nombre: !isMobile, tanda_id: !isMobile, categoria: !isMobile && !isTableCramped }}
               />
             )}
           </Box>
@@ -1070,6 +1108,7 @@ export default function CargadoresPage() {
                         : ejercicioFiltro === 'banco'
                           ? (atletaSeleccionado.altura_rack_banco || '—')
                           : '—',
+                      editable: ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco',
                     },
                     {
                       label: 'Peso en barra',
@@ -1079,7 +1118,7 @@ export default function CargadoresPage() {
                     {
                       label: 'Atleta',
                       value: `${capitalizeWords(atletaSeleccionado.nombre)} ${capitalizeWords(atletaSeleccionado.apellido)}`,
-                      detail: claveCategoriaAtleta(atletaSeleccionado),
+                      detail: claveCategoriaPlataforma(atletaSeleccionado),
                     },
                     {
                       label: 'Intento',
@@ -1106,16 +1145,44 @@ export default function CargadoresPage() {
                       <Typography sx={{ fontSize: '0.68rem', lineHeight: 1, letterSpacing: 1.1, textTransform: 'uppercase', color: '#8aa9a0' }}>
                         {dato.label}
                       </Typography>
-                      <Typography
-                        noWrap
-                        sx={{
-                          width: '100%', mt: 0.65, color: dato.label === 'Peso en barra' ? ejercicioColor : 'text.primary',
-                          fontSize: dato.label === 'Peso en barra' ? { xs: '1.35rem', md: '1.7rem' } : { xs: '0.95rem', md: '1.05rem' },
-                          fontWeight: 900, lineHeight: 1.1,
-                        }}
-                      >
-                        {dato.value}
-                      </Typography>
+                      {dato.editable ? (
+                        <Select
+                          value={
+                            (ejercicioFiltro === 'sentadilla'
+                              ? atletaSeleccionado.altura_rack_sentadilla
+                              : atletaSeleccionado.altura_rack_banco) || ''
+                          }
+                          onChange={(e) => actualizarAlturaRack(Number(e.target.value))}
+                          displayEmpty
+                          variant="standard"
+                          disableUnderline
+                          MenuProps={{
+                            PaperProps: { style: { maxHeight: 48 * 5.5 } },
+                          }}
+                          sx={{
+                            width: '100%', mt: 0.65,
+                            fontSize: { xs: '0.95rem', md: '1.05rem' },
+                            fontWeight: 900, lineHeight: 1.1, color: 'text.primary',
+                            '& .MuiSelect-select': { py: 0, textAlign: 'center' },
+                          }}
+                        >
+                          <MenuItem value=""><em>—</em></MenuItem>
+                          {ALTURAS_RACK.map((altura) => (
+                            <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Typography
+                          noWrap
+                          sx={{
+                            width: '100%', mt: 0.65, color: dato.label === 'Peso en barra' ? ejercicioColor : 'text.primary',
+                            fontSize: dato.label === 'Peso en barra' ? { xs: '1.35rem', md: '1.7rem' } : { xs: '0.95rem', md: '1.05rem' },
+                            fontWeight: 900, lineHeight: 1.1,
+                          }}
+                        >
+                          {dato.value}
+                        </Typography>
+                      )}
                       {dato.detail && (
                         <Typography noWrap sx={{ width: '100%', mt: 0.45, fontSize: '0.67rem', color: 'text.secondary', fontWeight: 600 }}>
                           {dato.detail}
@@ -1124,22 +1191,6 @@ export default function CargadoresPage() {
                     </Box>
                   ))}
                 </Box>
-
-                {atletaSeleccionado.modalidad && (
-                  <Box
-                    sx={{
-                      borderTop: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
-                      px: 1.5, py: 1, textAlign: 'center',
-                    }}
-                  >
-                    <Typography sx={{ fontSize: '0.62rem', lineHeight: 1, letterSpacing: 1, textTransform: 'uppercase', color: '#8aa9a0' }}>
-                      División
-                    </Typography>
-                    <Typography noWrap sx={{ mt: 0.35, fontSize: '0.88rem', fontWeight: 800 }}>
-                      {atletaSeleccionado.modalidad}
-                    </Typography>
-                  </Box>
-                )}
               </Box>
 
               {/* Discos */}

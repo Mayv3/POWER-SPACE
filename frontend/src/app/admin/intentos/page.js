@@ -10,10 +10,11 @@ import { Search as SearchIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsIntentos } from '../../../const/columns/columnsIntentos'
 import { ValidoIntentoModal } from '../../../components/modales/ValidoIntentoModal'
-import { Calculate_DOTS } from '../../../utils/calcularDots'
+import { Calculate_IPF_GL } from '../../../utils/calcularIPF'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
 import { clavesCategoriasAtleta } from '../../../const/categorias/categorias'
+import { TANDA_IDS, letraTanda } from '../../../const/tandas'
 
 function calcularPuestos(atletas) {
   const grupos = {}
@@ -30,11 +31,11 @@ function calcularPuestos(atletas) {
   Object.keys(grupos).forEach(grupoKey => {
     const atletasDelGrupo = grupos[grupoKey]
 
-    const conDots = atletasDelGrupo
-      .filter(a => a.dots && a.dots > 0)
-      .sort((a, b) => b.dots - a.dots)
+    const conGl = atletasDelGrupo
+      .filter(a => a.ipf_gl && a.ipf_gl > 0)
+      .sort((a, b) => b.ipf_gl - a.ipf_gl)
 
-    conDots.forEach((atleta, index) => {
+    conGl.forEach((atleta, index) => {
       const puesto = index + 1
       mejorPuestoPorId.set(atleta.id, Math.min(mejorPuestoPorId.get(atleta.id) ?? Infinity, puesto))
     })
@@ -102,13 +103,14 @@ export default function IntentosPage() {
         const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
         const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
 
-        let dots = null
+        let ipf_gl = null
         if (tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal > 0) {
           const isFemale = atleta.sexo === 'F'
-          dots = parseFloat(Calculate_DOTS(atleta.peso_corporal, total, isFemale))
+          const equipado = String(atleta.modalidad || '').toLowerCase().includes('equip')
+          ipf_gl = parseFloat(Calculate_IPF_GL(atleta.peso_corporal, total, isFemale, equipado).toFixed(2))
         }
 
-        return { ...atleta, total: total > 0 ? total : null, dots }
+        return { ...atleta, total: total > 0 ? total : null, ipf_gl }
       })
 
       const atletasConPuestos = calcularPuestos(atletasConDots)
@@ -180,6 +182,28 @@ export default function IntentosPage() {
         if (!res.ok) throw new Error('Error al actualizar intento')
       }
 
+      // newRow viene de la vista atletas_con_intentos (segundo_intento_*, ipf_gl,
+      // etc. no existen como columnas reales en atletas) -> whitelist explícita.
+      if (newRow.altura_rack_sentadilla !== oldRow.altura_rack_sentadilla || newRow.altura_rack_banco !== oldRow.altura_rack_banco) {
+        const {
+          nombre, apellido, dni, fecha_nacimiento, categoria, categoria_edad,
+          peso_corporal, modalidad, tanda_id, primer_intento_sentadilla,
+          primer_intento_banco, primer_intento_peso_muerto, sexo,
+          altura_rack_sentadilla, altura_rack_banco, equipo_id, foto,
+        } = newRow
+        const res = await apiFetch(`/api/atletas/${newRow.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre, apellido, dni, fecha_nacimiento, categoria, categoria_edad,
+            peso_corporal, modalidad, tanda_id, primer_intento_sentadilla,
+            primer_intento_banco, primer_intento_peso_muerto, sexo,
+            altura_rack_sentadilla, altura_rack_banco, equipo_id, foto,
+          }),
+        })
+        if (!res.ok) throw new Error('Error al actualizar altura de rack')
+      }
+
       const sentadilla = Math.max(
         newRow.valido_s1 === true ? (newRow.primer_intento_sentadilla || 0) : 0,
         newRow.valido_s2 === true ? (newRow.segundo_intento_sentadilla || 0) : 0,
@@ -202,13 +226,14 @@ export default function IntentosPage() {
       const tienePesoMuertoValido = newRow.valido_d1 === true || newRow.valido_d2 === true || newRow.valido_d3 === true
       const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
 
-      let dots = null
+      let ipf_gl = null
       if (tieneTodasLasValidaciones && total > 0 && newRow.peso_corporal > 0) {
         const isFemale = newRow.sexo === 'F'
-        dots = parseFloat(Calculate_DOTS(newRow.peso_corporal, total, isFemale))
+        const equipado = String(newRow.modalidad || '').toLowerCase().includes('equip')
+        ipf_gl = parseFloat(Calculate_IPF_GL(newRow.peso_corporal, total, isFemale, equipado).toFixed(2))
       }
 
-      const rowConDots = { ...newRow, total: total > 0 ? total : null, dots }
+      const rowConDots = { ...newRow, total: total > 0 ? total : null, ipf_gl }
       const atletasActualizados = atletas.map(a => a.id === newRow.id ? rowConDots : a)
       const atletasConPuestos = calcularPuestos(atletasActualizados)
       setAtletas(atletasConPuestos)
@@ -306,13 +331,14 @@ export default function IntentosPage() {
       const tienePesoMuertoValido = atletaActualizado.valido_d1 === true || atletaActualizado.valido_d2 === true || atletaActualizado.valido_d3 === true
       const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
 
-      let dots = null
+      let ipf_gl = null
       if (tieneTodasLasValidaciones && total > 0 && atletaActualizado.peso_corporal > 0) {
         const isFemale = atletaActualizado.sexo === 'F'
-        dots = parseFloat(Calculate_DOTS(atletaActualizado.peso_corporal, total, isFemale))
+        const equipado = String(atletaActualizado.modalidad || '').toLowerCase().includes('equip')
+        ipf_gl = parseFloat(Calculate_IPF_GL(atletaActualizado.peso_corporal, total, isFemale, equipado).toFixed(2))
       }
 
-      const rowConDots = { ...atletaActualizado, total: total > 0 ? total : null, dots }
+      const rowConDots = { ...atletaActualizado, total: total > 0 ? total : null, ipf_gl }
       const atletasActualizados = atletas.map(a => a.id === selectedIntento.atleta.id ? rowConDots : a)
       const atletasConPuestos = calcularPuestos(atletasActualizados)
       setAtletas(atletasConPuestos)
@@ -385,7 +411,7 @@ export default function IntentosPage() {
               label: 'Tanda',
               value: tandaSeleccionada,
               onChange: (e) => setTandaSeleccionada(e.target.value),
-              options: [['todas', 'Todas las tandas'], ['1', 'Tanda 1'], ['2', 'Tanda 2'], ['3', 'Tanda 3'], ['4', 'Tanda 4']],
+              options: [['todas', 'Todas las tandas'], ...TANDA_IDS.map((id) => [String(id), `Tanda ${letraTanda(id)}`])],
             },
             {
               label: 'Categoría',
@@ -452,9 +478,8 @@ export default function IntentosPage() {
                 tanda_id: false,
                 peso_corporal: false,
                 categoria: false,
-                modalidad: false,
                 puesto: false,
-                dots: false,
+                ipf_gl: false,
               } : undefined}
             />
           )}

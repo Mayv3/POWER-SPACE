@@ -8,10 +8,11 @@ import {
   Tabs, Tab, Accordion, AccordionSummary, AccordionDetails, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material'
-import { Search as SearchIcon, GroupAdd as GroupAddIcon, Groups as GroupsIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon, SupervisorAccount as SupervisorAccountIcon, ExpandMore as ExpandIcon, EmojiEvents as TrophyIcon, Info as InfoIcon } from '@mui/icons-material'
+import { Search as SearchIcon, GroupAdd as GroupAddIcon, Groups as GroupsIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon, SupervisorAccount as SupervisorAccountIcon, ExpandMore as ExpandIcon, EmojiEvents as TrophyIcon, Info as InfoIcon } from '@mui/icons-material'
 import { GenericModal } from '../../../components/modales/GenericModal'
 import { EquipoForm } from '../../../components/modales/EquipoForm'
 import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
+import { AsignarAtletasModal } from '../../../components/modales/AsignarAtletasModal'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { capitalizeWords } from '../../../utils/textUtils'
 import { colorCategoria } from '../../../utils/colorCategoria'
@@ -489,7 +490,7 @@ function PremiacionCategoriasView({ premiacion, isLoading, surface, border, isDa
 
 function EquiposManager({
   equipos, isLoading, searchTerm, setSearchTerm,
-  surface, border, isDark, onCreate, onEdit, onDelete,
+  surface, border, isDark, onCreate, onEdit, onDelete, onAsignar,
 }) {
   return (
     <Box sx={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -583,7 +584,17 @@ function EquiposManager({
                         </Stack>
                       </TableCell>
                       <TableCell align="right">
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title="Asignar atletas">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => { e.stopPropagation(); onAsignar(equipo) }}
+                              aria-label="Asignar atletas"
+                              sx={{ color: '#F57C00', '&:hover': { bgcolor: 'rgba(245,124,0,.09)' } }}
+                            >
+                              <PersonAddIcon sx={{ fontSize: 20 }} />
+                            </IconButton>
+                          </Tooltip>
                           <CardMenu onEdit={() => onEdit(equipo)} onDelete={() => onDelete(equipo)} />
                         </Box>
                       </TableCell>
@@ -624,6 +635,9 @@ export default function EquiposPage() {
   const [openCreate, setOpenCreate] = useState(false)
   const [loadingCreate, setLoadingCreate] = useState(false)
   const [newEquipo, setNewEquipo] = useState(EMPTY_EQUIPO)
+
+  const [openAsignar, setOpenAsignar] = useState(false)
+  const [equipoParaAsignar, setEquipoParaAsignar] = useState(null)
 
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
@@ -689,7 +703,7 @@ export default function EquiposPage() {
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get('tab')
-    if (['equipos', 'coaches', 'premiacion'].includes(tab)) setVista(tab)
+    if (['equipos', 'premiacion'].includes(tab)) setVista(tab)
   }, [])
 
   useEffect(() => {
@@ -763,6 +777,8 @@ export default function EquiposPage() {
     }
   }
 
+  const handleAsignar = (equipo) => { setEquipoParaAsignar(equipo); setOpenAsignar(true) }
+
   const handleDelete = (equipo) => { setEquipoToDelete(equipo); setOpenDelete(true) }
 
   const confirmDelete = async () => {
@@ -805,7 +821,6 @@ export default function EquiposPage() {
         sx={{ borderBottom: `1px solid ${border}`, minHeight: 40, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, minHeight: 40 }, '& .Mui-selected': { color: '#F57C00 !important' }, '& .MuiTabs-indicator': { backgroundColor: '#F57C00' } }}
       >
         <Tab value="equipos" label="Equipos" icon={<GroupsIcon sx={{ fontSize: 18 }} />} iconPosition="start" />
-        <Tab value="coaches" label="Coaches" icon={<SupervisorAccountIcon sx={{ fontSize: 18 }} />} iconPosition="start" />
         <Tab value="premiacion" label="Premiación" icon={<TrophyIcon sx={{ fontSize: 18 }} />} iconPosition="start" />
       </Tabs>
 
@@ -834,26 +849,47 @@ export default function EquiposPage() {
             sx={{
               height: '100%', minHeight: 0,
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) minmax(0, 1fr)' },
+              gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) auto minmax(0, 1fr)' },
               gap: 2,
             }}
           >
-            <EquiposManager
-              equipos={equiposFiltrados}
-              isLoading={isLoading}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              surface={surface}
-              border={border}
-              isDark={isDark}
-              onCreate={() => setOpenCreate(true)}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-            <CoachesManager onCoachesChange={async () => { await Promise.all([fetchCoaches(), fetchEquipos()]) }} />
+            <Box sx={{ minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Stack direction="row" alignItems="center" gap={0.75}>
+                <GroupsIcon sx={{ fontSize: 20, color: '#F57C00' }} />
+                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>Equipos</Typography>
+                <Typography variant="caption" color="text.secondary">— a qué equipo pertenece cada atleta</Typography>
+              </Stack>
+              <EquiposManager
+                equipos={equiposFiltrados}
+                isLoading={isLoading}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                surface={surface}
+                border={border}
+                isDark={isDark}
+                onCreate={() => setOpenCreate(true)}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onAsignar={handleAsignar}
+              />
+            </Box>
+
+            <Box sx={{
+              borderColor: border,
+              borderStyle: 'solid',
+              borderWidth: { xs: '1px 0 0 0', lg: '0 0 0 1px' },
+              my: { xs: 1, lg: 0 },
+            }} />
+
+            <Box sx={{ minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Stack direction="row" alignItems="center" gap={0.75}>
+                <SupervisorAccountIcon sx={{ fontSize: 20, color: '#F57C00' }} />
+                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>Coaches</Typography>
+                <Typography variant="caption" color="text.secondary">— personas responsables, no son equipos</Typography>
+              </Stack>
+              <CoachesManager onCoachesChange={async () => { await Promise.all([fetchCoaches(), fetchEquipos()]) }} />
+            </Box>
           </Box>
-        ) : vista === 'coaches' ? (
-          <CoachesManager onCoachesChange={async () => { await Promise.all([fetchCoaches(), fetchEquipos()]) }} />
         ) : vista === 'premiacion' ? (
           tipoPremiacion === 'categorias' ? (
             <PremiacionCategoriasView
@@ -894,6 +930,13 @@ export default function EquiposPage() {
       >
         <EquipoForm equipo={newEquipo} onChange={setNewEquipo} coaches={coaches} />
       </GenericModal>
+
+      <AsignarAtletasModal
+        open={openAsignar}
+        equipo={equipoParaAsignar}
+        onClose={() => setOpenAsignar(false)}
+        onAssigned={fetchEquipos}
+      />
 
       <DeleteGenericModal
         open={openDelete}

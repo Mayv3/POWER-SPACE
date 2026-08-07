@@ -15,6 +15,29 @@ export const CATEGORIAS_EDAD = [
 
 const CATEGORIAS_JUVENILES = new Set(['Sub-Junior', 'Junior'])
 
+// Abreviación estándar de categoría de edad, combinada con sexo: F-SJr, M-O, F-M2, etc.
+const CODIGOS_CATEGORIA_EDAD = {
+  'Sub-Junior': 'SJr',
+  'Junior': 'Jr',
+  'Open': 'O',
+  'Master I': 'M1',
+  'Master II': 'M2',
+  'Master III': 'M3',
+  'Master IV': 'M4',
+}
+
+export function abreviarCategoriaEdad(sexo, categoriaEdad) {
+  if (!categoriaEdad) return ''
+  const codigo = CODIGOS_CATEGORIA_EDAD[categoriaEdad] || categoriaEdad
+  const prefijo = sexo === 'F' ? 'F' : sexo === 'M' ? 'M' : ''
+  return prefijo ? `${prefijo}-${codigo}` : codigo
+}
+
+export function abreviarCategoriasEdad(sexo, categoriaEdad) {
+  const edades = normalizarCategoriasEdad(categoriaEdad)
+  return edades.map((edad) => abreviarCategoriaEdad(sexo, edad))
+}
+
 function parseFechaLocal(fecha) {
   if (!fecha) return null
   const [year, month, day] = String(fecha).slice(0, 10).split('-').map(Number)
@@ -70,12 +93,21 @@ export function normalizarCategoriasEdad(valor) {
 export function clavesCategoriasAtleta(atleta) {
   const edades = normalizarCategoriasEdad(atleta?.categoria_edad)
   if (edades.length === 0) return [atleta?.categoria || 'Sin categoría']
-  return edades.map((edad) => [edad, atleta?.categoria].filter(Boolean).join(' · '))
+  return edades.map((edad) => [abreviarCategoriaEdad(atleta?.sexo, edad), atleta?.categoria].filter(Boolean).join(' · '))
 }
 
 export function claveCategoriaAtleta(atleta) {
   const edades = normalizarCategoriasEdad(atleta?.categoria_edad)
-  return [edades.join(' / '), atleta?.categoria].filter(Boolean).join(' · ') || 'Sin categoría'
+  const abreviadas = edades.map((edad) => abreviarCategoriaEdad(atleta?.sexo, edad))
+  return [abreviadas.join(' / '), atleta?.categoria].filter(Boolean).join(' · ') || 'Sin categoría'
+}
+
+// Clave de categoría compacta para plataforma (cargadores): "M-SJr 43kg",
+// sexo incluido en el código de edad, sin guion como separador con el peso.
+export function claveCategoriaPlataforma(atleta) {
+  const codigos = abreviarCategoriasEdad(atleta?.sexo, atleta?.categoria_edad)
+  const pesoSinSexo = atleta?.categoria ? atleta.categoria.replace(/^[MF]\s*-\s*/, '') : ''
+  return [codigos.join(' / '), pesoSinSexo].filter(Boolean).join(' ') || 'Sin categoría'
 }
 
 export default categorias

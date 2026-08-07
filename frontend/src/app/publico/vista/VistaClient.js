@@ -9,10 +9,7 @@ import { joinCompetenciaLive } from '../../../lib/competenciaLive'
 export default function VistaClient({ initialEstado = null }) {
     const [estadoCompetencia, setEstadoCompetencia] = useState(initialEstado)
     const [tiempoLocal, setTiempoLocal] = useState(initialEstado?.tiempo_restante ?? 60)
-    const [mostrarResultado, setMostrarResultado] = useState(false)
     const timerRef = useRef(null)
-    const resultTimerRef = useRef(null)
-    const dismissTimerRef = useRef(null)
     const corridoRef = useRef(false)
 
     // Presentación animada del equipo + coach al seleccionar un atleta
@@ -90,22 +87,6 @@ export default function VistaClient({ initialEstado = null }) {
         estadoCompetencia?.juez2_valido !== null && estadoCompetencia?.juez2_valido !== undefined &&
         estadoCompetencia?.juez3_valido !== null && estadoCompetencia?.juez3_valido !== undefined
 
-    // Aparece a los 2s, desaparece solo a los 5s (2s espera + 3s visible)
-    useEffect(() => {
-        if (todosVotaron) {
-            resultTimerRef.current  = setTimeout(() => setMostrarResultado(true),  2000)
-            dismissTimerRef.current = setTimeout(() => setMostrarResultado(false), 5000)
-        } else {
-            clearTimeout(resultTimerRef.current)
-            clearTimeout(dismissTimerRef.current)
-            setMostrarResultado(false)
-        }
-        return () => {
-            clearTimeout(resultTimerRef.current)
-            clearTimeout(dismissTimerRef.current)
-        }
-    }, [todosVotaron])
-
     // Al cambiar el atleta en curso: traer su equipo/coach y mostrar presentación animada
     useEffect(() => {
         const aid = estadoCompetencia?.atleta_id
@@ -161,14 +142,6 @@ export default function VistaClient({ initialEstado = null }) {
 
     const nombre = estadoCompetencia.atleta_nombre?.toUpperCase()
     const apellido = estadoCompetencia.atleta_apellido?.toUpperCase()
-
-    const votosValidos = [
-        estadoCompetencia.juez1_valido,
-        estadoCompetencia.juez2_valido,
-        estadoCompetencia.juez3_valido,
-    ].filter(v => v === true).length
-
-    const esValido = votosValidos >= 2
 
     return (
         <Box sx={{ minHeight: '100vh', backgroundColor: '#000', p: 4, my: 'auto', position: 'relative', overflow: 'hidden' }}>
@@ -277,33 +250,6 @@ export default function VistaClient({ initialEstado = null }) {
                     </Paper>
                 </Box>
             </Paper>
-
-            {/* Banner resultado — pantalla completa, entra desde abajo */}
-            <Box sx={{
-                position: 'fixed',
-                left: 0, right: 0,
-                bottom: mostrarResultado ? 0 : '-100vh',
-                height: '100vh',
-                backgroundColor: esValido ? '#00c853' : '#d50000',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'bottom 0.55s cubic-bezier(0.34, 1.2, 0.64, 1)',
-                zIndex: 200,
-            }}>
-                <Typography sx={{
-                    fontSize: '12rem',
-                    fontWeight: 900,
-                    color: '#fff',
-                    letterSpacing: 12,
-                    textShadow: esValido
-                        ? '0 0 80px rgba(0,255,100,0.4)'
-                        : '0 0 80px rgba(255,0,0,0.4)',
-                    opacity: mostrarResultado ? 1 : 0,
-                    transition: 'opacity 0.25s ease 0.3s',
-                    userSelect: 'none',
-                }}>
-                    {esValido ? 'VÁLIDO' : 'NULO'}
-                </Typography>
-            </Box>
 
             {/* Presentación animada del equipo + coach */}
             {presentacion && (

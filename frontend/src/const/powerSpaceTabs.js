@@ -5,7 +5,7 @@ export const powerspaceTabs = [
   { label: "Equipos", icon: <GroupsIcon />, route: "/admin/equipos" },
   { label: "Intentos", icon: <FitnessCenterIcon />, route: "/admin/intentos" },
   { label: "Cargadores", icon: <TvIcon />, route: "/admin/cargadores" },
-  { label: "Jueces", icon: <GavelIcon />, route: "/admin/jueces" },
+  { label: "Referees", icon: <GavelIcon />, route: "/admin/referees" },
   { label: "Datos", icon: <StorageIcon />, route: "/admin/historico" },
   { label: "Vista Pública", icon: <VisibilityIcon />, route: "/publico/vista" },
 ]

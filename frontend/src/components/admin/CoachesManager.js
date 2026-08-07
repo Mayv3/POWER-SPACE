@@ -19,16 +19,11 @@ import { useDarkMode } from '../../context/ThemeContext'
 import { capitalizeWords } from '../../utils/textUtils'
 import { apiFetch } from '../../lib/api'
 
-const COLORES = ['#F57C00', '#1976d2', '#388e3c', '#7b1fa2', '#d32f2f', '#0097a7']
 const EMPTY_COACH = { nombre: '', foto: null }
 
 function iniciales(nombre) {
   if (!nombre) return '?'
   return nombre.trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase()).join('')
-}
-
-function colorPorId(id) {
-  return COLORES[Number(id) % COLORES.length]
 }
 
 function CardMenu({ onEdit, onDelete }) {
@@ -225,12 +220,11 @@ export function CoachesManager({ onCoachesChange }) {
               </TableHead>
               <TableBody>
                 {coachesFiltrados.map((coach) => {
-                  const color = colorPorId(coach.id)
                   return (
                     <TableRow key={coach.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                       <TableCell>
                         <Stack direction="row" alignItems="center" spacing={1.25}>
-                          <Avatar src={coach.foto || undefined} sx={{ width: 38, height: 38, bgcolor: color, fontSize: '0.85rem', fontWeight: 800 }}>
+                          <Avatar src={coach.foto || undefined} sx={{ width: 38, height: 38, bgcolor: '#bdbdbd', fontSize: '0.85rem', fontWeight: 800 }}>
                             {iniciales(coach.nombre)}
                           </Avatar>
                           <Box>

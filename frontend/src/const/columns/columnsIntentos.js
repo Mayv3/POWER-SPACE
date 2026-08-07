@@ -1,7 +1,40 @@
-import { Box, Chip } from '@mui/material'
-import { CheckCircle as CheckCircleIcon, Cancel as CancelIcon, EmojiEvents as EmojiEventsIcon } from '@mui/icons-material'
+import { Box, Chip, Select, MenuItem } from '@mui/material'
+import { useGridApiContext } from '@mui/x-data-grid'
 import { capitalizeWords } from '../../utils/textUtils'
 import { colorCategoria } from '../../utils/colorCategoria'
+import { claveCategoriaPlataforma } from '../categorias/categorias'
+import { letraTanda } from '../tandas'
+
+const ALTURAS_RACK = Array.from({ length: 20 }, (_, index) => index + 1)
+
+// Editor de altura de rack: dropdown propio (no el singleSelect nativo) para
+// poder limitar el menú a ~5 opciones visibles con scroll para el resto.
+function RackSelectEditCell({ id, field, value }) {
+  const apiRef = useGridApiContext()
+
+  const commit = async (newValue) => {
+    await apiRef.current.setEditCellValue({ id, field, value: newValue })
+    apiRef.current.stopCellEditMode({ id, field })
+  }
+
+  return (
+    <Select
+      value={value ?? ''}
+      onChange={(e) => commit(e.target.value === '' ? null : Number(e.target.value))}
+      onClose={() => apiRef.current.stopCellEditMode({ id, field })}
+      open
+      autoFocus
+      fullWidth
+      MenuProps={{ PaperProps: { style: { maxHeight: 48 * 5.5 } } }}
+      sx={{ height: '100%' }}
+    >
+      <MenuItem value=""><em>—</em></MenuItem>
+      {ALTURAS_RACK.map((altura) => (
+        <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+      ))}
+    </Select>
+  )
+}
 
 const getMejorIntento = (row, ejercicio) => {
   let intentos = []
@@ -36,41 +69,48 @@ const getMejorIntento = (row, ejercicio) => {
   return mejorIntento.field
 }
 
+// Intento válido -> verde (el máximo válido del ejercicio, más claro).
+// Intento nulo -> rojo y tachado. Sin juzgar todavía -> sin color, como antes.
 const renderIntentoCell = (params, field, validoField, onCellClick, ejercicio) => {
   const peso = params.row[field]
   const valido = params.row[validoField]
   const mejorField = getMejorIntento(params.row, ejercicio)
   const esMejor = mejorField === field
-  
+
   if (!peso && peso !== 0) return (
-    <Box 
-      sx={{ 
+    <Box
+      sx={{
         width: '100%',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        bgcolor: 'rgba(128, 128, 128, 0.15)',
       }}
     >
       -
     </Box>
   )
-  
+
+  const bgcolor = valido === true ? (esMejor ? '#66bb6a' : '#2e7d32')
+    : valido === false ? '#c62828'
+    : 'rgba(128, 128, 128, 0.15)'
+  const juzgado = valido === true || valido === false
+
   return (
-    <Box 
-      sx={{ 
+    <Box
+      sx={{
         width: '100%',
         height: '100%',
-        display: 'flex', 
-        alignItems: 'center', 
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
-        gap: 0.5,
         cursor: 'pointer',
-        bgcolor: esMejor ? '#fff3e0' : 'transparent',
-        borderRadius: 1,
-        fontWeight: esMejor ? 'bold' : 'normal',
-        color: esMejor ? '#e65100' : 'inherit',
-        '&:hover': { opacity: 0.7 }
+        bgcolor,
+        color: juzgado ? '#fff' : 'inherit',
+        fontWeight: juzgado ? 'bold' : 'normal',
+        textDecoration: valido === false ? 'line-through' : 'none',
+        '&:hover': { opacity: 0.8 }
       }}
       onClick={(e) => {
         e.stopPropagation()
@@ -79,12 +119,22 @@ const renderIntentoCell = (params, field, validoField, onCellClick, ejercicio) =
         }
       }}
     >
-      <span>{peso}</span>
-      {valido === true && <CheckCircleIcon sx={{ fontSize: 18 }} htmlColor="#4caf50" />}
-      {valido === false && <CancelIcon sx={{ fontSize: 18 }} htmlColor="#f44336" />}
+      {peso}
     </Box>
   )
 }
+
+// Mismo color de fondo que la celda de categoría (borde a borde), para que
+// Lot/Atleta/Tanda/BW se lean como parte del mismo bloque de categoría.
+const renderCeldaConCategoria = (row, contenido) => (
+  <Box sx={{
+    width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    bgcolor: row.categoria ? colorCategoria(row.categoria) : 'transparent',
+    color: row.categoria ? '#fff' : 'inherit', fontWeight: 600,
+  }}>
+    {contenido}
+  </Box>
+)
 
 export const columnsIntentos = (onCellClick) => [
   {
@@ -94,36 +144,44 @@ export const columnsIntentos = (onCellClick) => [
     align: 'center',
     headerAlign: 'center',
     type: 'number',
-    renderCell: (params) => params.value ?? '-',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-'),
   },
   {
     field: 'apellido',
     headerName: 'Atleta',
-    flex: 0.15, 
-    align: 'center', 
+    flex: 0.15,
+    align: 'center',
     headerAlign: 'center',
-    renderCell: (params) => `${capitalizeWords(params.row.apellido)} ${capitalizeWords(params.row.nombre)}`
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(
+      params.row,
+      `${capitalizeWords(params.row.apellido)} ${capitalizeWords(params.row.nombre)}`
+    ),
   },
-  { 
-    field: 'tanda_id', 
-    headerName: 'Tanda', 
-    flex: 0.06, 
-    align: 'center', 
+  {
+    field: 'tanda_id',
+    headerName: 'Tanda',
+    flex: 0.06,
+    align: 'center',
+    headerAlign: 'center',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? letraTanda(params.value) : '-'),
+  },
+  {
+    field: 'peso_corporal',
+    headerName: 'BW',
+    flex: 0.08,
+    align: 'center',
     headerAlign: 'center',
     type: 'number',
-  },
-  { 
-    field: 'peso_corporal', 
-    headerName: 'BW', 
-    flex: 0.08, 
-    align: 'center', 
-    headerAlign: 'center',
-    type: 'number',
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-'),
   },
   {
     field: 'categoria',
     headerName: 'Peso',
-    flex: 0.1,
+    flex: 0.15,
     align: 'center',
     headerAlign: 'center',
     cellClassName: 'cat-cell',
@@ -133,35 +191,39 @@ export const columnsIntentos = (onCellClick) => [
         bgcolor: params.value ? colorCategoria(params.value) : 'transparent',
         color: params.value ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
       }}>
-        {params.value || '-'}
+        {params.value ? claveCategoriaPlataforma(params.row) : '-'}
       </Box>
     )
   },
   {
-    field: 'categoria_edad',
-    headerName: 'Edad',
-    flex: 0.09,
+    field: 'altura_rack_sentadilla',
+    headerName: 'Rack S',
+    flex: 0.06,
     align: 'center',
     headerAlign: 'center',
-    renderCell: (params) => Array.isArray(params.value) ? params.value.join(' / ') : (params.value || '-'),
+    editable: true,
+    renderCell: (params) => params.value ?? '-',
+    renderEditCell: (params) => <RackSelectEditCell {...params} />,
   },
-  { 
-    field: 'modalidad', 
-    headerName: 'División',
-    flex: 0.12, 
-    align: 'center', 
-    headerAlign: 'center' 
+  {
+    field: 'altura_rack_banco',
+    headerName: 'Rack B',
+    flex: 0.06,
+    align: 'center',
+    headerAlign: 'center',
+    editable: true,
+    renderCell: (params) => params.value ?? '-',
+    renderEditCell: (params) => <RackSelectEditCell {...params} />,
   },
-  { 
-    field: 'primer_intento_sentadilla', 
+  {
+    field: 'primer_intento_sentadilla',
     headerName: 'S1', 
     flex: 0.07, 
     align: 'center', 
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-sentadilla',
-    cellClassName: 'cell-sentadilla',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -181,8 +243,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-sentadilla',
-    cellClassName: 'cell-sentadilla',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -202,8 +263,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-sentadilla',
-    cellClassName: 'cell-sentadilla',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -223,8 +283,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-banco',
-    cellClassName: 'cell-banco',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -244,8 +303,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-banco',
-    cellClassName: 'cell-banco',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -265,8 +323,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-banco',
-    cellClassName: 'cell-banco',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -286,8 +343,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-peso-muerto',
-    cellClassName: 'cell-peso-muerto',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -307,8 +363,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-peso-muerto',
-    cellClassName: 'cell-peso-muerto',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -328,8 +383,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     editable: true,
-    headerClassName: 'header-peso-muerto',
-    cellClassName: 'cell-peso-muerto',
+    cellClassName: 'full-bleed-cell',
     valueParser: (value) => {
       const parsed = parseFloat(value)
       return isNaN(parsed) || parsed < 0 || parsed > 500 ? null : parsed
@@ -341,30 +395,33 @@ export const columnsIntentos = (onCellClick) => [
     },
     renderCell: (params) => renderIntentoCell(params, 'tercer_intento_peso_muerto', 'valido_d3', onCellClick, 'peso_muerto')
   },
-  { 
-    field: 'total', 
-    headerName: 'TOTAL', 
-    flex: 0.08, 
-    align: 'center', 
+  {
+    field: 'total',
+    headerName: 'TOTAL',
+    flex: 0.08,
+    align: 'center',
     headerAlign: 'center',
     type: 'number',
-    renderCell: (params) => params.value || '-'
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value || '-'),
   },
-  { 
-    field: 'puesto', 
-    headerName: 'PUESTO', 
-    flex: 0.08, 
-    align: 'center', 
+  {
+    field: 'puesto',
+    headerName: 'PUESTO',
+    flex: 0.08,
+    align: 'center',
     headerAlign: 'center',
-    renderCell: (params) => params.value || '-'
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value || '-'),
   },
-  { 
-    field: 'dots', 
-    headerName: 'DOTS', 
-    flex: 0.08, 
-    align: 'center', 
+  {
+    field: 'ipf_gl',
+    headerName: 'GL POINTS',
+    flex: 0.08,
+    align: 'center',
     headerAlign: 'center',
     type: 'number',
-    renderCell: (params) => params.value ? params.value.toFixed(2) : '-'
+    cellClassName: 'cat-cell',
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? params.value.toFixed(2) : '-'),
   },
 ]

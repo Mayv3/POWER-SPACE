@@ -61,6 +61,19 @@ export function GenericDataGrid({
             width: 'auto !important',
             height: 'auto !important',
           },
+          // Igual que .cat-cell pero de nombre genérico, para cualquier celda
+          // que necesite pintarse de borde a borde (ej: intentos válidos/nulos).
+          '& .full-bleed-cell': {
+            position: 'relative',
+            overflow: 'hidden',
+            padding: '0 !important',
+          },
+          '& .full-bleed-cell > div': {
+            position: 'absolute',
+            inset: 0,
+            width: 'auto !important',
+            height: 'auto !important',
+          },
           '& .MuiDataGrid-columnHeaderTitle': {
             color: '#8aa9a0',
             fontSize: '0.7rem',
@@ -76,6 +89,8 @@ export function GenericDataGrid({
           '& .row-tanda-2': { boxShadow: 'inset 3px 0 #388e3c' },
           '& .row-tanda-3': { boxShadow: 'inset 3px 0 #F57C00' },
           '& .row-tanda-4': { boxShadow: 'inset 3px 0 #7b1fa2' },
+          '& .row-tanda-5': { boxShadow: 'inset 3px 0 #00838f' },
+          '& .row-tanda-6': { boxShadow: 'inset 3px 0 #c2185b' },
           // Colores para Sentadilla (S1, S2, S3)
           '& .header-sentadilla': {
             backgroundColor: isDark ? '#1a3a5c !important' : '#BBDEFB !important',

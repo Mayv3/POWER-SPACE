@@ -30,8 +30,11 @@ export async function getPremiacionEquipos(req, res) {
     try {
         const { data: atletas, error: errAtletas } = await supabase
             .from("atletas")
-            .select("id, nombre, apellido, sexo, peso_corporal, categoria, categoria_edad, modalidad, equipo_id");
+            .select("id, nombre, apellido, sexo, peso_corporal, categoria, categoria_edad, modalidad, equipo_id, descalificado");
         if (errAtletas) throw errAtletas;
+
+        // Descalificados no cuentan para la premiación.
+        const atletasVigentes = atletas.filter((a) => !a.descalificado);
 
         const { data: intentos, error: errIntentos } = await supabase
             .from("intentos")
@@ -48,7 +51,7 @@ export async function getPremiacionEquipos(req, res) {
         }
 
         // Mejor intento válido por movimiento + total + si totalizó (válido en los 3).
-        const calc = atletas.map((a) => {
+        const calc = atletasVigentes.map((a) => {
             const suyos = intentosPorAtleta.get(a.id) || [];
             const mejor = (mov) => Math.max(0, ...suyos.filter((i) => i.movimiento_id === mov).map((i) => i.peso || 0));
             const sentadilla = mejor(1);
@@ -150,6 +153,7 @@ export async function getPremiacionCategorias(req, res) {
 
         const grupos = new Map();
         for (const atleta of atletas) {
+            if (atleta.descalificado) continue; // no cuenta para la premiación
             atleta.categoria_edad = categoriaEdadPorId.get(atleta.id) ?? null;
             const sentadilla = Math.max(
                 0,

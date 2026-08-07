@@ -44,9 +44,9 @@ export async function getAtletasByTanda(req, res) {
 
     try {
         const tandaIdNum = parseInt(tandaId);
-        if (!tandaIdNum || tandaIdNum < 1 || tandaIdNum > 4) {
+        if (!tandaIdNum || tandaIdNum < 1 || tandaIdNum > 6) {
             return res.status(400).json({
-                error: "ID de tanda inválido. Debe ser 1, 2, 3 o 4"
+                error: "ID de tanda inválido. Debe ser entre 1 y 6"
             });
         }
 
@@ -125,7 +125,8 @@ export async function createAtleta(req, res) {
             altura_rack_sentadilla,
             altura_rack_banco,
             equipo_id,
-            foto
+            foto,
+            descalificado
         } = req.body;
 
         console.log(req.body);
@@ -164,6 +165,7 @@ export async function createAtleta(req, res) {
             altura_rack_banco,
             equipo_id: equipo_id || null,
             foto: foto || null,
+            descalificado: Boolean(descalificado),
             created_at: new Date()
         };
 
@@ -238,7 +240,8 @@ export async function updateAtleta(req, res) {
             altura_rack_sentadilla,
             altura_rack_banco,
             equipo_id,
-            foto
+            foto,
+            descalificado
         } = req.body;
 
         const categoriasEdad = normalizarCategoriasEdad(categoria_edad);
@@ -280,7 +283,8 @@ export async function updateAtleta(req, res) {
             altura_rack_sentadilla,
             altura_rack_banco,
             equipo_id: equipo_id || null,
-            foto: foto || null
+            foto: foto || null,
+            descalificado: Boolean(descalificado)
         };
 
         const { data, error } = await supabase
