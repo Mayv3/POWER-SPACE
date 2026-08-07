@@ -67,7 +67,6 @@ export default function RefereePage() {
     setId(null)
     setEstado(null)
     setLoading(true)
-    setMostrarTipos(false)
   }
 
   const fetchEstado = async () => {
