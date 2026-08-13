@@ -3,11 +3,16 @@
 import { useEffect, useLayoutEffect, useState, useMemo, useRef, useCallback, memo, Children } from 'react'
 import { CaretLeft } from '@phosphor-icons/react'
 import { Calculate_DOTS } from '../../utils/calcularDots'
+import { Calculate_IPF_GL } from '../../utils/calcularIPF'
+import { colorCategoria } from '../../utils/colorCategoria'
+import { capitalizeWords } from '../../utils/textUtils'
+import { letraTanda } from '../../const/tandas'
 import { supabase, fetchAtletasConIntentos } from '../../lib/supabaseClient'
 import { joinCompetenciaLive } from '../../lib/competenciaLive'
 import categorias, {
   claveCategoriaAtleta,
   clavesCategoriasAtleta,
+  claveCategoriaPlataforma,
 } from '../../const/categorias/categorias'
 
 /* ============ TEMA ============ */
@@ -53,6 +58,14 @@ const PS_CSS = `
   @keyframes psHero{from{transform:scale(1.12);opacity:.3}to{transform:scale(1);opacity:1}}
   @keyframes psRow{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   .ps-select-option:hover,.ps-select-option:focus-visible{background:rgba(255,106,0,.09)!important;color:#ff6a00!important;outline:none}
+  .ps-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .ps-tbl-wrap::-webkit-scrollbar{height:6px}
+  .ps-tbl-wrap::-webkit-scrollbar-track{background:rgba(255,255,255,.04)}
+  .ps-tbl-wrap::-webkit-scrollbar-thumb{background:rgba(255,106,0,.45);border-radius:3px}
+  .ps-tbl{border-collapse:collapse;width:max-content;min-width:100%;table-layout:fixed}
+  .ps-tbl th,.ps-tbl td{border:1px solid rgba(255,255,255,.07)}
+  .ps-tbl tbody tr{cursor:pointer}
+  .ps-tbl tbody tr:hover td{filter:brightness(1.12)}
   .ps-outer{min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:40px 24px;background:${T.pageBg};font-family:${FB}}
   .ps-frame{width:430px;max-width:100%;background:${T.frame};border-radius:30px;overflow:hidden;box-shadow:0 30px 80px rgba(20,18,14,.32);border:1px solid rgba(0,0,0,.5)}
   @media (max-width:600px){
@@ -91,7 +104,7 @@ function computeAtleta(a) {
   if (!dots && completo && total > 0 && a.peso_corporal > 0) {
     dots = parseFloat(Calculate_DOTS(a.peso_corporal, total, a.sexo === 'F'))
   }
-  return { ...a, mejorSentadilla, mejorBanco, mejorPesoMuerto, total, dots }
+  return { ...a, mejorSentadilla, mejorBanco, mejorPesoMuerto, total, dots, completo }
 }
 
 // Orden de las vistas en vivo (tanda y categoría): mayor peso levantado hasta
@@ -202,6 +215,64 @@ function attStatusOf(a, liftKey, prefix, i, livePtr) {
   }
   return { status, label: peso ? String(peso) : '—' }
 }
+
+/* ============ TABLA DE INTENTOS (espejo de /intentos) ============ */
+// Número de intento (1-3) que quedó como mejor válido del movimiento. Empate
+// -> el primero, igual que la tabla de admin.
+function mejorIntentoNum(a, L) {
+  const best = a[L.best]
+  if (!best) return 0
+  for (const i of [1, 2, 3]) {
+    if (a[`valido_${L.prefix}${i}`] === true && a[`${ORD_WORD[i - 1]}_intento_${L.key}`] === best) return i
+  }
+  return 0
+}
+
+// Mismos colores que columnsIntentos: válido -> verde (el mejor, más claro),
+// nulo -> rojo tachado, sin juzgar/vacío -> gris.
+function CeldaIntentoTabla({ atleta, lift, i }) {
+  const peso = atleta[`${ORD_WORD[i - 1]}_intento_${lift.key}`]
+  const valido = atleta[`valido_${lift.prefix}${i}`]
+  const esMejor = mejorIntentoNum(atleta, lift) === i
+  const juzgado = valido === true || valido === false
+  const bg = valido === true ? (esMejor ? '#66bb6a' : '#2e7d32')
+    : valido === false ? '#c62828'
+    : 'rgba(128,128,128,.15)'
+  return (
+    <td style={{
+      background: bg,
+      color: juzgado ? '#fff' : T.txt2,
+      fontFamily: FM, fontSize: 12, fontWeight: juzgado ? 700 : 400,
+      textAlign: 'center', padding: '9px 4px',
+      textDecoration: valido === false ? 'line-through' : 'none',
+    }}>
+      {peso || peso === 0 ? peso : '-'}
+    </td>
+  )
+}
+
+// Celdas de datos del atleta: fondo del color de su categoría, borde a borde,
+// para que Lot/Atleta/Tanda/BW/Total se lean como un mismo bloque.
+function CeldaCatTabla({ atleta, children, align = 'center', size = 12, weight = 600, font = FM }) {
+  const bg = atleta.categoria ? colorCategoria(atleta.categoria) : 'transparent'
+  return (
+    <td style={{
+      background: bg, color: atleta.categoria ? '#fff' : T.txt,
+      fontFamily: font, fontSize: size, fontWeight: weight,
+      textAlign: align, padding: '9px 8px', whiteSpace: 'nowrap',
+    }}>
+      {children}
+    </td>
+  )
+}
+
+const TABLA_HEAD = [
+  ['Lot', 46], ['Atleta', 152], ['Tanda', 58], ['BW', 54], ['Peso', 104],
+  ['S1', 54], ['S2', 54], ['S3', 54],
+  ['B1', 54], ['B2', 54], ['B3', 54],
+  ['D1', 54], ['D2', 54], ['D3', 54],
+  ['Total', 66], ['Puesto', 64], ['GL', 62],
+]
 
 function palette(pos, isLive) {
   if (isLive) return { border: 'rgba(255,106,0,.4)', posBg: 'rgba(255,106,0,.12)', posColor: T.lime, posTag: 'LIVE' }
@@ -381,6 +452,9 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const [sexoSel, setSexoSel] = useState('Masculino')
   const [catSel, setCatSel] = useState('todas')
   const [busqueda, setBusqueda] = useState('')
+  const [tablaBusqueda, setTablaBusqueda] = useState('')
+  const [tablaTanda, setTablaTanda] = useState('todas')
+  const [tablaCat, setTablaCat] = useState('todas')
   const [atletaEnVivo, setAtletaEnVivo] = useState(initialAtletaEnVivo)
   const [estado, setEstado] = useState(initialEstado)
   const [view, setView] = useState('list')
@@ -594,6 +668,55 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     return m
   }, [atletasVigentes])
 
+  /* ---- tabla de intentos (todos los atletas) ----
+     Espejo de /intentos: GL points y puesto por GL dentro de cada categoría.
+     El orden de filas es el de la view (tanda -> apertura -> lot), igual que
+     en admin. Los descalificados se listan pero no ocupan puesto. */
+  const tablaAtletas = useMemo(() => {
+    const conGl = atletas.map((a) => {
+      let ipf_gl = null
+      if (a.completo && a.total > 0 && a.peso_corporal > 0) {
+        const equipado = String(a.modalidad || '').toLowerCase().includes('equip')
+        ipf_gl = parseFloat(Calculate_IPF_GL(a.peso_corporal, a.total, a.sexo === 'F', equipado).toFixed(2))
+      }
+      return { ...a, ipf_gl }
+    })
+
+    const grupos = {}
+    conGl.forEach((a) => {
+      if (a.descalificado) return
+      clavesCategoriasAtleta(a).forEach((clave) => { (grupos[clave] ??= []).push(a) })
+    })
+    const mejorPuesto = new Map()
+    Object.values(grupos).forEach((lista) => {
+      lista
+        .filter((a) => a.ipf_gl > 0)
+        .sort((x, y) => y.ipf_gl - x.ipf_gl)
+        .forEach((a, i) => {
+          mejorPuesto.set(a.id, Math.min(mejorPuesto.get(a.id) ?? Number.POSITIVE_INFINITY, i + 1))
+        })
+    })
+
+    return conGl.map((a) => ({ ...a, puesto: a.descalificado ? null : (mejorPuesto.get(a.id) ?? null) }))
+  }, [atletas])
+
+  const tandasDisponibles = useMemo(() => (
+    [...new Set(atletas.map((a) => a.tanda_id).filter((t) => t != null))].sort((a, b) => a - b)
+  ), [atletas])
+
+  const categoriasTabla = useMemo(() => (
+    [...new Set(atletas.map((a) => a.categoria).filter(Boolean))].sort()
+  ), [atletas])
+
+  const tablaFiltrada = useMemo(() => {
+    let r = tablaAtletas
+    if (tablaTanda !== 'todas') r = r.filter((a) => String(a.tanda_id) === String(tablaTanda))
+    if (tablaCat !== 'todas') r = r.filter((a) => String(a.categoria) === String(tablaCat))
+    const q = tablaBusqueda.trim().toLowerCase()
+    if (q) r = r.filter((a) => `${a.nombre ?? ''} ${a.apellido ?? ''}`.toLowerCase().includes(q))
+    return r
+  }, [tablaAtletas, tablaTanda, tablaCat, tablaBusqueda])
+
   /* ---- filtrado ---- */
   const filtrados = useMemo(() => {
     if (busqueda.trim()) {
@@ -785,6 +908,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     if (tandaActual == null) return
     pushNav({ view: 'tanda' })
   }
+  const verTablaIntentos = () => pushNav({ view: 'tabla' })
 
   /* ---- estado de intento ---- */
   const attStatus = (a, liftKey, prefix, i) => attStatusOf(a, liftKey, prefix, i, livePtr)
@@ -953,6 +1077,30 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 </div>
               )}
             </div>
+
+            {/* ---- ACCESO A LA TABLA DE INTENTOS ---- */}
+            <button
+              type="button"
+              onClick={verTablaIntentos}
+              style={{
+                width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 10, padding: '13px 15px', background: 'rgba(255,106,0,.09)',
+                border: '1px solid rgba(255,106,0,.3)', borderRadius: 13, cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: FO, fontWeight: 700, fontSize: 14, letterSpacing: '.06em', color: T.lime }}>
+                  TABLA DE INTENTOS
+                </span>
+                <span style={{ display: 'block', fontFamily: FM, fontSize: 10, color: T.txt3, marginTop: 3 }}>
+                  Todos los atletas · todos los intentos
+                </span>
+              </span>
+              <span
+                aria-hidden="true"
+                style={{ flex: 'none', width: 8, height: 8, borderTop: `2px solid ${T.lime}`, borderRight: `2px solid ${T.lime}`, transform: 'rotate(45deg)' }}
+              />
+            </button>
 
             {/* ---- RANKING POR CATEGORÍA ---- */}
             <div ref={rankingRef} />
@@ -1324,6 +1472,115 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
             </div>
           )
         })()}
+
+        {/* ============ VISTA TABLA DE INTENTOS (TODOS LOS ATLETAS) ============ */}
+        {view === 'tabla' && (
+          <div className="ps-view" style={{ padding: '18px 16px 90px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+              <div onClick={back} style={{ flex: 'none', width: 42, height: 42, borderRadius: 13, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <CaretLeft size={22} weight="bold" color={T.txt} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.14em', color: T.lime }}>TODOS LOS ATLETAS</div>
+                <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 24, color: T.txt, textTransform: 'uppercase', lineHeight: 1, marginTop: 3 }}>TABLA DE INTENTOS</div>
+              </div>
+            </div>
+
+            {/* ---- BUSCADOR + FILTROS ---- */}
+            <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 15, position: 'relative', zIndex: 5, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 15px' }}>
+                <span style={{ width: 15, height: 15, border: '1.7px solid #6b7280', borderRadius: '50%', position: 'relative', flex: 'none' }}>
+                  <span style={{ position: 'absolute', width: 6, height: '1.7px', background: '#6b7280', transform: 'rotate(45deg)', bottom: -2, right: -4 }} />
+                </span>
+                <input value={tablaBusqueda} onChange={(e) => setTablaBusqueda(e.target.value)} placeholder="Nombre o apellido…"
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: FB, fontSize: 14, color: '#e6e8ec' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: `1px solid ${T.line}` }}>
+                <PowerSelect
+                  label="Tanda"
+                  value={tablaTanda}
+                  options={[
+                    { value: 'todas', label: 'Todas las tandas' },
+                    ...tandasDisponibles.map((id) => ({ value: String(id), label: `Tanda ${letraTanda(id)}` })),
+                  ]}
+                  onChange={setTablaTanda}
+                />
+                <PowerSelect
+                  divider
+                  label="Categoría de peso"
+                  value={tablaCat}
+                  options={[
+                    { value: 'todas', label: 'Todas las categorías' },
+                    ...categoriasTabla.map((categoria) => ({ value: categoria, label: categoria })),
+                  ]}
+                  onChange={setTablaCat}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+              <span style={{ fontFamily: FM, fontSize: 10, color: T.txt3 }}>{tablaFiltrada.length} atletas</span>
+              <span style={{ fontFamily: FM, fontSize: 10, color: T.txt3 }}>DESLIZÁ PARA VER TODO →</span>
+            </div>
+
+            {tablaFiltrada.length === 0 ? (
+              <div style={{ textAlign: 'center', marginTop: 40, fontFamily: FM, fontSize: 12, letterSpacing: '.1em', color: T.txt4 }}>
+                {loadedRef.current ? 'SIN ATLETAS PARA MOSTRAR' : 'CARGANDO…'}
+              </div>
+            ) : (
+              <div className="ps-tbl-wrap" style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 14 }}>
+                <table className="ps-tbl">
+                  <colgroup>
+                    {TABLA_HEAD.map(([label, width]) => <col key={label} style={{ width }} />)}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      {TABLA_HEAD.map(([label]) => (
+                        <th
+                          key={label}
+                          style={{
+                            background: 'rgba(255,255,255,.05)', color: T.txt2,
+                            fontFamily: FM, fontSize: 9, fontWeight: 600, letterSpacing: '.1em',
+                            textTransform: 'uppercase', padding: '10px 6px', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tablaFiltrada.map((a) => (
+                      <tr key={a.id} onClick={() => openDetail(a)}>
+                        <CeldaCatTabla atleta={a}>{a.lot ?? '-'}</CeldaCatTabla>
+                        <CeldaCatTabla atleta={a} align="left" font={FB} size={13} weight={700}>
+                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {capitalizeWords(a.apellido)} {capitalizeWords(a.nombre)}
+                          </span>
+                        </CeldaCatTabla>
+                        <CeldaCatTabla atleta={a}>{a.tanda_id ? letraTanda(a.tanda_id) : '-'}</CeldaCatTabla>
+                        <CeldaCatTabla atleta={a}>{a.peso_corporal ?? '-'}</CeldaCatTabla>
+                        <CeldaCatTabla atleta={a} size={11} weight={700}>
+                          {a.categoria ? claveCategoriaPlataforma(a) : '-'}
+                        </CeldaCatTabla>
+                        {LIFTS.map((L) => (
+                          [1, 2, 3].map((i) => (
+                            <CeldaIntentoTabla key={`${L.prefix}${i}`} atleta={a} lift={L} i={i} />
+                          ))
+                        ))}
+                        <CeldaCatTabla atleta={a} weight={700}>{a.total || '-'}</CeldaCatTabla>
+                        <CeldaCatTabla atleta={a} weight={700}>{a.descalificado ? 'DQ' : (a.puesto || '-')}</CeldaCatTabla>
+                        <CeldaCatTabla atleta={a}>{a.ipf_gl ? a.ipf_gl.toFixed(2) : '-'}</CeldaCatTabla>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div onClick={back} style={{ marginTop: 22, textAlign: 'center', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: 13, fontFamily: FO, fontWeight: 600, fontSize: 13, letterSpacing: '.1em', color: '#c9ced6', cursor: 'pointer' }}>‹ VOLVER</div>
+          </div>
+        )}
 
       </div>
     </div>
