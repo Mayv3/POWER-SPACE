@@ -13,7 +13,7 @@ import { capitalizeWords } from '../../utils/textUtils'
 import { claveCategoriaAtleta } from '../../const/categorias/categorias'
 import { TANDA_IDS, letraTanda } from '../../const/tandas'
 
-const TANDA_COLORS = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2', 5: '#00838f', 6: '#c2185b' }
+const TANDA_COLORS = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2', 5: '#00838f', 6: '#c2185b', 7: '#5d4037' }
 
 export function AsignarTandaModal({ open, onClose, onAssigned }) {
   const [atletas, setAtletas] = useState([])

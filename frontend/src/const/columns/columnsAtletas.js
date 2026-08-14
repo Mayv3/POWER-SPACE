@@ -6,7 +6,7 @@ import { colorCategoria } from '../../utils/colorCategoria'
 import { abreviarCategoriasEdad } from '../categorias/categorias'
 import { letraTanda } from '../tandas'
 
-const TANDA_COLORS = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2', 5: '#00838f', 6: '#c2185b' }
+const TANDA_COLORS = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2', 5: '#00838f', 6: '#c2185b', 7: '#5d4037' }
 
 // Fila pintada de borde a borde con el color de la categoría del atleta (misma
 // paleta determinística que columnsIntentos.js), para que toda la fila se lea
