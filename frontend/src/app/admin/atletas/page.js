@@ -5,7 +5,7 @@ import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
   CircularProgress, Paper, useMediaQuery, useTheme,
 } from '@mui/material'
-import { Search as SearchIcon, PersonAdd as PersonAddIcon, GroupWork as GroupWorkIcon } from '@mui/icons-material'
+import { Search as SearchIcon, PersonAdd as PersonAddIcon, GroupWork as GroupWorkIcon, Groups as GroupsIcon } from '@mui/icons-material'
 import { UploadSimple as UploadIcon, DownloadSimple as DownloadIcon } from '@phosphor-icons/react'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
 import { columnsAtletas } from '../../../const/columns/columnsAtletas'
@@ -15,6 +15,7 @@ import { DeleteConfirmModal } from '../../../components/modales/DeleteConfirmMod
 import { CreateAtletaForm } from '../../../components/modales/CreateAtletaForm'
 import { ImportAtletasModal } from '../../../components/modales/ImportAtletasModal'
 import { AsignarTandaModal } from '../../../components/modales/AsignarTandaModal'
+import { AsignarEquipoModal } from '../../../components/modales/AsignarEquipoModal'
 import { isAtletaFormValid } from '../../../components/modales/AtletaForm'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
@@ -61,6 +62,7 @@ export default function AtletasPage() {
   const [equipos, setEquipos] = useState([])
   const [openImport, setOpenImport] = useState(false)
   const [openAsignarTanda, setOpenAsignarTanda] = useState(false)
+  const [openAsignarEquipo, setOpenAsignarEquipo] = useState(false)
 
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
@@ -203,7 +205,7 @@ export default function AtletasPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'minmax(0, 1fr) 180px', md: 'minmax(0, 1fr) 620px' },
+            gridTemplateColumns: { xs: 'minmax(0, 1fr) 220px', md: 'minmax(0, 1fr) 760px' },
             minHeight: { xs: 62, sm: 70 },
             bgcolor: isDark ? '#111d18' : '#f5faf7',
             border: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
@@ -231,6 +233,28 @@ export default function AtletasPage() {
             />
           </Box>
           <Stack direction="row" sx={{ borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
+            <Button
+              onClick={() => setOpenAsignarEquipo(true)}
+              sx={{
+                borderRadius: 0,
+                borderRight: `1px solid ${isDark ? '#244238' : '#d6e7df'}`,
+                color: 'text.secondary',
+                textTransform: 'none',
+                whiteSpace: 'nowrap',
+                minWidth: { xs: 44, sm: 'auto' },
+                px: { xs: 1, sm: 2 },
+                '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)' },
+              }}
+            >
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <GroupsIcon sx={{ fontSize: 20 }} />
+                {!isMobile && (
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 900 }}>
+                    Asignar equipo
+                  </Typography>
+                )}
+              </Stack>
+            </Button>
             <Button
               onClick={() => setOpenAsignarTanda(true)}
               sx={{
@@ -392,6 +416,14 @@ export default function AtletasPage() {
       <AsignarTandaModal
         open={openAsignarTanda}
         onClose={() => setOpenAsignarTanda(false)}
+        onAssigned={fetchAtletas}
+      />
+
+      {/* Modal asignar equipo */}
+      <AsignarEquipoModal
+        open={openAsignarEquipo}
+        equipos={equipos}
+        onClose={() => setOpenAsignarEquipo(false)}
         onAssigned={fetchAtletas}
       />
 
