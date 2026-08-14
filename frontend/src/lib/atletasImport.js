@@ -77,7 +77,7 @@ function normalizarNumero(value) {
 function normalizarCategoriaPeso(value, sexo, categoriaEdad) {
   const opciones = categoriasPesoDisponibles(sexo, categoriaEdad)
   if (!value || opciones.length === 0) return ''
-  const cleaned = String(value).trim().toUpperCase().replace(/\s+/g, '').replace(/KG$/, '')
+  const cleaned = String(value).trim().toUpperCase().replace(/\s+/g, '').replace(/KG$/, '').replace(/^-/, '')
   for (const opcion of opciones) {
     const sufijo = opcion.split('-').pop().trim().toUpperCase().replace(/KG$/, '')
     if (sufijo === cleaned) return opcion

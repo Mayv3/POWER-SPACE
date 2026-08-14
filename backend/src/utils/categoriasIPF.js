@@ -55,7 +55,7 @@ export function categoriasEdadDisponibles(fechaNacimiento, fechaReferencia = new
 export function categoriasPesoDisponibles(sexo, categoriaEdad) {
     const opciones = CATEGORIAS_PESO[sexo] || [];
     const edades = normalizarCategoriasEdad(categoriaEdad);
-    if (edades.length > 0 && edades.every((edad) => CATEGORIAS_JUVENILES.has(edad))) return opciones;
+    if (edades.some((edad) => CATEGORIAS_JUVENILES.has(edad))) return opciones;
     return opciones.filter((categoria) => categoria !== "M - 53kg" && categoria !== "F - 43kg");
 }
 
