@@ -73,14 +73,18 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     headerAlign: 'left',
     cellClassName: 'cat-cell',
     valueGetter: (value, row) => `${row.nombre ?? ''} ${row.apellido ?? ''}`.trim(),
-    renderCell: (params) => renderCeldaConCategoria(params.row, (
-      <>
+    renderCell: (params) => (
+      <Box sx={{
+        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1, pl: 1.5,
+        bgcolor: params.row.categoria ? colorCategoria(params.row.categoria) : 'transparent',
+        color: params.row.categoria ? '#fff' : 'inherit', fontWeight: 600,
+      }}>
         <Avatar src={params.row.foto || undefined} sx={{ width: 28, height: 28 }}>
           <PersonIcon sx={{ fontSize: 16 }} />
         </Avatar>
         {capitalizeWords(params.value)}
-      </>
-    )),
+      </Box>
+    ),
   },
   {
     field: 'peso_corporal',
