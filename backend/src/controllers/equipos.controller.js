@@ -2,6 +2,7 @@ import { supabase } from "../services/supabaseClient.js";
 import { calcIPFGL, calcIPFPoints } from "../utils/calcularIPF.js";
 import {
     clavesCategoriasAtleta,
+    CATEGORIAS_EDAD,
 } from "../utils/categoriasIPF.js";
 
 // Puntos por puesto en el ranking absoluto (Tarea 10).
@@ -90,10 +91,11 @@ export async function getPremiacionEquipos(req, res) {
             });
 
         // Equipos + agregación.
-        const { data: equipos, error: errEquipos } = await supabase
+        const { data: equiposRaw, error: errEquipos } = await supabase
             .from("equipos")
-            .select("*, coach:coaches(id, nombre)");
+            .select(SELECT_EQUIPO_COACHES);
         if (errEquipos) throw errEquipos;
+        const equipos = equiposRaw.map(normalizarCoachesEquipo);
 
         const ranking = equipos.map((eq) => {
             const detalle = calc
@@ -231,9 +233,14 @@ export async function getPremiacionCategorias(req, res) {
             };
         });
 
+        const ordenCategoriaEdad = (categoriaEdad) => {
+            const idx = CATEGORIAS_EDAD.indexOf(categoriaEdad);
+            return idx === -1 ? CATEGORIAS_EDAD.length : idx;
+        };
+
         premiacion.sort((a, b) =>
             a.sexo.localeCompare(b.sexo) ||
-            a.categoria_edad.localeCompare(b.categoria_edad, "es", { numeric: true }) ||
+            ordenCategoriaEdad(a.categoria_edad) - ordenCategoriaEdad(b.categoria_edad) ||
             a.categoria.localeCompare(b.categoria, "es", { numeric: true })
         );
 
@@ -244,16 +251,52 @@ export async function getPremiacionCategorias(req, res) {
     }
 }
 
+const SELECT_EQUIPO_COACHES = "*, equipo_coaches(coach_id, es_principal, coach:coaches(id, nombre, foto))";
+
+// Aplana equipo_coaches(coach_id, es_principal, coach:{...}) a `coaches` (lista)
+// y `coach` (el marcado como principal), para que el resto de la app -que
+// solo conocía un coach por equipo- siga funcionando sin cambios.
+function normalizarCoachesEquipo(equipo) {
+    const relaciones = equipo.equipo_coaches || [];
+    const coaches = relaciones
+        .filter((r) => r.coach)
+        .map((r) => ({ ...r.coach, es_principal: r.es_principal }));
+    const principal = coaches.find((c) => c.es_principal) || null;
+    const { equipo_coaches, ...resto } = equipo;
+    return { ...resto, coaches, coach: principal };
+}
+
+// Reemplaza las relaciones equipo<->coach de un equipo por la lista recibida.
+async function sincronizarCoachesEquipo(equipoId, coachIds, coachPrincipalId) {
+    const { error: errDelete } = await supabase
+        .from("equipo_coaches")
+        .delete()
+        .eq("equipo_id", equipoId);
+    if (errDelete) throw errDelete;
+
+    const idsUnicos = [...new Set((coachIds || []).filter(Boolean))];
+    if (idsUnicos.length === 0) return;
+
+    const filas = idsUnicos.map((coach_id) => ({
+        equipo_id: equipoId,
+        coach_id,
+        es_principal: coach_id === coachPrincipalId,
+    }));
+
+    const { error: errInsert } = await supabase.from("equipo_coaches").insert(filas);
+    if (errInsert) throw errInsert;
+}
+
 export async function getEquipos(req, res) {
     try {
         const { data, error } = await supabase
             .from("equipos")
-            .select("*, coach:coaches(id, nombre)")
+            .select(SELECT_EQUIPO_COACHES)
             .order("nombre", { ascending: true });
 
         if (error) throw error;
 
-        res.status(200).json(data);
+        res.status(200).json(data.map(normalizarCoachesEquipo));
     } catch (err) {
         console.error("Error al obtener equipos:", err.message);
         res.status(500).json({ error: "Error al obtener equipos" });
@@ -265,12 +308,12 @@ export async function getEquipoById(req, res) {
     try {
         const { data, error } = await supabase
             .from("equipos")
-            .select("*, coach:coaches(id, nombre)")
+            .select(SELECT_EQUIPO_COACHES)
             .eq("id", id)
             .single();
         if (error) throw error;
 
-        res.status(200).json(data);
+        res.status(200).json(normalizarCoachesEquipo(data));
     } catch (err) {
         console.error("Error al obtener equipo por ID:", err.message);
         res.status(500).json({ error: "Error al obtener equipo por ID" });
@@ -279,7 +322,7 @@ export async function getEquipoById(req, res) {
 
 export async function createEquipo(req, res) {
     try {
-        const { nombre, foto, color, coach_id } = req.body;
+        const { nombre, foto, color, coaches, coach_principal_id } = req.body;
 
         if (!nombre) {
             return res.status(400).json({ error: "Falta el nombre del equipo" });
@@ -289,20 +332,28 @@ export async function createEquipo(req, res) {
             nombre,
             foto: foto || null,
             color: color || null,
-            coach_id: coach_id || null,
         };
 
         const { data, error } = await supabase
             .from("equipos")
             .insert([equipo])
-            .select("*, coach:coaches(id, nombre)")
+            .select()
             .single();
 
         if (error) throw error;
 
+        await sincronizarCoachesEquipo(data.id, coaches, coach_principal_id || null);
+
+        const { data: equipoCompleto, error: errFetch } = await supabase
+            .from("equipos")
+            .select(SELECT_EQUIPO_COACHES)
+            .eq("id", data.id)
+            .single();
+        if (errFetch) throw errFetch;
+
         res.status(201).json({
             message: "Equipo creado correctamente",
-            equipo: data,
+            equipo: normalizarCoachesEquipo(equipoCompleto),
         });
     } catch (err) {
         console.error("Error al crear equipo:", err.message);
@@ -313,27 +364,33 @@ export async function createEquipo(req, res) {
 export async function updateEquipo(req, res) {
     try {
         const { id } = req.params;
-        const { nombre, foto, color, coach_id } = req.body;
+        const { nombre, foto, color, coaches, coach_principal_id } = req.body;
 
         const updatedData = {
             nombre,
             foto: foto || null,
             color: color || null,
-            coach_id: coach_id || null,
         };
 
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from("equipos")
             .update(updatedData)
-            .eq("id", id)
-            .select("*, coach:coaches(id, nombre)")
-            .single();
+            .eq("id", id);
 
         if (error) throw error;
 
+        await sincronizarCoachesEquipo(id, coaches, coach_principal_id || null);
+
+        const { data: equipoCompleto, error: errFetch } = await supabase
+            .from("equipos")
+            .select(SELECT_EQUIPO_COACHES)
+            .eq("id", id)
+            .single();
+        if (errFetch) throw errFetch;
+
         res.status(200).json({
             message: "Equipo actualizado correctamente",
-            equipo: data,
+            equipo: normalizarCoachesEquipo(equipoCompleto),
         });
     } catch (err) {
         console.error("Error al actualizar equipo:", err.message);

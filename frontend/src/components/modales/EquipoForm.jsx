@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import {
-  Box, Stack, TextField, MenuItem, Typography,
+  Box, Stack, TextField, MenuItem, Typography, Checkbox, FormControlLabel,
+  Radio, RadioGroup,
 } from '@mui/material'
 import { UsersThree as GroupsIcon } from '@phosphor-icons/react'
 import { capitalizeWords } from '../../utils/textUtils'
@@ -107,26 +108,47 @@ export function EquipoForm({ equipo, onChange, coaches = [] }) {
       </Stack>
       </ModalSection>
 
-      <ModalSection title="Responsable" description="Asignación del coach encargado.">
-      <TextField
-        select
-        fullWidth
-        size="small"
-        name="coach_id"
-        label="Coach encargado"
-        value={equipo.coach_id || ''}
-        onChange={handleChange}
-        helperText={coaches.length === 0 ? 'No hay coaches cargados todavía' : ' '}
-      >
-        <MenuItem value="">
-          <em>Sin coach</em>
-        </MenuItem>
-        {coaches.map((c) => (
-          <MenuItem key={c.id} value={c.id}>
-            {capitalizeWords(c.nombre)}
-          </MenuItem>
-        ))}
-      </TextField>
+      <ModalSection title="Responsables" description="Coaches asignados al equipo. Marcá cuál es el principal (se muestra en la presentación del atleta).">
+      {coaches.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">No hay coaches cargados todavía</Typography>
+      ) : (
+        <RadioGroup
+          value={equipo.coach_principal_id ? String(equipo.coach_principal_id) : ''}
+          onChange={(e) => onChange({ ...equipo, coach_principal_id: Number(e.target.value) })}
+        >
+          <Stack spacing={0.5}>
+            {coaches.map((c) => {
+              const coachIds = equipo.coach_ids || []
+              const checked = coachIds.includes(c.id)
+              const toggle = () => {
+                const nextIds = checked ? coachIds.filter((id) => id !== c.id) : [...coachIds, c.id]
+                let nextPrincipal = equipo.coach_principal_id
+                if (checked && c.id === nextPrincipal) {
+                  nextPrincipal = nextIds[0] || null
+                } else if (!checked && !nextPrincipal) {
+                  nextPrincipal = c.id
+                }
+                onChange({ ...equipo, coach_ids: nextIds, coach_principal_id: nextPrincipal })
+              }
+              return (
+                <Stack key={c.id} direction="row" alignItems="center" spacing={1}>
+                  <FormControlLabel
+                    sx={{ flex: 1, mr: 0 }}
+                    control={<Checkbox checked={checked} onChange={toggle} />}
+                    label={capitalizeWords(c.nombre)}
+                  />
+                  <FormControlLabel
+                    value={String(c.id)}
+                    disabled={!checked}
+                    control={<Radio size="small" />}
+                    label="Principal"
+                  />
+                </Stack>
+              )
+            })}
+          </Stack>
+        </RadioGroup>
+      )}
       </ModalSection>
     </Box>
   )

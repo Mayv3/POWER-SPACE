@@ -22,7 +22,7 @@ import { apiFetch } from '../../../lib/api'
 import { CoachesManager } from '../../../components/admin/CoachesManager'
 import { claveCategoriaAtleta } from '../../../const/categorias/categorias'
 
-const EMPTY_EQUIPO = { nombre: '', foto: null, color: '#F57C00', coach_id: '' }
+const EMPTY_EQUIPO = { nombre: '', foto: null, color: '#F57C00', coach_ids: [], coach_principal_id: null }
 
 function CardMenu({ onEdit, onDelete }) {
   const [anchor, setAnchor] = useState(null)
@@ -721,7 +721,11 @@ export default function EquiposPage() {
   }, [searchTerm, equipos])
 
   const handleEdit = (equipo) => {
-    setSelectedEquipo({ ...equipo, coach_id: equipo.coach_id || '' })
+    setSelectedEquipo({
+      ...equipo,
+      coach_ids: (equipo.coaches || []).map((c) => c.id),
+      coach_principal_id: equipo.coach?.id || null,
+    })
     setOpenEdit(true)
   }
 
@@ -737,7 +741,8 @@ export default function EquiposPage() {
           nombre: selectedEquipo.nombre,
           foto: selectedEquipo.foto,
           color: selectedEquipo.color,
-          coach_id: selectedEquipo.coach_id || null,
+          coaches: selectedEquipo.coach_ids || [],
+          coach_principal_id: selectedEquipo.coach_principal_id || null,
         }),
       })
       if (!res.ok) throw new Error()
@@ -762,7 +767,8 @@ export default function EquiposPage() {
           nombre: newEquipo.nombre,
           foto: newEquipo.foto,
           color: newEquipo.color,
-          coach_id: newEquipo.coach_id || null,
+          coaches: newEquipo.coach_ids || [],
+          coach_principal_id: newEquipo.coach_principal_id || null,
         }),
       })
       if (!res.ok) throw new Error()
