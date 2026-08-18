@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
-  CircularProgress, Paper, useMediaQuery, useTheme,
+  CircularProgress, Paper, useMediaQuery, useTheme, Select, MenuItem,
 } from '@mui/material'
 import { Search as SearchIcon, PersonAdd as PersonAddIcon, GroupWork as GroupWorkIcon, Groups as GroupsIcon } from '@mui/icons-material'
 import { UploadSimple as UploadIcon, DownloadSimple as DownloadIcon } from '@phosphor-icons/react'
@@ -20,11 +20,15 @@ import { isAtletaFormValid } from '../../../components/modales/AtletaForm'
 import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
 import { descargarPlantillaAtletas } from '../../../lib/atletasImport'
+import { letraTanda } from '../../../const/tandas'
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])
   const [atletasFiltrados, setAtletasFiltrados] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [filterCategoria, setFilterCategoria] = useState('')
+  const [filterTanda, setFilterTanda] = useState('')
+  const [filterEquipo, setFilterEquipo] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
   const [openEdit, setOpenEdit] = useState(false)
@@ -97,19 +101,36 @@ export default function AtletasPage() {
 
   useEffect(() => { fetchAtletas(); fetchEquipos() }, [])
 
+  const categoriasDisponibles = useMemo(
+    () => [...new Set(atletas.map(a => a.categoria).filter(Boolean))].sort(),
+    [atletas]
+  )
+  const tandasDisponibles = useMemo(
+    () => [...new Set(atletas.map(a => a.tanda_id).filter(Boolean))].sort((a, b) => a - b),
+    [atletas]
+  )
+  const equiposDisponibles = useMemo(
+    () => [...new Map(atletas.filter(a => a.equipo).map(a => [a.equipo.id, a.equipo])).values()]
+      .sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [atletas]
+  )
+
   useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setAtletasFiltrados(atletas)
-    } else {
+    let result = atletas
+
+    if (searchTerm.trim() !== '') {
       const q = searchTerm.toLowerCase()
-      setAtletasFiltrados(
-        atletas.filter(a =>
-          a.nombre?.toLowerCase().includes(q) ||
-          a.apellido?.toLowerCase().includes(q)
-        )
+      result = result.filter(a =>
+        a.nombre?.toLowerCase().includes(q) ||
+        a.apellido?.toLowerCase().includes(q)
       )
     }
-  }, [searchTerm, atletas])
+    if (filterCategoria) result = result.filter(a => a.categoria === filterCategoria)
+    if (filterTanda) result = result.filter(a => a.tanda_id === filterTanda)
+    if (filterEquipo) result = result.filter(a => a.equipo?.id === filterEquipo)
+
+    setAtletasFiltrados(result)
+  }, [searchTerm, filterCategoria, filterTanda, filterEquipo, atletas])
 
   const handleEdit = (atleta) => {
     setSelectedAtleta({
@@ -214,7 +235,7 @@ export default function AtletasPage() {
             overflow: 'hidden',
           }}
         >
-          <Box sx={{ minWidth: 0, px: 1.5, py: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, px: 1.5, py: 1 }}>
             <TextField
               fullWidth
               variant="standard"
@@ -231,7 +252,52 @@ export default function AtletasPage() {
                 sx: { fontSize: '0.9rem', fontWeight: 700 },
               }}
             />
-          </Box>
+            {!isMobile && categoriasDisponibles.length > 0 && (
+              <Select
+                displayEmpty
+                variant="standard"
+                disableUnderline
+                value={filterCategoria}
+                onChange={(e) => setFilterCategoria(e.target.value)}
+                sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 120 }}
+              >
+                <MenuItem value=""><em>Categoría</em></MenuItem>
+                {categoriasDisponibles.map((c) => (
+                  <MenuItem key={c} value={c}>{c}</MenuItem>
+                ))}
+              </Select>
+            )}
+            {!isMobile && tandasDisponibles.length > 0 && (
+              <Select
+                displayEmpty
+                variant="standard"
+                disableUnderline
+                value={filterTanda}
+                onChange={(e) => setFilterTanda(e.target.value)}
+                sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 100 }}
+              >
+                <MenuItem value=""><em>Tanda</em></MenuItem>
+                {tandasDisponibles.map((t) => (
+                  <MenuItem key={t} value={t}>Tanda {letraTanda(t)}</MenuItem>
+                ))}
+              </Select>
+            )}
+            {!isMobile && equiposDisponibles.length > 0 && (
+              <Select
+                displayEmpty
+                variant="standard"
+                disableUnderline
+                value={filterEquipo}
+                onChange={(e) => setFilterEquipo(e.target.value)}
+                sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 120 }}
+              >
+                <MenuItem value=""><em>Equipo</em></MenuItem>
+                {equiposDisponibles.map((eq) => (
+                  <MenuItem key={eq.id} value={eq.id}>{eq.nombre}</MenuItem>
+                ))}
+              </Select>
+            )}
+          </Stack>
           <Stack direction="row" sx={{ borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
             <Button
               onClick={() => setOpenAsignarEquipo(true)}

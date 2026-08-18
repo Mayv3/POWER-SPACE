@@ -85,12 +85,13 @@ export function GenericDataGrid({
             cursor: onRowClick || onCellClick ? 'pointer' : 'default',
           },
           // Colores de fila por tanda
-          '& .row-tanda-1': { boxShadow: 'inset 3px 0 #1976d2' },
-          '& .row-tanda-2': { boxShadow: 'inset 3px 0 #388e3c' },
-          '& .row-tanda-3': { boxShadow: 'inset 3px 0 #F57C00' },
-          '& .row-tanda-4': { boxShadow: 'inset 3px 0 #7b1fa2' },
-          '& .row-tanda-5': { boxShadow: 'inset 3px 0 #00838f' },
-          '& .row-tanda-6': { boxShadow: 'inset 3px 0 #c2185b' },
+          '& .row-tanda-1': { boxShadow: 'inset 3px 0 #e53935' },
+          '& .row-tanda-2': { boxShadow: 'inset 3px 0 #1e88e5' },
+          '& .row-tanda-3': { boxShadow: 'inset 3px 0 #43a047' },
+          '& .row-tanda-4': { boxShadow: 'inset 3px 0 #fb8c00' },
+          '& .row-tanda-5': { boxShadow: 'inset 3px 0 #8e24aa' },
+          '& .row-tanda-6': { boxShadow: 'inset 3px 0 #00acc1' },
+          '& .row-tanda-7': { boxShadow: 'inset 3px 0 #6d4c41' },
           // Colores para Sentadilla (S1, S2, S3)
           '& .header-sentadilla': {
             backgroundColor: isDark ? '#1a3a5c !important' : '#BBDEFB !important',

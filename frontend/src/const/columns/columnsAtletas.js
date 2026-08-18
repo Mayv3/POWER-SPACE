@@ -6,8 +6,6 @@ import { colorCategoria } from '../../utils/colorCategoria'
 import { abreviarCategoriasEdad } from '../categorias/categorias'
 import { letraTanda } from '../tandas'
 
-const TANDA_COLORS = { 1: '#1976d2', 2: '#388e3c', 3: '#F57C00', 4: '#7b1fa2', 5: '#00838f', 6: '#c2185b', 7: '#5d4037' }
-
 // Fila pintada de borde a borde con el color de la categoría del atleta (misma
 // paleta determinística que columnsIntentos.js), para que toda la fila se lea
 // como un bloque. Tanda y Equipo son la excepción: cada uno con su propio color.
@@ -132,17 +130,10 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     align: 'center',
     headerAlign: 'center',
     cellClassName: 'cat-cell',
-    renderCell: (params) => {
-      const color = TANDA_COLORS[params.value]
-      return (
-        <Box sx={{
-          width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          bgcolor: color || 'transparent', color: color ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
-        }}>
-          {params.value ? `Tanda ${letraTanda(params.value)}` : '-'}
-        </Box>
-      )
-    },
+    renderCell: (params) => renderCeldaConCategoria(
+      params.row,
+      params.value ? `Tanda ${letraTanda(params.value)}` : '-'
+    ),
   },
   {
     field: 'equipo',
