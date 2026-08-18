@@ -6,13 +6,12 @@ import { colorCategoria } from '../../utils/colorCategoria'
 import { abreviarCategoriasEdad } from '../categorias/categorias'
 import { letraTanda } from '../tandas'
 
-// Fila pintada de borde a borde con el color de la categoría del atleta (misma
-// paleta determinística que columnsIntentos.js), para que toda la fila se lea
-// como un bloque. Tanda y Equipo son la excepción: cada uno con su propio color.
-const renderCeldaConCategoria = (row, contenido) => (
+// Fila pintada de borde a borde con el color de la categoría del atleta. La
+// vista puede inyectar su propia paleta; tanda y equipo conservan su color.
+const renderCeldaConCategoria = (row, contenido, getColorCategoria = colorCategoria) => (
   <Box sx={{
     width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
-    bgcolor: row.categoria ? colorCategoria(row.categoria) : 'transparent',
+    bgcolor: row.categoria ? getColorCategoria(row.categoria) : 'transparent',
     color: row.categoria ? '#fff' : 'inherit', fontWeight: 600,
   }}>
     {contenido}
@@ -52,7 +51,7 @@ function ActionsMenu({ row, handleEdit, handleDelete }) {
   )
 }
 
-export const columnsAtletas = (handleEdit, handleDelete) => [
+export const columnsAtletas = (handleEdit, handleDelete, getColorCategoria = colorCategoria) => [
   {
     field: 'lot',
     headerName: 'Lot',
@@ -61,7 +60,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     headerAlign: 'center',
     type: 'number',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-', getColorCategoria),
   },
   {
     field: 'nombre',
@@ -74,7 +73,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     renderCell: (params) => (
       <Box sx={{
         width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1, pl: 1.5,
-        bgcolor: params.row.categoria ? colorCategoria(params.row.categoria) : 'transparent',
+        bgcolor: params.row.categoria ? getColorCategoria(params.row.categoria) : 'transparent',
         color: params.row.categoria ? '#fff' : 'inherit', fontWeight: 600,
       }}>
         <Avatar src={params.row.foto || undefined} sx={{ width: 28, height: 28 }}>
@@ -92,7 +91,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     headerAlign: 'center',
     type: 'number',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-', getColorCategoria),
   },
   {
     field: 'categoria',
@@ -104,7 +103,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     renderCell: (params) => (
       <Box sx={{
         width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: params.value ? colorCategoria(params.value) : 'transparent',
+        bgcolor: params.value ? getColorCategoria(params.value) : 'transparent',
         color: params.value ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
       }}>
         {params.value || '-'}
@@ -120,7 +119,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     cellClassName: 'cat-cell',
     renderCell: (params) => renderCeldaConCategoria(
       params.row,
-      abreviarCategoriasEdad(params.row.sexo, params.value).join(' / ') || '-'
+      abreviarCategoriasEdad(params.row.sexo, params.value).join(' / ') || '-',
+      getColorCategoria
     ),
   },
   {
@@ -132,7 +132,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     cellClassName: 'cat-cell',
     renderCell: (params) => renderCeldaConCategoria(
       params.row,
-      params.value ? `Tanda ${letraTanda(params.value)}` : '-'
+      params.value ? `Tanda ${letraTanda(params.value)}` : '-',
+      getColorCategoria
     ),
   },
   {
@@ -172,7 +173,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     type: 'number',
     headerClassName: 'header-sentadilla',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-', getColorCategoria),
   },
   {
     field: 'primer_intento_banco',
@@ -183,7 +184,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     type: 'number',
     headerClassName: 'header-banco',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-', getColorCategoria),
   },
   {
     field: 'primer_intento_peso_muerto',
@@ -194,7 +195,7 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
     type: 'number',
     headerClassName: 'header-peso-muerto',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-', getColorCategoria),
   },
   {
     field: 'descalificado',
@@ -208,7 +209,8 @@ export const columnsAtletas = (handleEdit, handleDelete) => [
       params.row,
       params.value
         ? <Chip label="Descalificado" size="small" color="error" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
-        : '-'
+        : '-',
+      getColorCategoria
     ),
   },
   {

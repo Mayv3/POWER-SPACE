@@ -21,6 +21,16 @@ import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
 import { descargarPlantillaAtletas } from '../../../lib/atletasImport'
 import { letraTanda } from '../../../const/tandas'
+import { colorCategoria } from '../../../utils/colorCategoria'
+
+const COLORES_PRIMARIOS_CATEGORIAS = [
+  '#1565c0', // azul
+  '#c62828', // rojo
+  '#2e7d32', // verde
+  '#6a1b9a', // violeta
+  '#e65100', // naranja
+  '#ad1457', // fucsia
+]
 
 export default function AtletasPage() {
   const [atletas, setAtletas] = useState([])
@@ -105,6 +115,22 @@ export default function AtletasPage() {
     () => [...new Set(atletas.map(a => a.categoria).filter(Boolean))].sort(),
     [atletas]
   )
+  const categoriasDeTanda = useMemo(
+    () => filterTanda
+      ? [...new Set(atletas.filter(a => a.tanda_id === filterTanda).map(a => a.categoria).filter(Boolean))].sort()
+      : [],
+    [atletas, filterTanda]
+  )
+  const coloresPorCategoria = useMemo(
+    () => new Map(categoriasDeTanda.map((categoria, index) => [
+      categoria,
+      COLORES_PRIMARIOS_CATEGORIAS[index % COLORES_PRIMARIOS_CATEGORIAS.length],
+    ])),
+    [categoriasDeTanda]
+  )
+  const colorCategoriaVisible = (categoria) => filterTanda
+    ? coloresPorCategoria.get(categoria) || COLORES_PRIMARIOS_CATEGORIAS[0]
+    : colorCategoria(categoria)
   const tandasDisponibles = useMemo(
     () => [...new Set(atletas.map(a => a.tanda_id).filter(Boolean))].sort((a, b) => a - b),
     [atletas]
@@ -259,11 +285,26 @@ export default function AtletasPage() {
                 disableUnderline
                 value={filterCategoria}
                 onChange={(e) => setFilterCategoria(e.target.value)}
+                renderValue={(value) => value ? (
+                  <Box component="span" sx={{ color: colorCategoriaVisible(value), fontWeight: 900 }}>
+                    {value}
+                  </Box>
+                ) : <em>Categoría</em>}
                 sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 120 }}
               >
                 <MenuItem value=""><em>Categoría</em></MenuItem>
                 {categoriasDisponibles.map((c) => (
-                  <MenuItem key={c} value={c}>{c}</MenuItem>
+                  <MenuItem key={c} value={c}>
+                    <Box
+                      component="span"
+                      sx={{
+                        bgcolor: colorCategoriaVisible(c), color: '#fff', borderRadius: 1,
+                        px: 1, py: 0.35, minWidth: 82, textAlign: 'center', fontWeight: 800,
+                      }}
+                    >
+                      {c}
+                    </Box>
+                  </MenuItem>
                 ))}
               </Select>
             )}
@@ -424,7 +465,7 @@ export default function AtletasPage() {
           ) : (
             <GenericDataGrid
               rows={atletasFiltrados}
-              columns={columnsAtletas(handleEdit, handleDelete)}
+              columns={columnsAtletas(handleEdit, handleDelete, colorCategoriaVisible)}
               paginationMode="client"
               rowCount={atletasFiltrados.length}
               getRowClassName={(params) => params.row.tanda_id ? `row-tanda-${params.row.tanda_id}` : ''}
