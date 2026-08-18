@@ -25,7 +25,7 @@ import { colorCategoria } from '../../../utils/colorCategoria'
 
 const COLORES_PRIMARIOS_CATEGORIAS = [
   '#1565c0', // azul
-  '#c62828', // rojo
+  '#FFFF00', // rojo
   '#2e7d32', // verde
   '#6a1b9a', // violeta
   '#e65100', // naranja
