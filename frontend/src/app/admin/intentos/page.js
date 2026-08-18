@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, FormControl, Select, MenuItem,
   TextField, InputAdornment, Stack, CircularProgress,
-  Paper, Chip, useMediaQuery, useTheme,
+  Paper, Chip,
 } from '@mui/material'
 import { Search as SearchIcon } from '@mui/icons-material'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
@@ -15,6 +15,16 @@ import { useDarkMode } from '../../../context/ThemeContext'
 import { apiFetch } from '../../../lib/api'
 import { clavesCategoriasAtleta } from '../../../const/categorias/categorias'
 import { TANDA_IDS, letraTanda } from '../../../const/tandas'
+import { colorCategoria } from '../../../utils/colorCategoria'
+
+const COLORES_PRIMARIOS_CATEGORIAS = [
+  '#1565c0', // azul
+  '#B99F00', // amarillo oscuro
+  '#2e7d32', // verde
+  '#6a1b9a', // violeta
+  '#e65100', // naranja
+  '#ad1457', // fucsia
+]
 
 function calcularPuestos(atletas) {
   const grupos = {}
@@ -56,15 +66,32 @@ export default function IntentosPage() {
   const [tandaSeleccionada, setTandaSeleccionada] = useState('todas')
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todas')
 
+  const coloresPorCategoria = useMemo(() => {
+    if (tandaSeleccionada === 'todas') return new Map()
+
+    const categoriasDeTanda = [...new Set(
+      atletas
+        .filter(a => a.tanda_id === parseInt(tandaSeleccionada, 10))
+        .map(a => a.categoria)
+        .filter(Boolean)
+    )].sort()
+
+    return new Map(categoriasDeTanda.map((categoria, index) => [
+      categoria,
+      COLORES_PRIMARIOS_CATEGORIAS[index % COLORES_PRIMARIOS_CATEGORIAS.length],
+    ]))
+  }, [atletas, tandaSeleccionada])
+
+  const colorCategoriaVisible = (categoria) => tandaSeleccionada === 'todas'
+    ? colorCategoria(categoria)
+    : coloresPorCategoria.get(categoria) || COLORES_PRIMARIOS_CATEGORIAS[0]
+
   const [openValidoModal, setOpenValidoModal] = useState(false)
   const [selectedIntento, setSelectedIntento] = useState(null)
 
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
   const border = isDark ? '#3a3a3a' : '#e0e0e0'
-
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const fetchAtletas = async () => {
     setIsLoading(true)
@@ -353,7 +380,12 @@ export default function IntentosPage() {
   const categoriasDisponibles = [...new Set(atletas.map(a => a.categoria))].sort()
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
+    <Box
+      sx={{
+        p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 },
+        '@media (orientation: landscape) and (max-height: 599.95px)': { p: 0, gap: 0 },
+      }}
+    >
 
       {/* Buscador + Tabla */}
       <Paper
@@ -469,18 +501,11 @@ export default function IntentosPage() {
           ) : (
             <GenericDataGrid
               rows={atletasFiltrados}
-              columns={columnsIntentos(handleCellClick)}
+              columns={columnsIntentos(handleCellClick, colorCategoriaVisible)}
               paginationMode="client"
               processRowUpdate={processRowUpdate}
               onProcessRowUpdateError={handleProcessRowUpdateError}
-              columnVisibilityModel={isMobile ? {
-                lot: false,
-                tanda_id: false,
-                peso_corporal: false,
-                categoria: false,
-                puesto: false,
-                ipf_gl: false,
-              } : undefined}
+              mobileHorizontal
             />
           )}
         </Box>

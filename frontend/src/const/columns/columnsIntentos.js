@@ -126,17 +126,17 @@ const renderIntentoCell = (params, field, validoField, onCellClick, ejercicio) =
 
 // Mismo color de fondo que la celda de categoría (borde a borde), para que
 // Lot/Atleta/Tanda/BW se lean como parte del mismo bloque de categoría.
-const renderCeldaConCategoria = (row, contenido) => (
+const renderCeldaConCategoria = (row, contenido, getColorCategoria = colorCategoria) => (
   <Box sx={{
     width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    bgcolor: row.categoria ? colorCategoria(row.categoria) : 'transparent',
+    bgcolor: row.categoria ? getColorCategoria(row.categoria) : 'transparent',
     color: row.categoria ? '#fff' : 'inherit', fontWeight: 600,
   }}>
     {contenido}
   </Box>
 )
 
-export const columnsIntentos = (onCellClick) => [
+export const columnsIntentos = (onCellClick, getColorCategoria = colorCategoria) => [
   {
     field: 'lot',
     headerName: 'Lot',
@@ -145,7 +145,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-', getColorCategoria),
   },
   {
     field: 'apellido',
@@ -156,7 +156,8 @@ export const columnsIntentos = (onCellClick) => [
     cellClassName: 'cat-cell',
     renderCell: (params) => renderCeldaConCategoria(
       params.row,
-      `${capitalizeWords(params.row.apellido)} ${capitalizeWords(params.row.nombre)}`
+      `${capitalizeWords(params.row.apellido)} ${capitalizeWords(params.row.nombre)}`,
+      getColorCategoria
     ),
   },
   {
@@ -166,7 +167,7 @@ export const columnsIntentos = (onCellClick) => [
     align: 'center',
     headerAlign: 'center',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? letraTanda(params.value) : '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? letraTanda(params.value) : '-', getColorCategoria),
   },
   {
     field: 'peso_corporal',
@@ -176,7 +177,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ?? '-', getColorCategoria),
   },
   {
     field: 'categoria',
@@ -188,7 +189,7 @@ export const columnsIntentos = (onCellClick) => [
     renderCell: (params) => (
       <Box sx={{
         width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: params.value ? colorCategoria(params.value) : 'transparent',
+        bgcolor: params.value ? getColorCategoria(params.value) : 'transparent',
         color: params.value ? '#fff' : 'inherit', fontWeight: 700, fontSize: '0.8rem',
       }}>
         {params.value ? claveCategoriaPlataforma(params.row) : '-'}
@@ -403,7 +404,7 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value || '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value || '-', getColorCategoria),
   },
   {
     field: 'puesto',
@@ -412,7 +413,7 @@ export const columnsIntentos = (onCellClick) => [
     align: 'center',
     headerAlign: 'center',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value || '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value || '-', getColorCategoria),
   },
   {
     field: 'ipf_gl',
@@ -422,6 +423,6 @@ export const columnsIntentos = (onCellClick) => [
     headerAlign: 'center',
     type: 'number',
     cellClassName: 'cat-cell',
-    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? params.value.toFixed(2) : '-'),
+    renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? params.value.toFixed(2) : '-', getColorCategoria),
   },
 ]

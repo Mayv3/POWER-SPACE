@@ -68,7 +68,7 @@ const PS_CSS = `
   .ps-tbl tbody tr:hover td{filter:brightness(1.12)}
   .ps-outer{min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:40px 24px;background:${T.pageBg};font-family:${FB}}
   .ps-frame{width:430px;max-width:100%;background:${T.frame};border-radius:30px;overflow:hidden;box-shadow:0 30px 80px rgba(20,18,14,.32);border:1px solid rgba(0,0,0,.5)}
-  @media (max-width:600px){
+  @media (max-width:600px), (max-height:600px) and (orientation:landscape){
     .ps-outer{padding:0;background:${T.frame};align-items:stretch}
     .ps-frame{width:100%;max-width:100%;border-radius:0;border:none;box-shadow:none;min-height:100vh}
   }`

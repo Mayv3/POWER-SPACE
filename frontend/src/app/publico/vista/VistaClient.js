@@ -214,13 +214,15 @@ export default function VistaClient({ initialEstado = null }) {
 
                                 return (
                                     <div key={num} className="flex flex-col items-center justify-between gap-3" style={{ width: '33%', height: '100%', paddingTop: '20px', paddingBottom: '20px' }}>
-                                        {/* Tarea 5: circulito blanco arriba de la luz cuando el referee ya voto (no revela resultado) */}
+                                        {/* El indicador revela el resultado sólo cuando votaron todos. */}
                                         <div style={{ height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {haVotado && (
                                                 <div style={{
                                                     width: '26px', height: '26px', borderRadius: '50%',
-                                                    backgroundColor: '#fff',
-                                                    boxShadow: '0 0 14px 4px rgba(255,255,255,0.7)',
+                                                    backgroundColor: todosVotaron && valor === false ? '#ff1744' : '#fff',
+                                                    boxShadow: todosVotaron && valor === false
+                                                        ? '0 0 14px 4px rgba(255,23,68,0.7)'
+                                                        : '0 0 14px 4px rgba(255,255,255,0.7)',
                                                 }} />
                                             )}
                                         </div>

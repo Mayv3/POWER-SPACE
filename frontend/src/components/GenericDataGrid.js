@@ -1,5 +1,5 @@
 'use client'
-import { Box } from '@mui/material';
+import { Box, useMediaQuery } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { useDarkMode } from '../context/ThemeContext';
 
@@ -20,12 +20,17 @@ export function GenericDataGrid({
   sortModel,
   onSortModelChange,
   getRowClassName,
+  mobileHorizontal = false,
 }) {
   const { isDark } = useDarkMode()
+  const isCompactViewport = useMediaQuery('(max-width: 599.95px), (max-height: 599.95px) and (orientation: landscape)')
 
   const bg = isDark ? '#141414' : 'white'
   const headerBg = isDark ? '#111d18' : '#f5faf7'
   const headerBorder = isDark ? '#244238' : '#d6e7df'
+  const visibleColumns = mobileHorizontal && isCompactViewport
+    ? columns.map((column) => ({ ...column, minWidth: Math.max(column.minWidth || 0, 88) }))
+    : columns
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
@@ -46,6 +51,13 @@ export function GenericDataGrid({
             scrollbarWidth: 'none',
             '&::-webkit-scrollbar': { display: 'none' },
           },
+          ...(mobileHorizontal && isCompactViewport && {
+            '& .MuiDataGrid-virtualScroller': {
+              backgroundColor: bg,
+              scrollbarWidth: 'thin',
+              '&::-webkit-scrollbar': { display: 'block', height: 6 },
+            },
+          }),
           '& .MuiDataGrid-footerContainer': { backgroundColor: bg },
           '& .MuiDataGrid-cell': { fontSize: '0.9rem' },
           // Celda de categoría pintada de borde a borde, incluso cuando MUI
@@ -122,7 +134,7 @@ export function GenericDataGrid({
         rowHeight={36}
         columnHeaderHeight={40}
         rows={rows}
-        columns={columns}
+        columns={visibleColumns}
         disableColumnResize
         disableColumnMenu
         paginationMode={paginationMode}
