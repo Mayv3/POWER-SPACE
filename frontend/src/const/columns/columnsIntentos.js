@@ -5,7 +5,7 @@ import { colorCategoria } from '../../utils/colorCategoria'
 import { claveCategoriaPlataforma } from '../categorias/categorias'
 import { letraTanda } from '../tandas'
 
-const ALTURAS_RACK = Array.from({ length: 20 }, (_, index) => index + 1)
+const ALTURAS_RACK = Array.from({ length: 30 }, (_, index) => index + 1)
 
 // Editor de altura de rack: dropdown propio (no el singleSelect nativo) para
 // poder limitar el menú a ~5 opciones visibles con scroll para el resto.

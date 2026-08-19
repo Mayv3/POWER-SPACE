@@ -10,6 +10,7 @@ import {
 import { PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
+import { useGridApiContext } from '@mui/x-data-grid'
 import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
 import { joinCompetenciaLive } from '../../../lib/competenciaLive'
 import { apiFetch } from '../../../lib/api'
@@ -21,7 +22,7 @@ import { TANDA_IDS, letraTanda } from '../../../const/tandas'
 
 // ── Helpers puros a nivel módulo (refs estables -> columns memoizable) ──
 const MOVIMIENTO_MAP = { sentadilla: 1, banco: 2, peso_muerto: 3 }
-const ALTURAS_RACK = Array.from({ length: 20 }, (_, index) => index + 1)
+const ALTURAS_RACK = Array.from({ length: 30 }, (_, index) => index + 1)
 const PESO_FIELDS = {
   sentadilla: ['primer_intento_sentadilla', 'segundo_intento_sentadilla', 'tercer_intento_sentadilla'],
   banco: ['primer_intento_banco', 'segundo_intento_banco', 'tercer_intento_banco'],
@@ -33,6 +34,34 @@ const VALIDO_FIELDS = {
   peso_muerto: ['valido_d1', 'valido_d2', 'valido_d3'],
 }
 const SOLICITUDES_PESO_STORAGE_KEY = 'power-space:solicitudes-proximo-peso'
+
+// Muestra hasta diez alturas y habilita scroll para las restantes. Se usa un
+// editor propio para que la columna Rack no despliegue una lista interminable.
+function RackSelectEditCell({ id, field, value }) {
+  const apiRef = useGridApiContext()
+
+  const commit = async (newValue) => {
+    await apiRef.current.setEditCellValue({ id, field, value: Number(newValue) })
+    apiRef.current.stopCellEditMode({ id, field })
+  }
+
+  return (
+    <Select
+      value={value ?? ''}
+      onChange={(event) => commit(event.target.value)}
+      onClose={() => apiRef.current.stopCellEditMode({ id, field })}
+      open
+      autoFocus
+      fullWidth
+      MenuProps={{ PaperProps: { style: { maxHeight: 48 * 10.5 } } }}
+      sx={{ height: '100%' }}
+    >
+      {ALTURAS_RACK.map((altura) => (
+        <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+      ))}
+    </Select>
+  )
+}
 
 function calcularDiscos(pesoTotal) {
   if (!pesoTotal) return { discos: [], total: 0 }
@@ -354,6 +383,12 @@ export default function CargadoresPage() {
       // Lectura directa desde la view (sin hop por Express).
       const data = await fetchAtletasConIntentos({ tandaId: tandaFiltro })
       setAtletas(data)
+      // Evita que el panel lateral conserve una copia vieja cuando otro
+      // cargador modifica el mismo intento.
+      setAtletaSeleccionado(prev => prev
+        ? data.find(atleta => atleta.id === prev.id) || prev
+        : prev
+      )
     } catch (err) {
       console.error('Error al cargar atletas:', err)
     } finally {
@@ -362,6 +397,38 @@ export default function CargadoresPage() {
   }, [tandaFiltro])
 
   useEffect(() => { fetchAtletas() }, [fetchAtletas])
+
+  // Mantiene sincronizadas varias pantallas sin recargar la grilla completa
+  // al juzgar un intento. INSERT/UPDATE cambian solamente la fila afectada;
+  // DELETE sí reconcilia toda la lista porque puede dejar campos vacíos.
+  useEffect(() => {
+    const patchIntento = (intento) => {
+      const ejercicio = Object.entries(MOVIMIENTO_MAP)
+        .find(([, movimientoId]) => movimientoId === Number(intento?.movimiento_id))?.[0]
+      const numero = Number(intento?.intento_numero)
+      if (!ejercicio || ![1, 2, 3].includes(numero)) return
+
+      const aplicarPatch = (atleta) => Number(atleta.id) === Number(intento.atleta_id)
+        ? aplicarIntentoLocal(atleta, ejercicio, numero, intento.peso, intento.valido)
+        : atleta
+      setAtletas(prev => prev.map(aplicarPatch))
+      setAtletaSeleccionado(prev => Number(prev?.id) === Number(intento.atleta_id) ? aplicarPatch(prev) : prev)
+    }
+    const channel = supabase
+      .channel('admin:cargadores_intentos_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'intentos' }, (payload) => patchIntento(payload.new))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'intentos' }, (payload) => patchIntento(payload.new))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'intentos' }, fetchAtletas)
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Realtime de cargadores no disponible:', error || status)
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchAtletas])
 
   // Orden derivado (memo) en vez de state + effect + console.logs.
   // Misma lógica: intento1/2/3 mapean al peso del ejercicio activo; desempate por lot.
@@ -411,6 +478,24 @@ export default function CargadoresPage() {
 
     return () => { supabase.removeChannel(channel); liveRef.current?.leave() }
   }, [])
+
+  // Si los jueces cierran un intento, el backend adelanta el estado de
+  // competencia. Reflejamos esa selección en esta pantalla sin simular un
+  // clic ni volver a escribir en la base.
+  useEffect(() => {
+    const atletaId = estadoJueces?.atleta_id
+    if (!atletaId) return
+    const atleta = atletas.find((fila) => Number(fila.id) === Number(atletaId))
+    if (!atleta) return
+
+    setAtletaSeleccionado(atleta)
+    if (['sentadilla', 'banco', 'peso_muerto'].includes(estadoJueces.ejercicio)) {
+      setEjercicioFiltro(estadoJueces.ejercicio)
+    }
+    if ([1, 2, 3].includes(Number(estadoJueces.intento))) {
+      setIntentoSeleccionado(Number(estadoJueces.intento))
+    }
+  }, [estadoJueces?.atleta_id, estadoJueces?.ejercicio, estadoJueces?.intento, atletas])
 
   // Al llegar a 0 el cronómetro (child), apagar el estado en DB. Una sola escritura,
   // no una por segundo. El page ya no re-renderiza con el tick.
@@ -639,6 +724,15 @@ export default function CargadoresPage() {
   }, [asignarProximoPeso])
 
   const handleCellClick = useCallback(async (params) => {
+    // El rack se ajusta directamente en su columna; no debe enviar al atleta
+    // a la plataforma ni alterar el estado visible para jueces/espectadores.
+    if (params.field === 'rack') {
+      if (ejercicioFiltro !== 'peso_muerto') {
+        params.api.startCellEditMode({ id: params.id, field: params.field })
+      }
+      return
+    }
+
     let intento = 1
     if (params.field === 'intento1') intento = 1
     else if (params.field === 'intento2') intento = 2
@@ -676,16 +770,40 @@ export default function CargadoresPage() {
     // Fast-path: la vista muestra el nuevo atleta/peso al instante.
     liveRef.current?.send(nuevoEstado)
 
-    const { error } = await supabase.from('estado_competencia')
-      .update({ ...nuevoEstado, updated_at: new Date() })
-      .eq('id', 1)
-
-    if (error) console.error('Error al actualizar atleta actual:', error)
+    try {
+      await apiFetch('/api/jueces/atleta-actual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevoEstado),
+      })
+    } catch (error) {
+      console.error('Error al actualizar atleta actual:', error)
+    }
   }, [pesoFiltro, atletasOrdenados, ejercicioFiltro])
 
   const processRowUpdate = useCallback(async (newRow, oldRow) => {
     try {
       const ek = ejercicioFiltro === 'banco' ? 'banco' : ejercicioFiltro === 'peso_muerto' ? 'peso_muerto' : 'sentadilla'
+      const rackField = ejercicioFiltro === 'sentadilla' ? 'altura_rack_sentadilla'
+        : ejercicioFiltro === 'banco' ? 'altura_rack_banco' : null
+      const rackCambio = rackField && newRow[rackField] !== oldRow[rackField]
+
+      if (rackCambio) {
+        const altura = Number(newRow[rackField])
+        if (!Number.isInteger(altura) || altura < 1 || altura > 30) {
+          throw new Error('La altura del rack debe ser un número entre 1 y 30')
+        }
+        const res = await apiFetch(`/api/atletas/${newRow.id}/rack`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ejercicio: ejercicioFiltro, altura }),
+        })
+        if (!res.ok) throw new Error('No se pudo guardar la altura del rack')
+
+        setAtletas(prev => prev.map(a => a.id === newRow.id ? { ...a, [rackField]: altura } : a))
+        setAtletaSeleccionado(prev => prev?.id === newRow.id ? { ...prev, [rackField]: altura } : prev)
+      }
+
       const campos = PESO_FIELDS[ek]
       const cambios = []
       for (let i = 0; i < 3; i++) {
@@ -729,6 +847,22 @@ export default function CargadoresPage() {
       field: 'apellido', headerName: 'Apellido', flex: 0.06, minWidth: 100,
       align: 'center', headerAlign: 'center',
       renderCell: (params) => capitalizeWords(params.value),
+    },
+    {
+      field: 'rack', headerName: 'Rack', flex: 0.04, minWidth: 76,
+      align: 'center', headerAlign: 'center', type: 'singleSelect',
+      editable: ejercicioFiltro !== 'peso_muerto',
+      valueOptions: ALTURAS_RACK,
+      valueGetter: (value, row) => ejercicioFiltro === 'sentadilla'
+        ? row.altura_rack_sentadilla ?? null
+        : ejercicioFiltro === 'banco' ? row.altura_rack_banco ?? null : null,
+      valueSetter: (value, row) => {
+        const field = ejercicioFiltro === 'sentadilla' ? 'altura_rack_sentadilla'
+          : ejercicioFiltro === 'banco' ? 'altura_rack_banco' : null
+        return field ? { ...row, [field]: value } : row
+      },
+      renderCell: (params) => ejercicioFiltro === 'peso_muerto' ? '—' : params.value ?? '—',
+      renderEditCell: (params) => <RackSelectEditCell {...params} />,
     },
     {
       field: 'categoria', headerName: 'Categoría', flex: 0.07, minWidth: 150,
@@ -805,11 +939,31 @@ export default function CargadoresPage() {
       '&:hover': { backgroundColor: color },
     }
     return acc
-  }, {}), [categoriasEnTanda])
+  }, {
+    '@keyframes atleta-activo-pulso': {
+      '0%, 100%': { backgroundColor: 'rgba(255, 193, 7, .10)', filter: 'brightness(1)' },
+      '50%': { backgroundColor: 'rgba(255, 215, 64, .32)', filter: 'brightness(1.05)' },
+    },
+    // Dorado suave para identificar plataforma sin ocultar los colores de
+    // válido/nulo de las celdas de intentos.
+    '& .MuiDataGrid-row.atleta-activo': {
+      position: 'relative',
+      zIndex: 1,
+      animation: 'atleta-activo-pulso 1.8s ease-in-out infinite',
+    },
+    '& .MuiDataGrid-row.atleta-activo .MuiDataGrid-cell:not(.full-bleed-cell)': {
+      backgroundColor: 'rgba(255, 193, 7, .14)',
+    },
+    '@media (prefers-reduced-motion: reduce)': {
+      '& .MuiDataGrid-row.atleta-activo': { animation: 'none' },
+    },
+  }), [categoriasEnTanda])
   const getRowClassNameCategoria = useCallback((params) => {
     const i = categoriasEnTanda.indexOf(claveCategoriaPlataforma(params.row))
-    return i >= 0 ? `catgrp-${i}` : ''
-  }, [categoriasEnTanda])
+    const categoriaClass = i >= 0 ? `catgrp-${i}` : ''
+    const activaClass = Number(params.row.id) === Number(estadoJueces?.atleta_id) ? 'atleta-activo' : ''
+    return `${categoriaClass} ${activaClass}`.trim()
+  }, [categoriasEnTanda, estadoJueces?.atleta_id])
 
   const todosVotaron =
     estadoJueces?.juez1_valido !== null && estadoJueces?.juez1_valido !== undefined &&
@@ -921,20 +1075,20 @@ export default function CargadoresPage() {
             gap: 1, overflowX: 'auto', overflowY: 'hidden',
             pb: solicitudesPeso.length > 0 ? 0.5 : 0,
             scrollbarWidth: 'thin',
-            scrollbarColor: `${isDark ? 'rgba(255,255,255,.18)' : 'rgba(20,30,45,.16)'} transparent`,
+            scrollbarColor: `${isDark ? 'rgba(255,255,255,.12)' : 'rgba(20,30,45,.10)'} transparent`,
             '&::-webkit-scrollbar': {
-              height: 5,
+              height: 3,
             },
             '&::-webkit-scrollbar-track': {
               background: 'transparent',
-              marginInline: 12,
+              marginInline: 18,
             },
             '&::-webkit-scrollbar-thumb': {
-              backgroundColor: isDark ? 'rgba(255,255,255,.18)' : 'rgba(20,30,45,.16)',
+              backgroundColor: isDark ? 'rgba(255,255,255,.12)' : 'rgba(20,30,45,.10)',
               borderRadius: 999,
             },
             '&::-webkit-scrollbar-thumb:hover': {
-              backgroundColor: isDark ? 'rgba(255,255,255,.32)' : 'rgba(20,30,45,.28)',
+              backgroundColor: isDark ? 'rgba(255,255,255,.24)' : 'rgba(20,30,45,.20)',
             },
           }}
         >
@@ -1157,7 +1311,7 @@ export default function CargadoresPage() {
                           variant="standard"
                           disableUnderline
                           MenuProps={{
-                            PaperProps: { style: { maxHeight: 48 * 5.5 } },
+                            PaperProps: { style: { maxHeight: 48 * 10.5 } },
                           }}
                           sx={{
                             width: '100%', mt: 0.65,

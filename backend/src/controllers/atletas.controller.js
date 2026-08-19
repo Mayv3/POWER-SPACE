@@ -306,6 +306,72 @@ export async function updateAtleta(req, res) {
     }
 }
 
+// Actualización acotada para el pesaje: evita exigir nuevamente todos los
+// campos obligatorios del formulario al corregir el peso el día del torneo.
+export async function updatePesoCorporal(req, res) {
+    try {
+        const { id } = req.params;
+        const peso = Number(req.body?.peso_corporal);
+
+        if (!Number.isFinite(peso) || peso <= 0) {
+            return res.status(400).json({ error: "El peso corporal debe ser mayor a 0" });
+        }
+
+        const { data, error } = await supabase
+            .from("atletas")
+            .update({ peso_corporal: peso })
+            .eq("id", id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(200).json({
+            message: "Peso corporal actualizado correctamente",
+            atleta: data,
+        });
+    } catch (err) {
+        console.error("Error al actualizar peso corporal:", err.message);
+        res.status(500).json({ error: "Error al actualizar peso corporal" });
+    }
+}
+
+// Actualización acotada para cargadores: cada ejercicio conserva su propia
+// altura de rack y no requiere abrir ni reenviar el formulario del atleta.
+export async function updateAlturaRack(req, res) {
+    try {
+        const { id } = req.params;
+        const { ejercicio, altura } = req.body || {};
+        const campo = ejercicio === "sentadilla"
+            ? "altura_rack_sentadilla"
+            : ejercicio === "banco"
+                ? "altura_rack_banco"
+                : null;
+        const alturaNumero = Number(altura);
+
+        if (!campo || !Number.isInteger(alturaNumero) || alturaNumero < 1 || alturaNumero > 30) {
+            return res.status(400).json({ error: "La altura de rack debe ser un número entero entre 1 y 30" });
+        }
+
+        const { data, error } = await supabase
+            .from("atletas")
+            .update({ [campo]: alturaNumero })
+            .eq("id", id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(200).json({
+            message: "Altura de rack actualizada correctamente",
+            atleta: data,
+        });
+    } catch (err) {
+        console.error("Error al actualizar altura de rack:", err.message);
+        res.status(500).json({ error: "Error al actualizar altura de rack" });
+    }
+}
+
 export async function deleteAtleta(req, res) {
     try {
         const { id } = req.params;

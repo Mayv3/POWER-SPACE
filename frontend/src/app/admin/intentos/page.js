@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, FormControl, Select, MenuItem,
   TextField, InputAdornment, Stack, CircularProgress,
@@ -16,6 +16,8 @@ import { apiFetch } from '../../../lib/api'
 import { clavesCategoriasAtleta } from '../../../const/categorias/categorias'
 import { TANDA_IDS, letraTanda } from '../../../const/tandas'
 import { colorCategoria } from '../../../utils/colorCategoria'
+import { supabase } from '../../../lib/supabaseClient'
+import { joinCompetenciaLive } from '../../../lib/competenciaLive'
 
 const COLORES_PRIMARIOS_CATEGORIAS = [
   '#1565c0', // azul
@@ -93,8 +95,8 @@ export default function IntentosPage() {
   const surface = isDark ? '#2a2a2a' : '#ffffff'
   const border = isDark ? '#3a3a3a' : '#e0e0e0'
 
-  const fetchAtletas = async () => {
-    setIsLoading(true)
+  const fetchAtletas = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setIsLoading(true)
     try {
       const res = await apiFetch(
         `/api/intentos/atletas-con-intentos?tanda_id=todas`
@@ -146,11 +148,39 @@ export default function IntentosPage() {
     } catch (err) {
       console.error('Error al cargar atletas:', err)
     } finally {
-      setIsLoading(false)
+      if (showLoading) setIsLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { fetchAtletas() }, [])
+  useEffect(() => { fetchAtletas({ showLoading: true }) }, [fetchAtletas])
+
+  // Cargadores persiste cada cambio en `intentos`. Escuchamos tanto el cambio
+  // autoritativo de Postgres como su broadcast rápido para que esta tabla no
+  // dependa de una recarga manual. El debounce junta un upsert-batch en una
+  // sola lectura y evita recargar por cada fila.
+  useEffect(() => {
+    let timer = null
+    const refresh = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => fetchAtletas(), 120)
+    }
+
+    const channel = supabase
+      .channel('admin:intentos_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, refresh)
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Realtime de intentos no disponible:', error || status)
+        }
+      })
+    const live = joinCompetenciaLive(null, refresh)
+
+    return () => {
+      clearTimeout(timer)
+      supabase.removeChannel(channel)
+      live.leave()
+    }
+  }, [fetchAtletas])
 
   useEffect(() => {
     let filtrados = atletas

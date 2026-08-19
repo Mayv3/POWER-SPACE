@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
   CircularProgress, Paper, useMediaQuery, useTheme, Select, MenuItem,
@@ -81,6 +81,11 @@ export default function AtletasPage() {
   const { isDark } = useDarkMode()
   const surface = isDark ? '#2a2a2a' : '#ffffff'
   const border = isDark ? '#3a3a3a' : '#e0e0e0'
+  const filtroSelectSx = {
+    fontSize: '0.85rem', fontWeight: 700,
+    '& .MuiSelect-select': { py: 0.25 },
+    '& .MuiSelect-icon': { color: 'text.secondary' },
+  }
 
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -215,6 +220,40 @@ export default function AtletasPage() {
 
   const handleDelete = (atleta) => { setDeleteAtleta(atleta); setOpenDelete(true) }
 
+  const handlePesoCorporalCellClick = useCallback((params) => {
+    if (params.field === 'peso_corporal') {
+      params.api.startCellEditMode({ id: params.id, field: params.field })
+    }
+  }, [])
+
+  const handlePesoCorporalUpdate = useCallback(async (newRow, oldRow) => {
+    if (newRow.peso_corporal === oldRow.peso_corporal) return oldRow
+
+    const peso = Number(newRow.peso_corporal)
+    if (!Number.isFinite(peso) || peso <= 0) {
+      throw new Error('El peso corporal debe ser mayor a 0 kg')
+    }
+
+    const res = await apiFetch(`/api/atletas/${newRow.id}/peso-corporal`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ peso_corporal: peso }),
+    })
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}))
+      throw new Error(error.error || 'No se pudo actualizar el peso corporal')
+    }
+
+    const atletaActualizado = { ...newRow, peso_corporal: peso }
+    setAtletas(prev => prev.map(atleta => atleta.id === newRow.id ? atletaActualizado : atleta))
+    return atletaActualizado
+  }, [])
+
+  const handlePesoCorporalUpdateError = useCallback((error) => {
+    console.error('Error al actualizar peso corporal:', error)
+    alert(error.message || 'No se pudo actualizar el peso corporal')
+  }, [])
+
   const confirmDelete = async () => {
     if (loadingDelete) return
     setLoadingDelete(true)
@@ -261,82 +300,70 @@ export default function AtletasPage() {
             overflow: 'hidden',
           }}
         >
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, px: 1.5, py: 1 }}>
-            <TextField
-              fullWidth
-              variant="standard"
-              placeholder="Nombre o apellido..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                disableUnderline: true,
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 18, color: '#8aa9a0' }} />
-                  </InputAdornment>
-                ),
-                sx: { fontSize: '0.9rem', fontWeight: 700 },
-              }}
-            />
-            {!isMobile && categoriasDisponibles.length > 0 && (
-              <Select
-                displayEmpty
+          <Stack direction="row" spacing={0} alignItems="stretch" sx={{ minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, px: 1.5 }}>
+              <TextField
+                fullWidth
                 variant="standard"
-                disableUnderline
-                value={filterCategoria}
-                onChange={(e) => setFilterCategoria(e.target.value)}
-                renderValue={(value) => value ? (
-                  <Box component="span" sx={{ color: colorCategoriaVisible(value), fontWeight: 900 }}>
-                    {value}
-                  </Box>
-                ) : <em>Categoría</em>}
-                sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 120 }}
-              >
-                <MenuItem value=""><em>Categoría</em></MenuItem>
-                {categoriasDisponibles.map((c) => (
-                  <MenuItem key={c} value={c}>
-                    <Box
-                      component="span"
-                      sx={{
-                        bgcolor: colorCategoriaVisible(c), color: '#fff', borderRadius: 1,
-                        px: 1, py: 0.35, minWidth: 82, textAlign: 'center', fontWeight: 800,
-                      }}
-                    >
-                      {c}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
+                placeholder="Nombre o apellido..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  disableUnderline: true,
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ fontSize: 18, color: '#8aa9a0' }} />
+                    </InputAdornment>
+                  ),
+                  sx: { fontSize: '0.9rem', fontWeight: 700 },
+                }}
+              />
+            </Box>
+            {!isMobile && categoriasDisponibles.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 138, px: 1.5, borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
+                <Select
+                  displayEmpty variant="standard" disableUnderline value={filterCategoria}
+                  onChange={(e) => setFilterCategoria(e.target.value)}
+                  renderValue={(value) => value || 'Categoría'}
+                  MenuProps={{ PaperProps: { sx: { maxHeight: '50vh' } } }}
+                  sx={{ ...filtroSelectSx, width: '100%', '& .MuiSelect-select': { py: 0.25, textAlign: 'center' } }}
+                >
+                  <MenuItem value="">Categoría</MenuItem>
+                  {categoriasDisponibles.map((c) => (
+                    <MenuItem key={c} value={c}>{c}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
             )}
             {!isMobile && tandasDisponibles.length > 0 && (
-              <Select
-                displayEmpty
-                variant="standard"
-                disableUnderline
-                value={filterTanda}
-                onChange={(e) => setFilterTanda(e.target.value)}
-                sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 100 }}
-              >
-                <MenuItem value=""><em>Tanda</em></MenuItem>
-                {tandasDisponibles.map((t) => (
-                  <MenuItem key={t} value={t}>Tanda {letraTanda(t)}</MenuItem>
-                ))}
-              </Select>
+              <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 112, px: 1.5, borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
+                <Select
+                  displayEmpty variant="standard" disableUnderline value={filterTanda}
+                  onChange={(e) => setFilterTanda(e.target.value)}
+                  renderValue={(value) => value ? `Tanda ${letraTanda(value)}` : 'Tanda'}
+                  sx={{ ...filtroSelectSx, width: '100%', '& .MuiSelect-select': { py: 0.25, textAlign: 'center' } }}
+                >
+                  <MenuItem value="">Tanda</MenuItem>
+                  {tandasDisponibles.map((t) => (
+                    <MenuItem key={t} value={t}>Tanda {letraTanda(t)}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
             )}
             {!isMobile && equiposDisponibles.length > 0 && (
-              <Select
-                displayEmpty
-                variant="standard"
-                disableUnderline
-                value={filterEquipo}
-                onChange={(e) => setFilterEquipo(e.target.value)}
-                sx={{ fontSize: '0.85rem', fontWeight: 700, minWidth: 120 }}
-              >
-                <MenuItem value=""><em>Equipo</em></MenuItem>
-                {equiposDisponibles.map((eq) => (
-                  <MenuItem key={eq.id} value={eq.id}>{eq.nombre}</MenuItem>
-                ))}
-              </Select>
+              <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 138, px: 1.5, borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
+                <Select
+                  displayEmpty variant="standard" disableUnderline value={filterEquipo}
+                  onChange={(e) => setFilterEquipo(e.target.value)}
+                  renderValue={(value) => equiposDisponibles.find((equipo) => String(equipo.id) === String(value))?.nombre || 'Equipo'}
+                  sx={{ ...filtroSelectSx, width: '100%', '& .MuiSelect-select': { py: 0.25, textAlign: 'center' } }}
+                >
+                  <MenuItem value="">Equipo</MenuItem>
+                  {equiposDisponibles.map((eq) => (
+                    <MenuItem key={eq.id} value={eq.id}>{eq.nombre}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
             )}
           </Stack>
           <Stack direction="row" sx={{ borderLeft: `1px solid ${isDark ? '#244238' : '#d6e7df'}` }}>
@@ -468,6 +495,9 @@ export default function AtletasPage() {
               columns={columnsAtletas(handleEdit, handleDelete, colorCategoriaVisible)}
               paginationMode="client"
               rowCount={atletasFiltrados.length}
+              processRowUpdate={handlePesoCorporalUpdate}
+              onProcessRowUpdateError={handlePesoCorporalUpdateError}
+              onCellClick={handlePesoCorporalCellClick}
               getRowClassName={(params) => params.row.tanda_id ? `row-tanda-${params.row.tanda_id}` : ''}
               loading={isLoading}
               columnVisibilityModel={isMobile ? {

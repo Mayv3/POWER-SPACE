@@ -24,7 +24,7 @@ import { ModalSection } from './ModalLayout'
 import { PhotoUploadField } from './PhotoUploadField'
 
 const TANDAS = TANDA_IDS
-const ALTURAS_RACK = Array.from({ length: 20 }, (_, index) => index + 1)
+const ALTURAS_RACK = Array.from({ length: 30 }, (_, index) => index + 1)
 
 const ITEM_HEIGHT = 36
 const menuPropsVisibles = (cantidad) => ({

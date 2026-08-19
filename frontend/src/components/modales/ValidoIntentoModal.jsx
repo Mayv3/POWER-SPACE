@@ -87,20 +87,6 @@ export function ValidoIntentoModal({ open, onClose, onConfirm, atleta, ejercicio
             <FitnessCenterIcon size={32} color="white" />
           </Box>
 
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              px: 2,
-              py: 0.5,
-              display: 'inline-block',
-              bgcolor: 'primary.main',
-              color: 'white',
-              borderRadius: 2,
-              fontWeight: 'medium'
-            }}
-          >
-            Intento #{intento}
-          </Typography>
           </Box>
           <Box>
           <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>

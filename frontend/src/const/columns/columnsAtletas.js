@@ -90,6 +90,7 @@ export const columnsAtletas = (handleEdit, handleDelete, getColorCategoria = col
     align: 'center',
     headerAlign: 'center',
     type: 'number',
+    editable: true,
     cellClassName: 'cat-cell',
     renderCell: (params) => renderCeldaConCategoria(params.row, params.value ? `${params.value} kg` : '-', getColorCategoria),
   },

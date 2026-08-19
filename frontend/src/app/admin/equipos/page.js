@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, Button, Stack, TextField, InputAdornment,
   CircularProgress, Avatar, IconButton,
   Menu, MenuItem, ListItemIcon, ListItemText, Divider, Chip,
   Tabs, Tab, Accordion, AccordionSummary, AccordionDetails, Tooltip,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select,
 } from '@mui/material'
 import { Search as SearchIcon, GroupAdd as GroupAddIcon, Groups as GroupsIcon, MoreVert as MoreVertIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon, SupervisorAccount as SupervisorAccountIcon, ExpandMore as ExpandIcon, EmojiEvents as TrophyIcon, Info as InfoIcon } from '@mui/icons-material'
 import { GenericModal } from '../../../components/modales/GenericModal'
@@ -21,6 +21,7 @@ import { Calculate_IPF_GL, Calculate_IPF_Points } from '../../../utils/calcularI
 import { apiFetch } from '../../../lib/api'
 import { CoachesManager } from '../../../components/admin/CoachesManager'
 import { claveCategoriaAtleta } from '../../../const/categorias/categorias'
+import { letraTanda } from '../../../const/tandas'
 
 const EMPTY_EQUIPO = { nombre: '', foto: null, color: '#F57C00', coach_ids: [], coach_principal_id: null }
 
@@ -263,6 +264,16 @@ function PremiacionView({ premiacion, isLoading, surface, border, isDark }) {
 
 function PremiacionCategoriasView({ premiacion, isLoading, surface, border, isDark }) {
   const muted = isDark ? '#9aa0ab' : '#6b7280'
+  const gruposPremiacion = Array.isArray(premiacion) ? premiacion : []
+  const [tandaFiltro, setTandaFiltro] = useState('todas')
+  const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
+
+  const tandasDisponibles = useMemo(() => [...new Set(
+    gruposPremiacion.flatMap((grupo) => (grupo.detalle || []).map((atleta) => Number(atleta.tanda_id)).filter(Boolean))
+  )].sort((a, b) => a - b), [gruposPremiacion])
+  const categoriasDisponibles = useMemo(() => [...new Map(
+    gruposPremiacion.map((grupo) => [grupo.clave, claveCategoriaAtleta(grupo)])
+  ).entries()].sort(([, a], [, b]) => a.localeCompare(b, 'es', { numeric: true })), [gruposPremiacion])
 
   if (isLoading) {
     return (
@@ -271,7 +282,7 @@ function PremiacionCategoriasView({ premiacion, isLoading, surface, border, isDa
       </Box>
     )
   }
-  if (!premiacion || premiacion.length === 0) {
+  if (gruposPremiacion.length === 0) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 1, color: 'text.secondary' }}>
         <TrophyIcon sx={{ fontSize: 56 }} style={{ opacity: 0.4 }} />
@@ -280,15 +291,24 @@ function PremiacionCategoriasView({ premiacion, isLoading, surface, border, isDa
     )
   }
 
-  // Respaldo local con las mismas fórmulas de /publico. También corrige respuestas
-  // antiguas conservadas por HMR y vuelve a asignar puestos por DOTS.
-  const premiacionNormalizada = premiacion.map((grupo) => ({
-    ...grupo,
-    detalle: (grupo.detalle || [])
-      .map(completarMetricasPremiacion)
-      .sort((a, b) => (b.dots || 0) - (a.dots || 0))
-      .map((atleta, index) => ({ ...atleta, puesto: index + 1 })),
-  }))
+  // Misma métrica que /publico, pero el puesto se recalcula con los filtros
+  // activos para que el podio sea correcto dentro de la tanda elegida.
+  const premiacionNormalizada = gruposPremiacion
+    .filter((grupo) => categoriaFiltro === 'todas' || grupo.clave === categoriaFiltro)
+    .map((grupo) => {
+      const detalle = (grupo.detalle || [])
+        .filter((atleta) => tandaFiltro === 'todas' || Number(atleta.tanda_id) === Number(tandaFiltro))
+        .map(completarMetricasPremiacion)
+        .sort((a, b) => (b.dots || 0) - (a.dots || 0))
+        .map((atleta, index) => ({ ...atleta, puesto: index + 1 }))
+      return {
+        ...grupo,
+        participantes: detalle.length,
+        totalizaron: detalle.filter((atleta) => atleta.totalizo).length,
+        detalle,
+      }
+    })
+    .filter((grupo) => grupo.detalle.length > 0)
 
   const secciones = [
     {
@@ -307,13 +327,49 @@ function PremiacionCategoriasView({ premiacion, isLoading, surface, border, isDa
 
   return (
     <Stack spacing={2.25} sx={{ width: '100%', maxWidth: 'none' }}>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.25, color: muted }}>
-        <InfoIcon sx={{ fontSize: 16 }} />
-        <Typography variant="caption">
-          Mismo ranking provisional de la vista pública: atletas agrupados por categoría y ordenados por DOTS.
-        </Typography>
-      </Stack>
-
+      <Box
+        sx={{
+          alignSelf: 'stretch', display: 'flex', flexDirection: { xs: 'column', md: 'row' }, overflow: 'hidden',
+          bgcolor: isDark ? '#0e1c17' : '#f5faf7', border: `1px solid ${border}`, borderRadius: 2,
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minHeight: 68, px: 2.25, flex: 1, borderBottom: { xs: `1px solid ${border}`, md: 'none' }, borderRight: { md: `1px solid ${border}` } }}>
+          <Typography sx={{ fontWeight: 900, fontSize: '1rem' }}>Premiación por categoría</Typography>
+        </Stack>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ minHeight: 68, px: 2, minWidth: { md: 220 }, borderBottom: { xs: `1px solid ${border}`, md: 'none' }, borderRight: { md: `1px solid ${border}` } }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="caption" sx={{ display: 'block', color: muted, fontWeight: 800, lineHeight: 1 }}>TANDA</Typography>
+            <Select
+              displayEmpty variant="standard" disableUnderline value={tandaFiltro}
+              onChange={(event) => setTandaFiltro(event.target.value)}
+              renderValue={(value) => value === 'todas' ? 'Todas las tandas' : `Tanda ${letraTanda(value)}`}
+              sx={{ width: '100%', fontSize: '0.92rem', fontWeight: 800, '& .MuiSelect-select': { py: 0.35 }, '& .MuiSelect-icon': { color: 'text.secondary' } }}
+            >
+              <MenuItem value="todas">Todas las tandas</MenuItem>
+              {tandasDisponibles.map((tanda) => (
+                <MenuItem key={tanda} value={tanda}>Tanda {letraTanda(tanda)}</MenuItem>
+              ))}
+            </Select>
+          </Box>
+        </Stack>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ minHeight: 68, px: 2, minWidth: { md: 280 } }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="caption" sx={{ display: 'block', color: muted, fontWeight: 800, lineHeight: 1 }}>CATEGORÍA</Typography>
+            <Select
+              displayEmpty variant="standard" disableUnderline value={categoriaFiltro}
+              onChange={(event) => setCategoriaFiltro(event.target.value)}
+              renderValue={(value) => value === 'todas' ? 'Todas las categorías' : categoriasDisponibles.find(([clave]) => clave === value)?.[1] || value}
+              MenuProps={{ PaperProps: { sx: { maxHeight: '50vh' } } }}
+              sx={{ width: '100%', fontSize: '0.92rem', fontWeight: 800, '& .MuiSelect-select': { py: 0.35 }, '& .MuiSelect-icon': { color: 'text.secondary' } }}
+            >
+              <MenuItem value="todas">Todas las categorías</MenuItem>
+              {categoriasDisponibles.map(([clave, etiqueta]) => (
+                <MenuItem key={clave} value={clave}>{etiqueta}</MenuItem>
+              ))}
+            </Select>
+          </Box>
+        </Stack>
+      </Box>
       <Box
         sx={{
           display: 'grid',
@@ -483,6 +539,79 @@ function PremiacionCategoriasView({ premiacion, isLoading, surface, border, isDa
           )}
           </Box>
         ))}
+      </Box>
+    </Stack>
+  )
+}
+
+function CoeficientesRanking({ titulo, atletas, color, surface, border, isDark }) {
+  return (
+    <Box sx={{ border: `1px solid ${border}`, borderRadius: 2, overflow: 'hidden', bgcolor: surface }}>
+      <Box sx={{ px: 2, py: 1.35, borderBottom: `1px solid ${border}`, bgcolor: isDark ? '#111d18' : '#f5faf7' }}>
+        <Typography sx={{ fontWeight: 900, color }}>{titulo}</Typography>
+        <Typography variant="caption" color="text.secondary">Top 10 por IPF GL</Typography>
+      </Box>
+      {atletas.length === 0 ? (
+        <Box sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>Aún no hay atletas que hayan totalizado.</Box>
+      ) : (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ '& th': { fontSize: '0.7rem', fontWeight: 900, color: 'text.secondary', borderBottomColor: border } }}>
+                <TableCell align="center">#</TableCell>
+                <TableCell>ATLETA</TableCell>
+                <TableCell>CAT.</TableCell>
+                <TableCell align="right">TOTAL</TableCell>
+                <TableCell align="right">IPF GL</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {atletas.map((atleta, index) => (
+                <TableRow key={atleta.atleta_id} sx={{ '&:last-child td': { borderBottom: 0 }, '& td': { borderBottomColor: border } }}>
+                  <TableCell align="center" sx={{ fontWeight: 900, color: index < 3 ? MEDAL[index + 1] : 'text.secondary' }}>{index + 1}</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>{capitalizeWords(`${atleta.apellido || ''} ${atleta.nombre || ''}`.trim())}</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>{atleta.categoria || '—'}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>{fmtNum(atleta.total)}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 900, color }}>{fmtNum(atleta.ipf_gl)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Box>
+  )
+}
+
+function PremiacionCoeficientesView({ premiacion, isLoading, surface, border, isDark }) {
+  const rankings = useMemo(() => {
+    const atletasPorId = new Map()
+    for (const atleta of (premiacion || []).flatMap((grupo) => grupo.detalle || [])) {
+      if (!atletasPorId.has(atleta.atleta_id)) atletasPorId.set(atleta.atleta_id, atleta)
+    }
+    const atletas = [...atletasPorId.values()]
+      .map(completarMetricasPremiacion)
+      .filter((atleta) => atleta.totalizo && Number(atleta.ipf_gl) > 0)
+
+    return {
+      F: atletas.filter((atleta) => atleta.sexo === 'F').sort((a, b) => b.ipf_gl - a.ipf_gl).slice(0, 10),
+      M: atletas.filter((atleta) => atleta.sexo !== 'F').sort((a, b) => b.ipf_gl - a.ipf_gl).slice(0, 10),
+    }
+  }, [premiacion])
+
+  if (isLoading) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}><CircularProgress size={40} sx={{ color: '#FF9800' }} /></Box>
+  }
+
+  return (
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ px: 2, py: 1.35, border: `1px solid ${border}`, borderRadius: 2, bgcolor: isDark ? '#111d18' : '#f5faf7' }}>
+        <Typography sx={{ fontWeight: 900 }}>Coeficientes IPF GL</Typography>
+        <Typography variant="caption" color="text.secondary">Ranking absoluto por sexo, calculado con el total válido y el peso corporal.</Typography>
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+        <CoeficientesRanking titulo="Femenino" atletas={rankings.F} color="#c2185b" surface={surface} border={border} isDark={isDark} />
+        <CoeficientesRanking titulo="Masculino" atletas={rankings.M} color="#1976d2" surface={surface} border={border} isDark={isDark} />
       </Box>
     </Stack>
   )
@@ -698,7 +827,7 @@ export default function EquiposPage() {
   useEffect(() => { if (vista === 'premiacion') fetchPremiacion() }, [vista])
 
   useEffect(() => {
-    if (vista === 'premiacion' && tipoPremiacion === 'categorias') fetchPremiacionCategorias()
+    if (vista === 'premiacion' && ['categorias', 'coeficientes'].includes(tipoPremiacion)) fetchPremiacionCategorias()
   }, [vista, tipoPremiacion])
 
   useEffect(() => {
@@ -846,6 +975,7 @@ export default function EquiposPage() {
         >
           <Tab value="equipos" label="Por equipos" />
           <Tab value="categorias" label="Por categoría" />
+          <Tab value="coeficientes" label="Coeficientes" />
         </Tabs>
       )}
 
@@ -899,6 +1029,14 @@ export default function EquiposPage() {
         ) : vista === 'premiacion' ? (
           tipoPremiacion === 'categorias' ? (
             <PremiacionCategoriasView
+              premiacion={premiacionCategorias}
+              isLoading={loadingPremiacionCategorias}
+              surface={surface}
+              border={border}
+              isDark={isDark}
+            />
+          ) : tipoPremiacion === 'coeficientes' ? (
+            <PremiacionCoeficientesView
               premiacion={premiacionCategorias}
               isLoading={loadingPremiacionCategorias}
               surface={surface}

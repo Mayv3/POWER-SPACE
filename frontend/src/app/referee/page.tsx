@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Box, Button, Typography, Stack, Skeleton, Fade, Grow } from '@mui/material'
 import { supabase } from '../../lib/supabaseClient'
 import { joinCompetenciaLive } from '../../lib/competenciaLive'
+import { apiFetch } from '../../lib/api'
 
 const STORAGE_KEY = 'ps_referee_id'
 
@@ -115,9 +116,17 @@ export default function RefereePage() {
     }
     // 1) Fast-path: la luz aparece en la vista en ~50-150ms (no espera al WAL).
     liveRef.current?.send(partial)
-    // 2) Persistir (fuente autoritativa; postgres_changes reconcilia al resto).
-    const { error } = await supabase.from('estado_competencia').update({ ...partial, updated_at: new Date() }).eq('id', 1)
-    if (error) console.error('Error al enviar decisión:', error)
+    // 2) El backend persiste el voto y, si es el tercero, registra el intento.
+    // Así el resultado no depende de que Cargadores esté abierto.
+    try {
+      await apiFetch(`/api/jueces/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valido, tipo }),
+      })
+    } catch (error) {
+      console.error('Error al enviar decisión:', error)
+    }
   }
 
   if (!pickerReady) return <DarkLoader />

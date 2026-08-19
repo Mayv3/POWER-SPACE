@@ -192,6 +192,7 @@ export async function getPremiacionCategorias(req, res) {
                 sexo,
                 categoria,
                 modalidad,
+                tanda_id: atleta.tanda_id,
                 peso_corporal: atleta.peso_corporal,
                 sentadilla,
                 banco,
