@@ -544,7 +544,9 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
         return
       }
       const { data, error } = await supabase.from('atletas').select('*').eq('id', atletaId).maybeSingle()
-      if (!error && alive) setAtletaEnVivo(data)
+      // Una respuesta lenta de una selección anterior no puede reemplazar al
+      // atleta que ya está en plataforma.
+      if (!error && alive && Number(atletaId) === Number(lastAtletaId)) setAtletaEnVivo(data)
     }
 
     const aplicarEstado = (incoming, completo = false) => {
@@ -552,7 +554,12 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       setEstado(prev => completo ? incoming : { ...(prev || {}), ...incoming })
       if (Object.prototype.hasOwnProperty.call(incoming, 'atleta_id') && incoming.atleta_id !== lastAtletaId) {
         lastAtletaId = incoming.atleta_id ?? null
-        fetchAtletaEnVivo(lastAtletaId)
+        // El padrón ya contiene la ficha completa en condiciones normales.
+        // Aplicarla en el mismo render que el nuevo estado evita mezclar su
+        // nombre con la foto del atleta anterior durante el fetch de respaldo.
+        const atletaLocal = atletasRef.current.find(a => Number(a.id) === Number(lastAtletaId))
+        setAtletaEnVivo(atletaLocal || null)
+        if (!atletaLocal) fetchAtletaEnVivo(lastAtletaId)
       }
     }
 
@@ -966,7 +973,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                     <div style={{ flex: 'none', width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,106,0,.12)', border: '2px solid rgba(255,106,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {liveA?.foto ? (
-                        <Foto src={liveA.foto} size={72} eager />
+                        <Foto key={liveA.id} src={liveA.foto} size={72} eager />
                       ) : (
                         <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 26, color: T.lime }}>{(atletaEnVivo?.nombre?.[0] || '') + (atletaEnVivo?.apellido?.[0] || '')}</span>
                       )}
