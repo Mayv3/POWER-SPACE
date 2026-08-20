@@ -215,8 +215,23 @@ export async function updateAtletaActual(req, res) {
   // Una elección manual prevalece sobre el salto automático pendiente.
   cancelarAvancePendiente?.();
 
+  // El nombre forma parte de la fila que consumen las pantallas en vivo. Si se
+  // actualiza solo atleta_id, postgres_changes reconcilia luego con los nombres
+  // del atleta anterior y la vista parece "volver atrás". Lo obtenemos en el
+  // servidor para mantener ID y nombre siempre consistentes.
+  const { data: atleta, error: atletaError } = await supabase
+    .from('atletas')
+    .select('nombre, apellido')
+    .eq('id', atleta_id)
+    .maybeSingle();
+
+  if (atletaError) return res.status(500).json({ error: atletaError.message });
+  if (!atleta) return res.status(404).json({ error: 'Atleta no encontrado' });
+
   const updateData = {
     atleta_id: atleta_id,
+    atleta_nombre: atleta.nombre,
+    atleta_apellido: atleta.apellido,
     ejercicio: ejercicio,
     intento: intento,
     peso: peso,

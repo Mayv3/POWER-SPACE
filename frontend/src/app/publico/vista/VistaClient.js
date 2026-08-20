@@ -33,8 +33,13 @@ export default function VistaClient({ initialEstado = null }) {
     }
 
     useEffect(() => {
+        let activo = true
+        let recibioCambioEnVivo = false
+
         // Aplica un cambio de estado. full=fila completa (postgres_changes); parcial=broadcast (merge).
         const aplicarEstado = (incoming, full) => {
+            if (!activo) return
+            recibioCambioEnVivo = true
             setEstadoCompetencia(prev => (full ? incoming : (prev ? { ...prev, ...incoming } : prev)))
             if (incoming.corriendo !== undefined && incoming.corriendo !== null) {
                 if (incoming.corriendo && !corridoRef.current) {
@@ -53,7 +58,9 @@ export default function VistaClient({ initialEstado = null }) {
                 .select('*')
                 .eq('id', 1)
                 .single()
-            if (error || !data) return
+            // Si mientras esperábamos llegó Broadcast o Realtime, esa versión es
+            // más reciente que esta lectura inicial y no debe ser sobrescrita.
+            if (!activo || recibioCambioEnVivo || error || !data) return
 
             setEstadoCompetencia(data)
             setTiempoLocal(data.tiempo_restante ?? 60)
@@ -76,6 +83,7 @@ export default function VistaClient({ initialEstado = null }) {
         const live = joinCompetenciaLive((parcial) => aplicarEstado(parcial, false))
 
         return () => {
+            activo = false
             supabase.removeChannel(channel)
             live.leave()
             if (timerRef.current) clearInterval(timerRef.current)
