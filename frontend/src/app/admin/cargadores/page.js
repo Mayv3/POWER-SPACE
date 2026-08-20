@@ -767,7 +767,12 @@ export default function CargadoresPage() {
       intento_valido: null,
       orden_proximos: ordenProximos,
     }
-    // Fast-path: la vista muestra el nuevo atleta/peso al instante.
+    // La fila activa depende de estadoJueces. Actualizar la pantalla que
+    // originó el clic evita esperar el POST + postgres_changes; el broadcast
+    // usa self:false y por diseño solo adelanta las demás pantallas.
+    setEstadoJueces(prev => ({ ...prev, ...nuevoEstado }))
+
+    // Fast-path: las demás vistas muestran el nuevo atleta/peso al instante.
     liveRef.current?.send(nuevoEstado)
 
     try {
