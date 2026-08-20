@@ -15,8 +15,20 @@ export default function VistaClient({ initialEstado = null }) {
     // Presentación animada del equipo + coach al seleccionar un atleta
     const [presentacion, setPresentacion] = useState(null)
     const [mostrarPresentacion, setMostrarPresentacion] = useState(false)
-    const presentIdRef = useRef(null)
+    const [solicitudPresentacion, setSolicitudPresentacion] = useState(() => (
+        initialEstado?.atleta_id
+            ? {
+                atletaId: initialEstado.atleta_id,
+                atletaNombre: initialEstado.atleta_nombre,
+                atletaApellido: initialEstado.atleta_apellido,
+                clave: 0,
+            }
+            : null
+    ))
+    const presentSeqRef = useRef(0)
+    const presentFetchSeqRef = useRef(0)
     const presentTimerRef = useRef(null)
+    const presentFrameRef = useRef(null)
 
     const iniciarTimerLocal = (segundosInicio) => {
         if (timerRef.current) clearInterval(timerRef.current)
@@ -35,12 +47,39 @@ export default function VistaClient({ initialEstado = null }) {
     useEffect(() => {
         let activo = true
         let recibioCambioEnVivo = false
+        let lastPresentedAtletaId = initialEstado?.atleta_id == null ? null : String(initialEstado.atleta_id)
+
+        const solicitarPresentacion = (incoming) => {
+            if (!activo) return
+            const atletaId = incoming?.atleta_id
+            if (atletaId == null || atletaId === '') return
+            lastPresentedAtletaId = String(atletaId)
+            presentSeqRef.current += 1
+            setSolicitudPresentacion({
+                atletaId,
+                atletaNombre: incoming.atleta_nombre,
+                atletaApellido: incoming.atleta_apellido,
+                atletaFoto: incoming.atleta_foto,
+                equipoNombre: incoming.equipo_nombre,
+                equipoColor: incoming.equipo_color,
+                equipoFoto: incoming.equipo_foto,
+                coachNombre: incoming.coach_nombre,
+                coachFoto: incoming.coach_foto,
+                fichaCompleta: incoming.ficha_completa === true,
+                clave: presentSeqRef.current,
+            })
+        }
 
         // Aplica un cambio de estado. full=fila completa (postgres_changes); parcial=broadcast (merge).
         const aplicarEstado = (incoming, full) => {
             if (!activo) return
             recibioCambioEnVivo = true
             setEstadoCompetencia(prev => (full ? incoming : (prev ? { ...prev, ...incoming } : prev)))
+            if (full) {
+                const nextAtletaId = incoming?.atleta_id == null ? null : String(incoming.atleta_id)
+                if (nextAtletaId && nextAtletaId !== lastPresentedAtletaId) solicitarPresentacion(incoming)
+                if (!nextAtletaId) lastPresentedAtletaId = null
+            }
             if (incoming.corriendo !== undefined && incoming.corriendo !== null) {
                 if (incoming.corriendo && !corridoRef.current) {
                     iniciarTimerLocal(incoming.tiempo_restante ?? 60)
@@ -66,6 +105,8 @@ export default function VistaClient({ initialEstado = null }) {
             setTiempoLocal(data.tiempo_restante ?? 60)
             corridoRef.current = data.corriendo
             if (data.corriendo) iniciarTimerLocal(data.tiempo_restante ?? 60)
+            const fetchedAtletaId = data.atleta_id == null ? null : String(data.atleta_id)
+            if (fetchedAtletaId && fetchedAtletaId !== lastPresentedAtletaId) solicitarPresentacion(data)
         }
         fetchEstado()
 
@@ -80,7 +121,11 @@ export default function VistaClient({ initialEstado = null }) {
             .subscribe()
 
         // Fast-path: luces de jueces / atleta / cronómetro al instante (~50-150ms)
-        const live = joinCompetenciaLive((parcial) => aplicarEstado(parcial, false))
+        const live = joinCompetenciaLive(
+            (parcial) => aplicarEstado(parcial, false),
+            null,
+            solicitarPresentacion
+        )
 
         return () => {
             activo = false
@@ -95,39 +140,75 @@ export default function VistaClient({ initialEstado = null }) {
         estadoCompetencia?.juez2_valido !== null && estadoCompetencia?.juez2_valido !== undefined &&
         estadoCompetencia?.juez3_valido !== null && estadoCompetencia?.juez3_valido !== undefined
 
-    // Al cambiar el atleta en curso: traer su equipo/coach y mostrar presentación animada
+    // Cada solicitud se muestra de inmediato con los datos del estado. La
+    // consulta solo la enriquece: una ficha incompleta o un error de red nunca
+    // pueden impedir la presentación.
     useEffect(() => {
-        const aid = estadoCompetencia?.atleta_id
-        if (!aid || presentIdRef.current === aid) return
-        presentIdRef.current = aid
+        if (!solicitudPresentacion) return
+        const {
+            atletaId, atletaNombre, atletaApellido, atletaFoto,
+            equipoNombre, equipoColor, equipoFoto, coachNombre, coachFoto,
+            fichaCompleta, clave,
+        } = solicitudPresentacion
+        const requestSeq = ++presentFetchSeqRef.current
 
         let cancelado = false
-        ;(async () => {
-            try {
-                const rows = await fetchAtletasConIntentos({ atletaId: aid })
-                const a = rows?.[0]
-                if (cancelado) return
-                if (!a || (!a.foto && !a.equipo_nombre)) { setMostrarPresentacion(false); return }
-                setPresentacion({
-                    atletaNombre: `${a.nombre ?? ''} ${a.apellido ?? ''}`.trim(),
-                    atletaFoto: a.foto || null,
-                    equipoNombre: a.equipo_nombre || null,
-                    equipoColor: a.equipo_color || '#FFA500',
-                    equipoFoto: a.equipo_foto || null,
-                    coachNombre: a.equipo_coach_nombre || null,
-                    coachFoto: a.equipo_coach_foto || null,
-                })
-                setMostrarPresentacion(true)
-                clearTimeout(presentTimerRef.current)
-                presentTimerRef.current = setTimeout(() => setMostrarPresentacion(false), 3500)
-            } catch (err) {
-                console.error('Error al cargar presentación de equipo:', err)
-            }
-        })()
-        return () => { cancelado = true }
-    }, [estadoCompetencia?.atleta_id])
+        clearTimeout(presentTimerRef.current)
+        cancelAnimationFrame(presentFrameRef.current)
+        setMostrarPresentacion(false)
+        setPresentacion({
+            clave,
+            atletaNombre: `${atletaNombre ?? ''} ${atletaApellido ?? ''}`.trim() || 'ATLETA',
+            atletaFoto: atletaFoto || null,
+            equipoNombre: equipoNombre || null,
+            equipoColor: equipoColor || '#FFA500',
+            equipoFoto: equipoFoto || null,
+            coachNombre: coachNombre || null,
+            coachFoto: coachFoto || null,
+        })
 
-    useEffect(() => () => clearTimeout(presentTimerRef.current), [])
+        // Dos frames garantizan que el navegador pinte el estado inicial antes
+        // de activar la transición, incluso en selecciones consecutivas.
+        presentFrameRef.current = requestAnimationFrame(() => {
+            presentFrameRef.current = requestAnimationFrame(() => {
+                if (cancelado) return
+                setMostrarPresentacion(true)
+                presentTimerRef.current = setTimeout(() => setMostrarPresentacion(false), 3500)
+            })
+        })
+
+        if (!fichaCompleta) {
+            ;(async () => {
+                try {
+                    const rows = await fetchAtletasConIntentos({ atletaId })
+                    const a = rows?.[0]
+                    if (cancelado || requestSeq !== presentFetchSeqRef.current || !a) return
+                    setPresentacion(prev => prev?.clave === clave ? {
+                        ...prev,
+                        atletaNombre: `${a.nombre ?? ''} ${a.apellido ?? ''}`.trim() || prev.atletaNombre,
+                        atletaFoto: a.foto || null,
+                        equipoNombre: a.equipo_nombre || null,
+                        equipoColor: a.equipo_color || '#FFA500',
+                        equipoFoto: a.equipo_foto || null,
+                        coachNombre: a.equipo_coach_nombre || null,
+                        coachFoto: a.equipo_coach_foto || null,
+                    } : prev)
+                } catch (err) {
+                    console.error('Error al cargar presentación de equipo:', err)
+                }
+            })()
+        }
+        return () => {
+            cancelado = true
+            clearTimeout(presentTimerRef.current)
+            cancelAnimationFrame(presentFrameRef.current)
+        }
+    }, [solicitudPresentacion])
+
+    useEffect(() => () => {
+        clearTimeout(presentTimerRef.current)
+        cancelAnimationFrame(presentFrameRef.current)
+    }, [])
 
     const obtenerNombreEjercicio = (ejercicio) => {
         switch (ejercicio) {
@@ -263,7 +344,7 @@ export default function VistaClient({ initialEstado = null }) {
 
             {/* Presentación animada del equipo + coach */}
             {presentacion && (
-                <Box sx={{
+                <Box key={presentacion.clave} sx={{
                     position: 'fixed', inset: 0, zIndex: 150,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5vh',
                     background: `radial-gradient(circle at 50% 38%, ${presentacion.equipoColor}55 0%, #000 65%)`,

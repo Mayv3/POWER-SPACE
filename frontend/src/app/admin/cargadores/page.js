@@ -774,6 +774,18 @@ export default function CargadoresPage() {
 
     // Fast-path: las demás vistas muestran el nuevo atleta/peso al instante.
     liveRef.current?.send(nuevoEstado)
+    liveRef.current?.presentarAtleta({
+      atleta_id: nuevoEstado.atleta_id,
+      atleta_nombre: nuevoEstado.atleta_nombre,
+      atleta_apellido: nuevoEstado.atleta_apellido,
+      atleta_foto: params.row.foto || null,
+      equipo_nombre: params.row.equipo_nombre || null,
+      equipo_color: params.row.equipo_color || '#FFA500',
+      equipo_foto: params.row.equipo_foto || null,
+      coach_nombre: params.row.equipo_coach_nombre || null,
+      coach_foto: params.row.equipo_coach_foto || null,
+      ficha_completa: true,
+    })
 
     try {
       await apiFetch('/api/jueces/atleta-actual', {

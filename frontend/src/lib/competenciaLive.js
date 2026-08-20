@@ -10,10 +10,11 @@ import { supabase } from './supabaseClient'
 const CHANNEL = 'competencia-live'
 const EVENT = 'estado'
 const REFRESH_EVENT = 'refrescar-atletas'
+const PRESENT_EVENT = 'presentar-atleta'
 
 // Une el canal. `onEstado(payloadParcial)` se llama con los campos cambiados (merge).
-// Devuelve { send, leave }. send(parcial) emite a las demás pantallas (self:false).
-export function joinCompetenciaLive(onEstado, onRefreshAtletas) {
+// Los demás callbacks son opcionales; todos los envíos usan self:false.
+export function joinCompetenciaLive(onEstado, onRefreshAtletas, onPresentarAtleta) {
   const channel = supabase.channel(CHANNEL, { config: { broadcast: { self: false } } })
   if (onEstado) {
     channel.on('broadcast', { event: EVENT }, ({ payload }) => { onEstado(payload) })
@@ -21,12 +22,20 @@ export function joinCompetenciaLive(onEstado, onRefreshAtletas) {
   if (onRefreshAtletas) {
     channel.on('broadcast', { event: REFRESH_EVENT }, () => { onRefreshAtletas() })
   }
+  if (onPresentarAtleta) {
+    channel.on('broadcast', { event: PRESENT_EVENT }, ({ payload }) => { onPresentarAtleta(payload) })
+  }
   channel.subscribe()
 
   const send = (parcial) => { channel.send({ type: 'broadcast', event: EVENT, payload: parcial }) }
   const refreshAtletas = () => {
     channel.send({ type: 'broadcast', event: REFRESH_EVENT, payload: { at: Date.now() } })
   }
+  // Evento separado del estado: debe emitirse en cada selección, incluso si
+  // se vuelve a elegir el mismo atleta y `atleta_id` no cambia.
+  const presentarAtleta = (payload) => {
+    channel.send({ type: 'broadcast', event: PRESENT_EVENT, payload })
+  }
   const leave = () => { supabase.removeChannel(channel) }
-  return { send, refreshAtletas, leave }
+  return { send, refreshAtletas, presentarAtleta, leave }
 }

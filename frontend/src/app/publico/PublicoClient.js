@@ -27,6 +27,11 @@ const FO = 'var(--ps-font-oswald),sans-serif'
 const FB = 'var(--ps-font-barlow),sans-serif'
 const FM = 'var(--ps-font-mono),monospace'
 
+// Supabase puede entregar una FK como número o string según el origen del
+// evento. Una representación canónica evita refrescos y cambios de atleta
+// falsos sin convertir IDs grandes a Number.
+const normalizarIdAtleta = (id) => id == null || id === '' ? null : String(id)
+
 const LIFTS = [
   { name: 'Sentadilla', key: 'sentadilla', prefix: 's', best: 'mejorSentadilla' },
   { name: 'Press banca', key: 'banco', prefix: 'b', best: 'mejorBanco' },
@@ -489,9 +494,13 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   useEffect(() => {
     let alive = true
     let debounceTimer = null
+    let reconcileTimer = null
     let updatingTimer = null
-    let lastAtletaId = initialEstado?.atleta_id ?? null
+    let lastAtletaId = normalizarIdAtleta(initialEstado?.atleta_id)
     let lastEventAt = Date.now()
+    let estadoRevision = 0
+    let fetchEstadoSeq = 0
+    let fetchAtletaSeq = 0
 
     const marcarEvento = () => { lastEventAt = Date.now() }
 
@@ -539,43 +548,68 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     }
 
     const fetchAtletaEnVivo = async (atletaId) => {
-      if (!atletaId) {
+      const requestedId = normalizarIdAtleta(atletaId)
+      const requestSeq = ++fetchAtletaSeq
+      if (requestedId == null) {
         if (alive) setAtletaEnVivo(null)
         return
       }
-      const { data, error } = await supabase.from('atletas').select('*').eq('id', atletaId).maybeSingle()
+      const { data, error } = await supabase.from('atletas').select('*').eq('id', requestedId).maybeSingle()
       // Una respuesta lenta de una selección anterior no puede reemplazar al
       // atleta que ya está en plataforma.
-      if (!error && alive && Number(atletaId) === Number(lastAtletaId)) setAtletaEnVivo(data)
+      if (!error && alive && requestSeq === fetchAtletaSeq && requestedId === lastAtletaId) {
+        setAtletaEnVivo(data)
+      }
     }
 
     const aplicarEstado = (incoming, completo = false) => {
       if (!incoming || !alive) return
+      estadoRevision += 1
       setEstado(prev => completo ? incoming : { ...(prev || {}), ...incoming })
-      if (Object.prototype.hasOwnProperty.call(incoming, 'atleta_id') && incoming.atleta_id !== lastAtletaId) {
-        lastAtletaId = incoming.atleta_id ?? null
+      if (Object.prototype.hasOwnProperty.call(incoming, 'atleta_id')) {
+        const nextAtletaId = normalizarIdAtleta(incoming.atleta_id)
+        if (nextAtletaId === lastAtletaId) return
+        lastAtletaId = nextAtletaId
+        // Invalida cualquier consulta iniciada para el atleta anterior.
+        fetchAtletaSeq += 1
         // El padrón ya contiene la ficha completa en condiciones normales.
         // Aplicarla en el mismo render que el nuevo estado evita mezclar su
         // nombre con la foto del atleta anterior durante el fetch de respaldo.
-        const atletaLocal = atletasRef.current.find(a => Number(a.id) === Number(lastAtletaId))
+        const atletaLocal = atletasRef.current.find(a => normalizarIdAtleta(a.id) === lastAtletaId)
         setAtletaEnVivo(atletaLocal || null)
         if (!atletaLocal) fetchAtletaEnVivo(lastAtletaId)
       }
     }
 
     const fetchEstado = async () => {
+      const requestSeq = ++fetchEstadoSeq
+      const revisionAlIniciar = estadoRevision
       // 1 round-trip: estado + atleta en vivo vía join embebido (FK estado_competencia.atleta_id -> atletas)
       const { data, error } = await supabase.from('estado_competencia').select('*, atleta:atletas(*)').eq('id', 1).maybeSingle()
-      if (error || !data || !alive) return
+      // Una consulta anterior, o iniciada antes de un evento realtime, nunca
+      // puede pisar un estado más reciente.
+      if (
+        error || !data || !alive ||
+        requestSeq !== fetchEstadoSeq || revisionAlIniciar !== estadoRevision
+      ) return
       const { atleta, ...est } = data
+      const nextAtletaId = normalizarIdAtleta(est.atleta_id)
+      fetchAtletaSeq += 1
       setEstado(est)
-      setAtletaEnVivo(est.atleta_id ? atleta : null)
-      lastAtletaId = est.atleta_id ?? null
+      setAtletaEnVivo(nextAtletaId ? atleta : null)
+      lastAtletaId = nextAtletaId
     }
 
-    // Cierra la ventana entre el fetch SSR y la hidratación del cliente.
-    reload()
-    fetchEstado()
+    // Se suscribe antes de reconciliar para no dejar una ventana entre la
+    // lectura y realtime. El debounce agrupa focus + visibilitychange.
+    const reconcile = () => {
+      if (document.visibilityState !== 'visible') return
+      clearTimeout(reconcileTimer)
+      reconcileTimer = setTimeout(() => {
+        fetchEstado()
+        scheduleReload(0)
+      }, 0)
+    }
 
     const ch = supabase
       .channel('public:publico_realtime')
@@ -594,9 +628,10 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
         (payload) => { marcarEvento(); aplicarEstado(payload.new, true) }
       )
       .subscribe((status, error) => {
-        if (status === 'SUBSCRIBED') { marcarEvento(); scheduleReload(0); fetchEstado() }
+        if (status === 'SUBSCRIBED') { marcarEvento(); reconcile() }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('Realtime público no disponible:', error || status)
+          reconcile()
         }
       })
 
@@ -609,11 +644,6 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     // Forzado: se viene de un gap real (pestaña dormida, red caída). No marca
     // evento a propósito: `lastEventAt` mide solo tráfico de realtime, así que
     // con el socket caído el polling sigue firme cada 10s.
-    const reconcile = () => {
-      if (document.visibilityState !== 'visible') return
-      fetchEstado()
-      scheduleReload(0)
-    }
     // Periódico: solo si el realtime quedó callado. Con el socket sano no
     // dispara, en vez de refetchear el padrón entero cada 10s por espectador.
     const interval = setInterval(() => {
@@ -628,6 +658,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     return () => {
       alive = false
       clearTimeout(debounceTimer)
+      clearTimeout(reconcileTimer)
       clearTimeout(updatingTimer)
       clearInterval(interval)
       window.removeEventListener('focus', reconcile)
@@ -659,6 +690,9 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   // Descalificados quedan fuera de todo ranking/premiación (no cuentan ni
   // ocupan puesto), pero se mantienen en `atletas` para búsqueda/detalle.
   const atletasVigentes = useMemo(() => atletas.filter(a => !a.descalificado), [atletas])
+  const atletasPorId = useMemo(() => new Map(
+    atletas.map(a => [normalizarIdAtleta(a.id), a])
+  ), [atletas])
 
   /* ---- posición por categoría (sobre todo el padrón) ---- */
   const posMap = useMemo(() => {
@@ -766,13 +800,15 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const proximos = useMemo(() => {
     if (!atletaEnVivo || !estado) return []
     if (Array.isArray(estado.orden_proximos)) {
-      const byId = new Map(atletas.map(a => [a.id, a]))
-      return estado.orden_proximos.map(id => byId.get(id)).filter(Boolean)
+      return estado.orden_proximos
+        .map(id => atletasPorId.get(normalizarIdAtleta(id)))
+        .filter(Boolean)
     }
     const mismaTanda = atletas.filter(a => a.tanda_id === atletaEnVivo.tanda_id)
-    const i = mismaTanda.findIndex(a => a.id === atletaEnVivo.id)
+    const atletaEnVivoId = normalizarIdAtleta(atletaEnVivo.id)
+    const i = mismaTanda.findIndex(a => normalizarIdAtleta(a.id) === atletaEnVivoId)
     return i === -1 ? [] : mismaTanda.slice(i + 1)
-  }, [atletaEnVivo, estado, atletas])
+  }, [atletaEnVivo, estado, atletas, atletasPorId])
 
   /* ---- precarga de fotos: en vivo -> próximos -> resto (perfil abre instantáneo) ---- */
   useEffect(() => {
@@ -797,8 +833,8 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   /* ---- derivados live ---- */
   const liveA = useMemo(() => {
     if (!atletaEnVivo) return null
-    return atletas.find(a => a.id === atletaEnVivo.id) || computeAtleta(atletaEnVivo)
-  }, [atletaEnVivo, atletas])
+    return atletasPorId.get(normalizarIdAtleta(atletaEnVivo.id)) || computeAtleta(atletaEnVivo)
+  }, [atletaEnVivo, atletasPorId])
 
   const live = useMemo(() => {
     if (!liveA || !estado) return null
@@ -808,18 +844,21 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     const bestCur = bestKey ? (liveA[bestKey] || 0) : 0
     const proj = subtotal + Math.max(0, (estado.peso || 0) - bestCur)
     return {
-      name: `${atletaEnVivo.nombre ?? ''} ${atletaEnVivo.apellido ?? ''}`.trim(),
-      cat: [claveCategoriaAtleta(atletaEnVivo), atletaEnVivo.modalidad].filter(Boolean).join(' · '),
-      bw: atletaEnVivo.peso_corporal, age: atletaEnVivo.edad,
+      name: `${liveA.nombre ?? ''} ${liveA.apellido ?? ''}`.trim(),
+      cat: [claveCategoriaAtleta(liveA), liveA.modalidad].filter(Boolean).join(' · '),
+      bw: liveA.peso_corporal, age: liveA.edad,
       lift: LIFT_LABEL[liftKey] || '—',
       attemptLabel: estado.intento ? `${estado.intento}º intento` : '',
       weight: estado.peso ?? '—',
       subtotal, proj, pos: posMap[liveA.id] || '—',
     }
-  }, [liveA, estado, atletaEnVivo, posMap])
+  }, [liveA, estado, posMap])
 
   /* ---- detalle ---- */
-  const selected = useMemo(() => atletas.find(a => a.id === selectedId) || null, [atletas, selectedId])
+  const selected = useMemo(
+    () => atletasPorId.get(normalizarIdAtleta(selectedId)) || null,
+    [atletasPorId, selectedId]
+  )
 
   /* ---- lista versus (categoría en vivo) + reordenamiento FLIP ---- */
   const versusList = useMemo(() => {
@@ -973,9 +1012,9 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                     <div style={{ flex: 'none', width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,106,0,.12)', border: '2px solid rgba(255,106,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {liveA?.foto ? (
-                        <Foto key={liveA.id} src={liveA.foto} size={72} eager />
+                        <Foto src={liveA.foto} size={72} eager />
                       ) : (
-                        <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 26, color: T.lime }}>{(atletaEnVivo?.nombre?.[0] || '') + (atletaEnVivo?.apellido?.[0] || '')}</span>
+                        <span style={{ fontFamily: FO, fontWeight: 700, fontSize: 26, color: T.lime }}>{(liveA?.nombre?.[0] || '') + (liveA?.apellido?.[0] || '')}</span>
                       )}
                     </div>
                     <div style={{ minWidth: 0 }}>
