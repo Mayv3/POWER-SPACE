@@ -8,7 +8,8 @@ import {
   updateIntento,
   deleteIntento,
   upsertIntentoAtleta,
-  upsertBatchIntentos
+  upsertBatchIntentos,
+  resetearCompetencia
 } from "../controllers/intentos.controller.js";
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.get("/tanda/:tanda_id", getIntentosByTanda);
 router.post("/", createIntento);
 router.post("/upsert", upsertIntentoAtleta);
 router.post("/upsert-batch", upsertBatchIntentos);
+router.post("/restablecer-competencia", resetearCompetencia);
 router.put("/:id", updateIntento);
 router.delete("/:id", deleteIntento);
 

@@ -349,8 +349,8 @@ export async function updateAlturaRack(req, res) {
                 : null;
         const alturaNumero = Number(altura);
 
-        if (!campo || !Number.isInteger(alturaNumero) || alturaNumero < 1 || alturaNumero > 30) {
-            return res.status(400).json({ error: "La altura de rack debe ser un número entero entre 1 y 30" });
+        if (!campo || !Number.isInteger(alturaNumero) || alturaNumero < 1 || alturaNumero > 60) {
+            return res.status(400).json({ error: "La altura de rack debe ser una posición entre 1 y 30, abierta o cerrada" });
         }
 
         const { data, error } = await supabase

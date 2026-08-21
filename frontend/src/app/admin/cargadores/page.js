@@ -10,6 +10,7 @@ import {
 import { PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
 import { GenericDataGrid } from '../../../components/GenericDataGrid'
+import { DeleteGenericModal } from '../../../components/modales/DeleteGenericModal'
 import { useGridApiContext } from '@mui/x-data-grid'
 import { supabase, fetchAtletasConIntentos } from '../../../lib/supabaseClient'
 import { joinCompetenciaLive } from '../../../lib/competenciaLive'
@@ -22,7 +23,9 @@ import { TANDA_IDS, letraTanda } from '../../../const/tandas'
 
 // ── Helpers puros a nivel módulo (refs estables -> columns memoizable) ──
 const MOVIMIENTO_MAP = { sentadilla: 1, banco: 2, peso_muerto: 3 }
-const ALTURAS_RACK = Array.from({ length: 30 }, (_, index) => index + 1)
+// 1–30: rack abierto. 31–60: la misma posición con el rack cerrado (1C–30C).
+const ALTURAS_RACK = Array.from({ length: 60 }, (_, index) => index + 1)
+const formatearAlturaRack = (altura) => Number(altura) > 30 ? `${Number(altura) - 30}C` : altura
 const PESO_FIELDS = {
   sentadilla: ['primer_intento_sentadilla', 'segundo_intento_sentadilla', 'tercer_intento_sentadilla'],
   banco: ['primer_intento_banco', 'segundo_intento_banco', 'tercer_intento_banco'],
@@ -34,6 +37,7 @@ const VALIDO_FIELDS = {
   peso_muerto: ['valido_d1', 'valido_d2', 'valido_d3'],
 }
 const SOLICITUDES_PESO_STORAGE_KEY = 'power-space:solicitudes-proximo-peso'
+const CONTEXTO_ORDEN_CARGADORES_STORAGE_KEY = 'power-space:contexto-orden-cargadores'
 
 // Muestra hasta diez alturas y habilita scroll para las restantes. Se usa un
 // editor propio para que la columna Rack no despliegue una lista interminable.
@@ -57,7 +61,7 @@ function RackSelectEditCell({ id, field, value }) {
       sx={{ height: '100%' }}
     >
       {ALTURAS_RACK.map((altura) => (
-        <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+        <MenuItem key={altura} value={altura}>{formatearAlturaRack(altura)}</MenuItem>
       ))}
     </Select>
   )
@@ -345,6 +349,8 @@ export default function CargadoresPage() {
   const [pesoFiltro, setPesoFiltro] = useState('todos')
   const [intentoSeleccionado, setIntentoSeleccionado] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [restableciendoCompetencia, setRestableciendoCompetencia] = useState(false)
+  const [modalRestablecerAbierto, setModalRestablecerAbierto] = useState(false)
   const [estadoJueces, setEstadoJueces] = useState(null)
   const [sortModel, setSortModel] = useState([])
   const [solicitudesPeso, setSolicitudesPeso] = useState([])
@@ -354,6 +360,7 @@ export default function CargadoresPage() {
   // después del fast-path (causaba el modal "próximo peso" reabriéndose solo).
   const marcadoClaveRef = useRef(null)
   const liveRef = useRef(null)
+  const ordenTandaRef = useRef(null)
   // Una selección manual se refleja de forma optimista. Mientras su POST sigue
   // pendiente, no permitimos que un echo autoritativo de un clic anterior vuelva
   // a mover el panel lateral al atleta viejo.
@@ -458,6 +465,21 @@ export default function CargadoresPage() {
     })
   }, [sortModel, atletas, ejercicioFiltro])
 
+  // Intentos reutiliza esta secuencia para mostrar la misma tanda con el mismo
+  // orden que está viendo Cargadores, incluso después de navegar de una pantalla
+  // a la otra o si ambas quedaron abiertas en pestañas separadas.
+  useEffect(() => {
+    if (isLoading || atletas.length === 0 || atletas.some((atleta) => Number(atleta.tanda_id) !== Number(tandaFiltro))) return
+
+    const contextoOrden = {
+      tandaId: Number(tandaFiltro),
+      atletaIds: atletasOrdenados.map((atleta) => atleta.id),
+    }
+    ordenTandaRef.current = contextoOrden
+    localStorage.setItem(CONTEXTO_ORDEN_CARGADORES_STORAGE_KEY, JSON.stringify(contextoOrden))
+    liveRef.current?.ordenarTanda(contextoOrden)
+  }, [atletas, atletasOrdenados, tandaFiltro, isLoading])
+
   useEffect(() => {
     const aplicarEstadoAutoritativo = (estado) => {
       const seleccionLocal = seleccionLocalRef.current
@@ -491,6 +513,7 @@ export default function CargadoresPage() {
     liveRef.current = joinCompetenciaLive((parcial) =>
       setEstadoJueces(prev => prev ? { ...prev, ...parcial } : prev)
     )
+    if (ordenTandaRef.current) liveRef.current.ordenarTanda(ordenTandaRef.current)
 
     return () => { supabase.removeChannel(channel); liveRef.current?.leave() }
   }, [])
@@ -658,6 +681,27 @@ export default function CargadoresPage() {
       fetchAtletas() // solo reconciliar la lista si la escritura falló
     }
   }, [atletaSeleccionado, ejercicioFiltro, intentoSeleccionado, fetchAtletas])
+
+  const restablecerCompetencia = useCallback(async () => {
+    setRestableciendoCompetencia(true)
+    try {
+      const res = await apiFetch('/api/intentos/restablecer-competencia', { method: 'POST' })
+      if (!res.ok) throw new Error('No se pudo restablecer la competencia')
+      const data = await res.json()
+      setAtletaSeleccionado(null)
+      setEstadoJueces(null)
+      setSolicitudesPeso([])
+      liveRef.current?.refreshAtletas()
+      await fetchAtletas()
+      setModalRestablecerAbierto(false)
+      toast.success(`Competencia restablecida: ${data.intentos_eliminados ?? 0} intentos eliminados`)
+    } catch (err) {
+      console.error('Error al restablecer la competencia:', err)
+      toast.error('No se pudo restablecer la competencia')
+    } finally {
+      setRestableciendoCompetencia(false)
+    }
+  }, [fetchAtletas])
 
   // Rack solo aplica a sentadilla/banco. Optimista + PUT al atleta (mismo
   // patrón que el resto de la página: campo puntual sobre el registro completo).
@@ -837,8 +881,8 @@ export default function CargadoresPage() {
 
       if (rackCambio) {
         const altura = Number(newRow[rackField])
-        if (!Number.isInteger(altura) || altura < 1 || altura > 30) {
-          throw new Error('La altura del rack debe ser un número entre 1 y 30')
+        if (!Number.isInteger(altura) || altura < 1 || altura > 60) {
+          throw new Error('La altura del rack debe ser una posición entre 1 y 30, abierta o cerrada')
         }
         const res = await apiFetch(`/api/atletas/${newRow.id}/rack`, {
           method: 'PATCH',
@@ -900,6 +944,7 @@ export default function CargadoresPage() {
       align: 'center', headerAlign: 'center', type: 'singleSelect',
       editable: ejercicioFiltro !== 'peso_muerto',
       valueOptions: ALTURAS_RACK,
+      valueFormatter: (value) => value == null ? '' : formatearAlturaRack(value),
       valueGetter: (value, row) => ejercicioFiltro === 'sentadilla'
         ? row.altura_rack_sentadilla ?? null
         : ejercicioFiltro === 'banco' ? row.altura_rack_banco ?? null : null,
@@ -908,7 +953,9 @@ export default function CargadoresPage() {
           : ejercicioFiltro === 'banco' ? 'altura_rack_banco' : null
         return field ? { ...row, [field]: value } : row
       },
-      renderCell: (params) => ejercicioFiltro === 'peso_muerto' ? '—' : params.value ?? '—',
+      renderCell: (params) => ejercicioFiltro === 'peso_muerto'
+        ? '—'
+        : params.value == null ? '—' : formatearAlturaRack(params.value),
       renderEditCell: (params) => <RackSelectEditCell {...params} />,
     },
     {
@@ -1102,6 +1149,19 @@ export default function CargadoresPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100dvh', display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
 
+      <DeleteGenericModal
+        open={modalRestablecerAbierto}
+        title="Restablecer competencia"
+        subtitle="El progreso actual se eliminará."
+        nombre="Todos los intentos registrados"
+        descripcion="Se conservarán los pesos establecidos para los primeros tiros. Los intentos volverán a quedar pendientes, como si la competencia todavía no hubiera comenzado."
+        confirmLabel="Restablecer"
+        plainContent
+        onClose={() => setModalRestablecerAbierto(false)}
+        onConfirm={restablecerCompetencia}
+        loading={restableciendoCompetencia}
+      />
+
       {/* Header + cola no bloqueante de próximos pesos */}
       <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'stretch', md: 'center' }} gap={1.5}>
         <Box sx={{ flex: '0 0 auto', minWidth: { md: 158 } }}>
@@ -1112,6 +1172,16 @@ export default function CargadoresPage() {
             {pesoFiltro !== 'todos' && (
               <Chip label={pesoFiltro} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
             )}
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              onClick={() => setModalRestablecerAbierto(true)}
+              disabled={restableciendoCompetencia}
+              sx={{ ml: 0.5, textTransform: 'none', fontWeight: 700 }}
+            >
+              {restableciendoCompetencia ? 'Restableciendo...' : 'Restablecer competencia'}
+            </Button>
           </Stack>
         </Box>
 
@@ -1305,9 +1375,9 @@ export default function CargadoresPage() {
                     {
                       label: 'Rack',
                       value: ejercicioFiltro === 'sentadilla'
-                        ? (atletaSeleccionado.altura_rack_sentadilla || '—')
+                        ? (formatearAlturaRack(atletaSeleccionado.altura_rack_sentadilla) || '—')
                         : ejercicioFiltro === 'banco'
-                          ? (atletaSeleccionado.altura_rack_banco || '—')
+                          ? (formatearAlturaRack(atletaSeleccionado.altura_rack_banco) || '—')
                           : '—',
                       editable: ejercicioFiltro === 'sentadilla' || ejercicioFiltro === 'banco',
                     },
@@ -1369,7 +1439,7 @@ export default function CargadoresPage() {
                         >
                           <MenuItem value=""><em>—</em></MenuItem>
                           {ALTURAS_RACK.map((altura) => (
-                            <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+                            <MenuItem key={altura} value={altura}>{formatearAlturaRack(altura)}</MenuItem>
                           ))}
                         </Select>
                       ) : (

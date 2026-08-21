@@ -9,7 +9,18 @@ import {
 import { ModalFooterActions } from './ModalFooterActions'
 import { ModalHeader, modalContentSx, modalPaperSx } from './ModalLayout'
 
-export function DeleteGenericModal({ open, title = 'Eliminar', nombre, descripcion, onClose, onConfirm, loading = false }) {
+export function DeleteGenericModal({
+  open,
+  title = 'Eliminar',
+  nombre,
+  descripcion,
+  subtitle = 'Esta acción es permanente.',
+  confirmLabel = 'Eliminar',
+  plainContent = false,
+  onClose,
+  onConfirm,
+  loading = false,
+}) {
   return (
     <Dialog
       open={open}
@@ -22,23 +33,27 @@ export function DeleteGenericModal({ open, title = 'Eliminar', nombre, descripci
     >
       <ModalHeader
         title={title}
-        subtitle="Esta acción es permanente."
+        subtitle={subtitle}
         tone="error"
         onClose={onClose}
         disabled={loading}
       />
 
       <DialogContent sx={modalContentSx}>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ pt: plainContent ? 1 : 0, mb: 2 }}
+        >
           Revisá la selección antes de confirmar.
         </Typography>
 
         <Box
           sx={{
-            p: 2,
-            borderRadius: 2,
-            bgcolor: 'rgba(211, 47, 47, 0.08)',
-            border: '1px solid rgba(211, 47, 47, 0.28)',
+            p: plainContent ? 0 : 2,
+            borderRadius: plainContent ? 0 : 2,
+            bgcolor: plainContent ? 'transparent' : 'rgba(211, 47, 47, 0.08)',
+            border: plainContent ? 0 : '1px solid rgba(211, 47, 47, 0.28)',
           }}
         >
           <Typography variant="subtitle1" fontWeight={700} color="error.main">
@@ -55,7 +70,7 @@ export function DeleteGenericModal({ open, title = 'Eliminar', nombre, descripci
       <ModalFooterActions
         actions={[
           { label: 'Cancelar', tone: 'neutral', onClick: onClose, disabled: loading },
-          { label: 'Eliminar', tone: 'error', onClick: onConfirm, loading },
+          { label: confirmLabel, tone: 'error', onClick: onConfirm, loading },
         ]}
       />
     </Dialog>

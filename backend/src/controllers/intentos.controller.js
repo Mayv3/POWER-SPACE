@@ -316,3 +316,52 @@ export async function upsertBatchIntentos(req, res) {
     res.status(500).json({ error: "Error en upsert batch" });
   }
 }
+
+// Borra los intentos efectivamente registrados y vuelve a dejar la plataforma
+// en reposo. Los primeros intentos declarados viven en `atletas`, por lo que
+// al eliminar esta tabla vuelven a mostrarse sin alterar su peso inicial.
+export async function resetearCompetencia(_req, res) {
+  try {
+    const { data: intentosEliminados, error: intentosError } = await supabase
+      .from("intentos")
+      .delete()
+      .not("id", "is", null)
+      .select("id");
+
+    if (intentosError) throw intentosError;
+
+    const estadoInicial = {
+      atleta_id: null,
+      atleta_nombre: null,
+      atleta_apellido: null,
+      ejercicio: null,
+      intento: null,
+      peso: null,
+      corriendo: false,
+      tiempo_restante: 60,
+      juez1_valido: null,
+      juez2_valido: null,
+      juez3_valido: null,
+      juez1_tipo: null,
+      juez2_tipo: null,
+      juez3_tipo: null,
+      intento_valido: null,
+      orden_proximos: [],
+      updated_at: new Date(),
+    };
+    const { error: estadoError } = await supabase
+      .from("estado_competencia")
+      .update(estadoInicial)
+      .eq("id", 1);
+
+    if (estadoError) throw estadoError;
+
+    return res.status(200).json({
+      message: "Competencia restablecida correctamente",
+      intentos_eliminados: intentosEliminados?.length ?? 0,
+    });
+  } catch (err) {
+    console.error("Error al restablecer la competencia:", err.message);
+    return res.status(500).json({ error: "No se pudo restablecer la competencia" });
+  }
+}

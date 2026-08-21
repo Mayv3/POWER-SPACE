@@ -24,7 +24,9 @@ import { ModalSection } from './ModalLayout'
 import { PhotoUploadField } from './PhotoUploadField'
 
 const TANDAS = TANDA_IDS
-const ALTURAS_RACK = Array.from({ length: 30 }, (_, index) => index + 1)
+// 1–30: rack abierto. 31–60: la misma posición con el rack cerrado (1C–30C).
+const ALTURAS_RACK = Array.from({ length: 60 }, (_, index) => index + 1)
+const formatearAlturaRack = (altura) => Number(altura) > 30 ? `${Number(altura) - 30}C` : altura
 
 const ITEM_HEIGHT = 36
 const menuPropsVisibles = (cantidad) => ({
@@ -270,9 +272,15 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
               },
             }}
           >
-            {categoriasEdad.map((categoria) => (
-              <MenuItem key={categoria} value={categoria}>{categoria}</MenuItem>
-            ))}
+            {categoriasEdad.map((categoria) => {
+              const seleccionada = categoriasEdadSeleccionadas.includes(categoria)
+              return (
+                <MenuItem key={categoria} value={categoria}>
+                  <Checkbox checked={seleccionada} size="small" sx={{ mr: 0.75, p: 0.25 }} />
+                  {categoria}
+                </MenuItem>
+              )
+            })}
           </TextField>
 
           <TextField
@@ -357,7 +365,7 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
             SelectProps={{ MenuProps: menuPropsVisibles(5) }}
           >
             {ALTURAS_RACK.map((altura) => (
-              <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+              <MenuItem key={altura} value={altura}>{formatearAlturaRack(altura)}</MenuItem>
             ))}
           </TextField>
           <TextField
@@ -369,7 +377,7 @@ export function AtletaForm({ atleta, onChange, equipos = [] }) {
             SelectProps={{ MenuProps: menuPropsVisibles(5) }}
           >
             {ALTURAS_RACK.map((altura) => (
-              <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+              <MenuItem key={altura} value={altura}>{formatearAlturaRack(altura)}</MenuItem>
             ))}
           </TextField>
         </Box>

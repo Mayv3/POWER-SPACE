@@ -11,10 +11,11 @@ const CHANNEL = 'competencia-live'
 const EVENT = 'estado'
 const REFRESH_EVENT = 'refrescar-atletas'
 const PRESENT_EVENT = 'presentar-atleta'
+const ORDER_EVENT = 'orden-tanda'
 
 // Une el canal. `onEstado(payloadParcial)` se llama con los campos cambiados (merge).
 // Los demás callbacks son opcionales; todos los envíos usan self:false.
-export function joinCompetenciaLive(onEstado, onRefreshAtletas, onPresentarAtleta) {
+export function joinCompetenciaLive(onEstado, onRefreshAtletas, onPresentarAtleta, onOrdenTanda) {
   const channel = supabase.channel(CHANNEL, { config: { broadcast: { self: false } } })
   if (onEstado) {
     channel.on('broadcast', { event: EVENT }, ({ payload }) => { onEstado(payload) })
@@ -24,6 +25,9 @@ export function joinCompetenciaLive(onEstado, onRefreshAtletas, onPresentarAtlet
   }
   if (onPresentarAtleta) {
     channel.on('broadcast', { event: PRESENT_EVENT }, ({ payload }) => { onPresentarAtleta(payload) })
+  }
+  if (onOrdenTanda) {
+    channel.on('broadcast', { event: ORDER_EVENT }, ({ payload }) => { onOrdenTanda(payload) })
   }
   channel.subscribe()
 
@@ -36,6 +40,9 @@ export function joinCompetenciaLive(onEstado, onRefreshAtletas, onPresentarAtlet
   const presentarAtleta = (payload) => {
     channel.send({ type: 'broadcast', event: PRESENT_EVENT, payload })
   }
+  const ordenarTanda = (payload) => {
+    channel.send({ type: 'broadcast', event: ORDER_EVENT, payload })
+  }
   const leave = () => { supabase.removeChannel(channel) }
-  return { send, refreshAtletas, presentarAtleta, leave }
+  return { send, refreshAtletas, presentarAtleta, ordenarTanda, leave }
 }

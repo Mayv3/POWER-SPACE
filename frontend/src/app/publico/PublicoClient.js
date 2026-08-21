@@ -54,6 +54,17 @@ const REALTIME_STALE_MS = 15000
 const PS_CSS = `
   @keyframes psEq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
   @keyframes psDot{0%,100%{opacity:.25}50%{opacity:1}}
+  @keyframes psLogoFill{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0 0 0 0)}}
+  @keyframes psLogoGlow{0%,100%{filter:drop-shadow(0 0 0 rgba(255,106,0,0))}70%{filter:drop-shadow(0 0 24px rgba(255,106,0,.42))}}
+  @keyframes psWordIn{from{opacity:0;transform:translateY(8px);letter-spacing:.28em}to{opacity:1;transform:none;letter-spacing:.16em}}
+  .ps-intro{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:#08090b;opacity:1;transition:opacity .45s ease,visibility .45s ease}
+  .ps-intro--leaving{opacity:0;visibility:hidden;pointer-events:none}
+  .ps-intro-lockup{display:flex;flex-direction:column;align-items:center;gap:18px}
+  .ps-intro-mark{position:relative;width:clamp(132px,34vw,210px);aspect-ratio:1;animation:psLogoGlow 2.2s ease-in-out both}
+  .ps-intro-mark img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .ps-intro-ghost{opacity:.13;filter:grayscale(1)}
+  .ps-intro-fill{clip-path:inset(100% 0 0 0);animation:psLogoFill 2.15s cubic-bezier(.65,0,.22,1) forwards}
+  .ps-intro-word{font-family:${FO};font-size:clamp(24px,6vw,34px);font-weight:700;line-height:1;color:#f4f5f7;letter-spacing:.16em;padding-left:.16em;animation:psWordIn .55s ease 1.35s both}
   .ps-x{scrollbar-width:none;-ms-overflow-style:none}
   .ps-x::-webkit-scrollbar{display:none;width:0;height:0}
   .ps-bar{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${T.lime},transparent);z-index:99;animation:psBar 1s linear infinite}
@@ -73,9 +84,15 @@ const PS_CSS = `
   .ps-tbl tbody tr:hover td{filter:brightness(1.12)}
   .ps-outer{min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:40px 24px;background:${T.pageBg};font-family:${FB}}
   .ps-frame{width:430px;max-width:100%;background:${T.frame};border-radius:30px;overflow:hidden;box-shadow:0 30px 80px rgba(20,18,14,.32);border:1px solid rgba(0,0,0,.5)}
+  .ps-outer:fullscreen{padding:0;align-items:stretch;background:${T.frame}}
+  .ps-outer:fullscreen .ps-frame{width:100%;max-width:none;min-height:100vh;border-radius:0;border:none;box-shadow:none}
   @media (max-width:600px), (max-height:600px) and (orientation:landscape){
     .ps-outer{padding:0;background:${T.frame};align-items:stretch}
     .ps-frame{width:100%;max-width:100%;border-radius:0;border:none;box-shadow:none;min-height:100vh}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .ps-intro,.ps-intro-mark,.ps-intro-fill,.ps-intro-word{animation:none!important;transition-duration:.15s!important}
+    .ps-intro-fill{clip-path:inset(0)}
   }`
 
 /* ============ CÁLCULOS ============ */
@@ -453,6 +470,8 @@ function PowerSelect({ value, options, onChange, label, divider = false }) {
 }
 
 export default function PublicoClient({ initialAtletas = [], initialEstado = null, initialAtletaEnVivo = null }) {
+  const [introVisible, setIntroVisible] = useState(true)
+  const [introLeaving, setIntroLeaving] = useState(false)
   const [atletas, setAtletas] = useState(() => initialAtletas.map(computeAtleta))
   const [sexoSel, setSexoSel] = useState('Masculino')
   const [catSel, setCatSel] = useState('todas')
@@ -462,6 +481,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const [tablaCat, setTablaCat] = useState('todas')
   const [atletaEnVivo, setAtletaEnVivo] = useState(initialAtletaEnVivo)
   const [estado, setEstado] = useState(initialEstado)
+  const [ordenTanda, setOrdenTanda] = useState(null)
   const [view, setView] = useState('list')
   const [selectedId, setSelectedId] = useState(null)
   const [versusCat, setVersusCat] = useState(null)
@@ -475,10 +495,29 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const viewStateRef = useRef({ view, selectedId, versusCat })
   const lastBackRef = useRef(0)
   const exitHintTimer = useRef(null)
+  const publicScreenRef = useRef(null)
   // Espejo de `atletas` para decidir sincrónicamente si un patch por fila
   // aplica, sin leer estado dentro del updater de setState.
   const atletasRef = useRef(atletas)
   useEffect(() => { atletasRef.current = atletas }, [atletas])
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const salidaTimer = window.setTimeout(() => setIntroLeaving(true), reduceMotion ? 180 : 2200)
+    const desmontarTimer = window.setTimeout(() => setIntroVisible(false), reduceMotion ? 350 : 2700)
+    const overflowAnterior = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      window.clearTimeout(salidaTimer)
+      window.clearTimeout(desmontarTimer)
+      document.body.style.overflow = overflowAnterior
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!introVisible) document.body.style.overflow = ''
+  }, [introVisible])
 
   /* ---- carga + realtime: padrón y estado en vivo ----
      Un solo efecto para las dos cosas: un canal de postgres_changes, un canal
@@ -638,7 +677,12 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     // Fast-path compartido con cargadores y referees.
     const live = joinCompetenciaLive(
       (parcial) => { marcarEvento(); aplicarEstado(parcial, false) },
-      () => { marcarEvento(); scheduleReload(80) }
+      () => { marcarEvento(); scheduleReload(80) },
+      null,
+      (orden) => {
+        if (!Number.isInteger(orden?.tandaId) || !Array.isArray(orden?.atletaIds)) return
+        setOrdenTanda(orden)
+      }
     )
 
     // Forzado: se viene de un gap real (pestaña dormida, red caída). No marca
@@ -708,6 +752,57 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     })
     return m
   }, [atletasVigentes])
+
+  const puestoProvisorioMap = useMemo(() => {
+    const groups = {}
+    atletasVigentes.forEach((atleta) => {
+      clavesCategoriasAtleta(atleta).forEach((clave) => { (groups[clave] ??= []).push(atleta) })
+    })
+    const puestos = {}
+    Object.values(groups).forEach((lista) => {
+      lista.sort(porTotal).forEach((atleta, index) => {
+        puestos[atleta.id] = Math.min(puestos[atleta.id] ?? Number.POSITIVE_INFINITY, index + 1)
+      })
+    })
+    return puestos
+  }, [atletasVigentes])
+
+  // Simula solamente el próximo intento de cada atleta como válido. Los demás
+  // competidores conservan sus totales reales: indica el puesto al que llegaría
+  // si ese levantamiento entrara ahora, sin alterar ningún dato de competencia.
+  const puestoSiValidoMap = useMemo(() => {
+    const intento = Number(estado?.intento)
+    const ejercicio = estado?.ejercicio
+    const campoPeso = ejercicio && [1, 2, 3].includes(intento)
+      ? `${ORD_WORD[intento - 1]}_intento_${ejercicio}`
+      : null
+    const bestKey = LIFTS.find((lift) => lift.key === ejercicio)?.best
+    if (!campoPeso || !bestKey) return puestoProvisorioMap
+
+    const groups = {}
+    atletasVigentes.forEach((atleta) => {
+      clavesCategoriasAtleta(atleta).forEach((clave) => { (groups[clave] ??= []).push(atleta) })
+    })
+    const puestos = { ...puestoProvisorioMap }
+
+    Object.values(groups).forEach((lista) => {
+      lista.forEach((atleta) => {
+        const pesoATirar = Number(atleta[campoPeso]) || 0
+        if (pesoATirar <= 0) return
+        const totalProyectado = (atleta.total || 0) - (atleta[bestKey] || 0) + Math.max(atleta[bestKey] || 0, pesoATirar)
+        const ranking = lista
+          .map((competidor) => ({
+            id: competidor.id,
+            total: competidor.id === atleta.id ? totalProyectado : (competidor.total || 0),
+            lot: Number(competidor.lot) || Number.POSITIVE_INFINITY,
+          }))
+          .sort((a, b) => b.total - a.total || a.lot - b.lot)
+        const puesto = ranking.findIndex((competidor) => competidor.id === atleta.id) + 1
+        puestos[atleta.id] = Math.min(puestos[atleta.id] ?? Number.POSITIVE_INFINITY, puesto)
+      })
+    })
+    return puestos
+  }, [atletasVigentes, estado?.ejercicio, estado?.intento, puestoProvisorioMap])
 
   /* ---- tabla de intentos (todos los atletas) ----
      Espejo de /intentos: GL points y puesto por GL dentro de cada categoría.
@@ -868,14 +963,24 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       .sort(porTotal)
   }, [atletasVigentes, versusCat])
 
-  /* ---- tanda que se está disputando (ranking por total levantado) ---- */
+  /* ---- tanda que se está disputando: orden de plataforma estable ---- */
   const tandaActual = liveA?.tanda_id ?? atletaEnVivo?.tanda_id ?? null
   const tandaList = useMemo(() => {
     if (tandaActual == null) return []
-    return atletasVigentes
+    const atletasTanda = atletasVigentes
       .filter((atleta) => String(atleta.tanda_id) === String(tandaActual))
-      .sort(porTotal)
-  }, [atletasVigentes, tandaActual])
+    if (!ordenTanda || Number(ordenTanda.tandaId) !== Number(tandaActual)) return atletasTanda
+
+    const posicionPorAtleta = new Map(ordenTanda.atletaIds.map((id, index) => [Number(id), index]))
+    return [...atletasTanda].sort((a, b) => {
+      const posicionA = posicionPorAtleta.get(Number(a.id))
+      const posicionB = posicionPorAtleta.get(Number(b.id))
+      if (posicionA != null && posicionB != null) return posicionA - posicionB
+      if (posicionA != null) return -1
+      if (posicionB != null) return 1
+      return 0
+    })
+  }, [atletasVigentes, tandaActual, ordenTanda])
 
   const rowRefs = useRef({})
   const prevTops = useRef({})
@@ -955,6 +1060,13 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     pushNav({ view: 'tanda' })
   }
   const verTablaIntentos = () => pushNav({ view: 'tabla' })
+  const activarPantallaCompleta = () => {
+    if (!document.fullscreenElement) {
+      publicScreenRef.current?.requestFullscreen?.().catch((error) => {
+        console.error('No se pudo activar la pantalla completa:', error)
+      })
+    }
+  }
 
   /* ---- estado de intento ---- */
   const attStatus = (a, liftKey, prefix, i) => attStatusOf(a, liftKey, prefix, i, livePtr)
@@ -963,8 +1075,24 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
   const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
 
   return (
-    <div className="ps-outer">
+    <div ref={publicScreenRef} className="ps-outer">
       <style>{PS_CSS}</style>
+
+      {introVisible && (
+        <div
+          className={`ps-intro${introLeaving ? ' ps-intro--leaving' : ''}`}
+          role="status"
+          aria-label="Cargando Gymspace"
+        >
+          <div className="ps-intro-lockup">
+            <div className="ps-intro-mark">
+              <img className="ps-intro-ghost" src="/Gymspace-logo.png" alt="" width={210} height={210} />
+              <img className="ps-intro-fill" src="/Gymspace-logo.png" alt="Gymspace" width={210} height={210} fetchPriority="high" />
+            </div>
+            <div className="ps-intro-word">POWERSPACE</div>
+          </div>
+        </div>
+      )}
 
       {updating && <div className="ps-bar" />}
 
@@ -985,7 +1113,16 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 POWERSPACE<span style={{ position: 'absolute', left: 0, bottom: 0, width: 38, height: 4, background: T.lime }} />
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div
+              role={atletaEnVivo ? 'button' : undefined}
+              tabIndex={atletaEnVivo ? 0 : undefined}
+              onClick={atletaEnVivo ? activarPantallaCompleta : undefined}
+              onKeyDown={atletaEnVivo ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') activarPantallaCompleta()
+              } : undefined}
+              title={atletaEnVivo ? 'Abrir pantalla completa' : undefined}
+              style={{ textAlign: 'right', cursor: atletaEnVivo ? 'pointer' : 'default' }}
+            >
               <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '.12em', color: '#fff' }}>{atletaEnVivo ? 'EN VIVO' : 'RANKING'}</div>
               <div style={{ fontFamily: FM, fontSize: 10, color: T.txt3, marginTop: 2 }}>{hoy}</div>
             </div>
@@ -1353,7 +1490,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 <span style={{ fontFamily: FM, fontSize: 10, color: T.txt3 }}>ORD. POR TOTAL</span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {vlist.length === 0 ? (
                   <div style={{ textAlign: 'center', marginTop: 40, fontFamily: FM, fontSize: 12, letterSpacing: '.1em', color: T.txt4 }}>SIN ATLETAS EN ESTA CATEGORÍA</div>
                 ) : vlist.map((a, i) => {
@@ -1429,46 +1566,18 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-                <span
-                  style={{
-                    flex: 'none',
-                    padding: '7px 10px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,106,0,.38)',
-                    background: 'rgba(255,106,0,.12)',
-                    fontFamily: FO,
-                    fontWeight: 700,
-                    fontSize: 13,
-                    lineHeight: 1,
-                    letterSpacing: '.07em',
-                    color: T.lime,
-                  }}
-                >
-                  MAYOR PESO LEVANTADO
-                </span>
-                <span
-                  style={{
-                    minWidth: 0,
-                    textAlign: 'right',
-                    fontFamily: FO,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    letterSpacing: '.02em',
-                    color: T.txt,
-                  }}
-                >
-                  {tandaList.length} atletas en esta tanda
-                </span>
-              </div>
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {tandaList.length === 0 ? (
                   <div style={{ textAlign: 'center', marginTop: 40, fontFamily: FM, fontSize: 12, letterSpacing: '.1em', color: T.txt4 }}>SIN ATLETAS EN LA TANDA ACTUAL</div>
                 ) : tandaList.map((a) => {
                   const isLive = estado?.atleta_id === a.id
                   const proximoIndex = ordenProximos.indexOf(Number(a.id))
+                  const campoPeso = estado?.ejercicio && estado?.intento
+                    ? `${ORD_WORD[Number(estado.intento) - 1]}_intento_${estado.ejercicio}`
+                    : null
+                  const pesoATirar = isLive ? estado?.peso : campoPeso ? a[campoPeso] : null
+                  const puestoActual = puestoProvisorioMap[a.id]
+                  const puestoSiValido = puestoSiValidoMap[a.id]
                   const estadoTanda = isLive
                     ? 'EN PLATAFORMA'
                     : proximoIndex >= 0
@@ -1480,15 +1589,16 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       ref={el => { if (el) rowRefs.current[a.id] = el }}
                       onClick={() => openDetail(a)}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        position: 'relative',
                         background: isLive ? 'rgba(255,106,0,.09)' : T.card,
                         border: `1px solid ${isLive ? 'rgba(255,106,0,.4)' : 'rgba(255,255,255,.07)'}`,
-                        borderRadius: 14, padding: '12px 14px', cursor: 'pointer', willChange: 'transform',
+                        borderRadius: 12, padding: '19px 12px 9px', cursor: 'pointer', willChange: 'transform',
                       }}
                     >
-                      <div style={{ flex: 'none', width: 38, textAlign: 'center' }}>
-                        <div style={{ fontFamily: FM, fontSize: 7, letterSpacing: '.1em', color: T.txt3 }}>LOT</div>
-                        <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, color: isLive ? T.lime : '#e6e8ec', lineHeight: 1, marginTop: 2 }}>{a.lot ?? '—'}</div>
+                      <div style={{ position: 'absolute', top: 5, left: 12, display: 'flex', alignItems: 'baseline', gap: 4, fontFamily: FM, lineHeight: 1 }}>
+                        <span style={{ fontSize: 7, letterSpacing: '.12em', color: T.txt3 }}>LOT</span>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: isLive ? T.lime : T.txt2 }}>{a.lot ?? '—'}</span>
                       </div>
                       <div style={{ flex: 'none', width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.06)', border: `1px solid ${isLive ? 'rgba(255,106,0,.5)' : 'rgba(255,255,255,.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {a.foto ? (
@@ -1499,15 +1609,22 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 17, color: '#f7f8fa', textTransform: 'uppercase', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre} {a.apellido}</div>
-                        <div style={{ fontFamily: FM, fontSize: 9, color: T.txt3, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{claveCategoriaAtleta(a)}</div>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 5, borderRadius: 5, padding: '2px 6px', background: isLive ? T.lime : 'rgba(255,255,255,.06)', color: isLive ? '#fff' : T.txt2 }}>
-                          {isLive && <Eq color="#fff" h={7} w={2} />}
+                        <div style={{ fontFamily: FM, fontSize: 9, color: T.txt3, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{claveCategoriaAtleta(a)}</div>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, borderRadius: 4, padding: '2px 6px', background: isLive ? T.lime : 'rgba(255,255,255,.06)', color: isLive ? '#fff' : T.txt2 }}>
+                          {isLive && <Eq color="#fff" h={8} w={2} />}
                           <span style={{ fontFamily: FM, fontSize: 7, letterSpacing: '.08em', fontWeight: 600 }}>{estadoTanda}</span>
+                        </div>
+                        <div style={{ fontFamily: FM, fontSize: 10, color: isLive ? T.lime : T.txt2, marginTop: 4, fontWeight: 700 }}>
+                          A TIRAR: {pesoATirar ? `${pesoATirar} kg` : '—'}
                         </div>
                       </div>
                       <div style={{ flex: 'none', textAlign: 'right' }}>
-                        <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 18, color: '#f7f8fa', lineHeight: 1 }}>{a.total || 0}<span style={{ fontSize: 11, color: T.txt2, marginLeft: 2 }}>kg</span></div>
-                        <div style={{ fontFamily: FM, fontSize: 9, color: T.lime, marginTop: 4 }}>{a.dots ? a.dots.toFixed(1) : '—'} DOTS</div>
+                        <div style={{ fontFamily: FM, fontSize: 8, color: T.txt3, letterSpacing: '.08em' }}>PUESTO ACTUAL</div>
+                        <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 22, color: T.lime, lineHeight: 1, marginTop: 2 }}>{puestoActual ? `#${puestoActual}` : '—'}</div>
+                        <div style={{ fontFamily: FM, fontSize: 7, color: T.txt3, letterSpacing: '.04em', marginTop: 3 }}>
+                          SI ES VÁLIDO: <span style={{ color: T.txt2, fontSize: 9, fontWeight: 600 }}>{puestoSiValido ? `#${puestoSiValido}` : '—'}</span>
+                        </div>
+                        <div style={{ fontFamily: FM, fontSize: 9, color: T.txt2, marginTop: 3 }}>{a.total || 0} kg TOTAL</div>
                       </div>
                     </div>
                   )

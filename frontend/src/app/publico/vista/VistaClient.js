@@ -173,7 +173,7 @@ export default function VistaClient({ initialEstado = null }) {
             presentFrameRef.current = requestAnimationFrame(() => {
                 if (cancelado) return
                 setMostrarPresentacion(true)
-                presentTimerRef.current = setTimeout(() => setMostrarPresentacion(false), 3500)
+                presentTimerRef.current = setTimeout(() => setMostrarPresentacion(false), 6000)
             })
         })
 
@@ -297,7 +297,8 @@ export default function VistaClient({ initialEstado = null }) {
                                 } else {
                                     colorPrincipal = '#ff1744'
                                     sombra = 'shadow-[0_0_35px_10px_rgba(255,23,68,0.6)]'
-                                    if (tipo === 2) { colorTipo = '#1565c0'; labelTipo = 'Técnico' }
+                                    if (tipo === 1) { colorTipo = '#ff1744'; labelTipo = 'Rojo' }
+                                    else if (tipo === 2) { colorTipo = '#1565c0'; labelTipo = 'Técnico' }
                                     else if (tipo === 3) { colorTipo = '#FFD600'; labelTipo = 'Equipo' }
                                 }
 

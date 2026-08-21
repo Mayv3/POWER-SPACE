@@ -5,7 +5,9 @@ import { colorCategoria } from '../../utils/colorCategoria'
 import { claveCategoriaPlataforma } from '../categorias/categorias'
 import { letraTanda } from '../tandas'
 
-const ALTURAS_RACK = Array.from({ length: 30 }, (_, index) => index + 1)
+// 1–30: rack abierto. 31–60: la misma posición con el rack cerrado (1C–30C).
+const ALTURAS_RACK = Array.from({ length: 60 }, (_, index) => index + 1)
+const formatearAlturaRack = (altura) => Number(altura) > 30 ? `${Number(altura) - 30}C` : altura
 
 // Editor de altura de rack: dropdown propio (no el singleSelect nativo) para
 // poder limitar el menú a ~5 opciones visibles con scroll para el resto.
@@ -30,7 +32,7 @@ function RackSelectEditCell({ id, field, value }) {
     >
       <MenuItem value=""><em>—</em></MenuItem>
       {ALTURAS_RACK.map((altura) => (
-        <MenuItem key={altura} value={altura}>{altura}</MenuItem>
+        <MenuItem key={altura} value={altura}>{formatearAlturaRack(altura)}</MenuItem>
       ))}
     </Select>
   )
@@ -126,9 +128,11 @@ const renderIntentoCell = (params, field, validoField, onCellClick, ejercicio) =
 
 // Mismo color de fondo que la celda de categoría (borde a borde), para que
 // Lot/Atleta/Tanda/BW se lean como parte del mismo bloque de categoría.
-const renderCeldaConCategoria = (row, contenido, getColorCategoria = colorCategoria) => (
+const renderCeldaConCategoria = (row, contenido, getColorCategoria = colorCategoria, align = 'center') => (
   <Box sx={{
-    width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: align,
+    textAlign: align === 'flex-start' ? 'left' : 'center',
+    pl: align === 'flex-start' ? 1.5 : 0,
     bgcolor: row.categoria ? getColorCategoria(row.categoria) : 'transparent',
     color: row.categoria ? '#fff' : 'inherit', fontWeight: 600,
   }}>
@@ -151,13 +155,14 @@ export const columnsIntentos = (onCellClick, getColorCategoria = colorCategoria)
     field: 'apellido',
     headerName: 'Atleta',
     flex: 0.15,
-    align: 'center',
-    headerAlign: 'center',
+    align: 'left',
+    headerAlign: 'left',
     cellClassName: 'cat-cell',
     renderCell: (params) => renderCeldaConCategoria(
       params.row,
       `${capitalizeWords(params.row.apellido)} ${capitalizeWords(params.row.nombre)}`,
-      getColorCategoria
+      getColorCategoria,
+      'flex-start'
     ),
   },
   {
@@ -203,8 +208,9 @@ export const columnsIntentos = (onCellClick, getColorCategoria = colorCategoria)
     align: 'center',
     headerAlign: 'center',
     editable: true,
-    renderCell: (params) => params.value ?? '-',
+    renderCell: (params) => params.value == null ? '-' : formatearAlturaRack(params.value),
     renderEditCell: (params) => <RackSelectEditCell {...params} />,
+    valueFormatter: (value) => value == null ? '' : formatearAlturaRack(value),
   },
   {
     field: 'altura_rack_banco',
@@ -213,8 +219,9 @@ export const columnsIntentos = (onCellClick, getColorCategoria = colorCategoria)
     align: 'center',
     headerAlign: 'center',
     editable: true,
-    renderCell: (params) => params.value ?? '-',
+    renderCell: (params) => params.value == null ? '-' : formatearAlturaRack(params.value),
     renderEditCell: (params) => <RackSelectEditCell {...params} />,
+    valueFormatter: (value) => value == null ? '' : formatearAlturaRack(value),
   },
   {
     field: 'primer_intento_sentadilla',

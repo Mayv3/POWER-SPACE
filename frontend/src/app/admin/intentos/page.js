@@ -27,6 +27,17 @@ const COLORES_PRIMARIOS_CATEGORIAS = [
   '#e65100', // naranja
   '#ad1457', // fucsia
 ]
+const CONTEXTO_ORDEN_CARGADORES_STORAGE_KEY = 'power-space:contexto-orden-cargadores'
+
+function leerContextoCargadores() {
+  try {
+    const contexto = JSON.parse(localStorage.getItem(CONTEXTO_ORDEN_CARGADORES_STORAGE_KEY) || 'null')
+    if (!Number.isInteger(contexto?.tandaId) || !Array.isArray(contexto?.atletaIds)) return null
+    return contexto
+  } catch {
+    return null
+  }
+}
 
 function calcularPuestos(atletas) {
   const grupos = {}
@@ -59,6 +70,66 @@ function calcularPuestos(atletas) {
   }))
 }
 
+const CAMPOS_INTENTO = {
+  1: [
+    ['primer_intento_sentadilla', 'valido_s1'],
+    ['segundo_intento_sentadilla', 'valido_s2'],
+    ['tercer_intento_sentadilla', 'valido_s3'],
+  ],
+  2: [
+    ['primer_intento_banco', 'valido_b1'],
+    ['segundo_intento_banco', 'valido_b2'],
+    ['tercer_intento_banco', 'valido_b3'],
+  ],
+  3: [
+    ['primer_intento_peso_muerto', 'valido_d1'],
+    ['segundo_intento_peso_muerto', 'valido_d2'],
+    ['tercer_intento_peso_muerto', 'valido_d3'],
+  ],
+}
+
+function recalcularResultados(atleta) {
+  const sentadilla = Math.max(
+    atleta.valido_s1 === true ? atleta.primer_intento_sentadilla : 0,
+    atleta.valido_s2 === true ? atleta.segundo_intento_sentadilla : 0,
+    atleta.valido_s3 === true ? atleta.tercer_intento_sentadilla : 0,
+  )
+  const banco = Math.max(
+    atleta.valido_b1 === true ? atleta.primer_intento_banco : 0,
+    atleta.valido_b2 === true ? atleta.segundo_intento_banco : 0,
+    atleta.valido_b3 === true ? atleta.tercer_intento_banco : 0,
+  )
+  const pesoMuerto = Math.max(
+    atleta.valido_d1 === true ? atleta.primer_intento_peso_muerto : 0,
+    atleta.valido_d2 === true ? atleta.segundo_intento_peso_muerto : 0,
+    atleta.valido_d3 === true ? atleta.tercer_intento_peso_muerto : 0,
+  )
+  const total = sentadilla + banco + pesoMuerto
+  const tieneTodasLasValidaciones = (atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true)
+    && (atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true)
+    && (atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true)
+
+  let ipf_gl = null
+  if (tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal > 0) {
+    const isFemale = atleta.sexo === 'F'
+    const equipado = String(atleta.modalidad || '').toLowerCase().includes('equip')
+    ipf_gl = parseFloat(Calculate_IPF_GL(atleta.peso_corporal, total, isFemale, equipado).toFixed(2))
+  }
+
+  return { ...atleta, total: total > 0 ? total : null, ipf_gl }
+}
+
+function aplicarIntentoRealtime(atleta, intento) {
+  const campos = CAMPOS_INTENTO[Number(intento.movimiento_id)]?.[Number(intento.intento_numero) - 1]
+  if (!campos) return atleta
+  const [pesoField, validoField] = campos
+  return recalcularResultados({
+    ...atleta,
+    [pesoField]: intento.peso ?? null,
+    [validoField]: intento.valido ?? null,
+  })
+}
+
 
 export default function IntentosPage() {
   const [atletas, setAtletas] = useState([])
@@ -67,6 +138,7 @@ export default function IntentosPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [tandaSeleccionada, setTandaSeleccionada] = useState('todas')
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todas')
+  const [contextoCargadores, setContextoCargadores] = useState(null)
 
   const coloresPorCategoria = useMemo(() => {
     if (tandaSeleccionada === 'todas') return new Map()
@@ -95,6 +167,22 @@ export default function IntentosPage() {
   const surface = isDark ? '#2a2a2a' : '#ffffff'
   const border = isDark ? '#3a3a3a' : '#e0e0e0'
 
+  useEffect(() => {
+    const sincronizarContextoCargadores = () => {
+      const contexto = leerContextoCargadores()
+      setContextoCargadores(contexto)
+      if (contexto) setTandaSeleccionada(String(contexto.tandaId))
+    }
+    const manejarCambioStorage = (event) => {
+      if (event.key === CONTEXTO_ORDEN_CARGADORES_STORAGE_KEY) sincronizarContextoCargadores()
+    }
+
+    sincronizarContextoCargadores()
+    window.addEventListener('storage', manejarCambioStorage)
+
+    return () => window.removeEventListener('storage', manejarCambioStorage)
+  }, [])
+
   const fetchAtletas = useCallback(async ({ showLoading = false } = {}) => {
     if (showLoading) setIsLoading(true)
     try {
@@ -103,44 +191,7 @@ export default function IntentosPage() {
       )
       const data = await res.json()
 
-      const atletasConDots = data.map(atleta => {
-        const sentadillaValidos = [
-          atleta.valido_s1 === true ? atleta.primer_intento_sentadilla : 0,
-          atleta.valido_s2 === true ? atleta.segundo_intento_sentadilla : 0,
-          atleta.valido_s3 === true ? atleta.tercer_intento_sentadilla : 0
-        ]
-        const sentadilla = Math.max(...sentadillaValidos)
-
-        const bancoValidos = [
-          atleta.valido_b1 === true ? atleta.primer_intento_banco : 0,
-          atleta.valido_b2 === true ? atleta.segundo_intento_banco : 0,
-          atleta.valido_b3 === true ? atleta.tercer_intento_banco : 0
-        ]
-        const banco = Math.max(...bancoValidos)
-
-        const pesoMuertoValidos = [
-          atleta.valido_d1 === true ? atleta.primer_intento_peso_muerto : 0,
-          atleta.valido_d2 === true ? atleta.segundo_intento_peso_muerto : 0,
-          atleta.valido_d3 === true ? atleta.tercer_intento_peso_muerto : 0
-        ]
-        const pesoMuerto = Math.max(...pesoMuertoValidos)
-
-        const total = sentadilla + banco + pesoMuerto
-
-        const tieneSentadillaValida = atleta.valido_s1 === true || atleta.valido_s2 === true || atleta.valido_s3 === true
-        const tieneBancoValido = atleta.valido_b1 === true || atleta.valido_b2 === true || atleta.valido_b3 === true
-        const tienePesoMuertoValido = atleta.valido_d1 === true || atleta.valido_d2 === true || atleta.valido_d3 === true
-        const tieneTodasLasValidaciones = tieneSentadillaValida && tieneBancoValido && tienePesoMuertoValido
-
-        let ipf_gl = null
-        if (tieneTodasLasValidaciones && total > 0 && atleta.peso_corporal > 0) {
-          const isFemale = atleta.sexo === 'F'
-          const equipado = String(atleta.modalidad || '').toLowerCase().includes('equip')
-          ipf_gl = parseFloat(Calculate_IPF_GL(atleta.peso_corporal, total, isFemale, equipado).toFixed(2))
-        }
-
-        return { ...atleta, total: total > 0 ? total : null, ipf_gl }
-      })
+      const atletasConDots = data.map(recalcularResultados)
 
       const atletasConPuestos = calcularPuestos(atletasConDots)
       setAtletas(atletasConPuestos)
@@ -154,29 +205,49 @@ export default function IntentosPage() {
 
   useEffect(() => { fetchAtletas({ showLoading: true }) }, [fetchAtletas])
 
-  // Cargadores persiste cada cambio en `intentos`. Escuchamos tanto el cambio
-  // autoritativo de Postgres como su broadcast rápido para que esta tabla no
-  // dependa de una recarga manual. El debounce junta un upsert-batch en una
-  // sola lectura y evita recargar por cada fila.
+  // INSERT/UPDATE traen la fila afectada: se actualiza localmente y no se espera
+  // una nueva descarga de todo el padrón. El broadcast queda como respaldo para
+  // eventos incompletos y DELETE sí requiere reconciliar la lista completa.
   useEffect(() => {
-    let timer = null
-    const refresh = () => {
-      clearTimeout(timer)
-      timer = setTimeout(() => fetchAtletas(), 120)
+    let fallbackTimer = null
+    const refreshDeRespaldo = () => {
+      clearTimeout(fallbackTimer)
+      fallbackTimer = setTimeout(() => fetchAtletas(), 800)
+    }
+    const aplicarCambio = (intento) => {
+      if (!intento?.atleta_id || !CAMPOS_INTENTO[Number(intento.movimiento_id)]) {
+        refreshDeRespaldo()
+        return
+      }
+      clearTimeout(fallbackTimer)
+      setAtletas((prev) => {
+        const encontrado = prev.some((atleta) => Number(atleta.id) === Number(intento.atleta_id))
+        if (!encontrado) {
+          refreshDeRespaldo()
+          return prev
+        }
+        return calcularPuestos(prev.map((atleta) =>
+          Number(atleta.id) === Number(intento.atleta_id)
+            ? aplicarIntentoRealtime(atleta, intento)
+            : atleta
+        ))
+      })
     }
 
     const channel = supabase
       .channel('admin:intentos_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'intentos' }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'intentos' }, ({ new: intento }) => aplicarCambio(intento))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'intentos' }, ({ new: intento }) => aplicarCambio(intento))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'intentos' }, refreshDeRespaldo)
       .subscribe((status, error) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('Realtime de intentos no disponible:', error || status)
         }
       })
-    const live = joinCompetenciaLive(null, refresh)
+    const live = joinCompetenciaLive(null, refreshDeRespaldo)
 
     return () => {
-      clearTimeout(timer)
+      clearTimeout(fallbackTimer)
       supabase.removeChannel(channel)
       live.leave()
     }
@@ -199,8 +270,23 @@ export default function IntentosPage() {
       )
     }
 
+    const contextoAplica = contextoCargadores
+      && Number(tandaSeleccionada) === contextoCargadores.tandaId
+
+    if (contextoAplica) {
+      const posicionPorAtleta = new Map(contextoCargadores.atletaIds.map((id, index) => [Number(id), index]))
+      filtrados = [...filtrados].sort((a, b) => {
+        const posicionA = posicionPorAtleta.get(Number(a.id))
+        const posicionB = posicionPorAtleta.get(Number(b.id))
+        if (posicionA != null && posicionB != null) return posicionA - posicionB
+        if (posicionA != null) return -1
+        if (posicionB != null) return 1
+        return (a.lot ?? Infinity) - (b.lot ?? Infinity)
+      })
+    }
+
     setAtletasFiltrados(filtrados)
-  }, [tandaSeleccionada, categoriaSeleccionada, searchTerm, atletas])
+  }, [tandaSeleccionada, categoriaSeleccionada, searchTerm, atletas, contextoCargadores])
 
   const processRowUpdate = async (newRow, oldRow) => {
     try {
