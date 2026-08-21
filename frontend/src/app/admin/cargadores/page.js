@@ -354,6 +354,10 @@ export default function CargadoresPage() {
   // después del fast-path (causaba el modal "próximo peso" reabriéndose solo).
   const marcadoClaveRef = useRef(null)
   const liveRef = useRef(null)
+  // Una selección manual se refleja de forma optimista. Mientras su POST sigue
+  // pendiente, no permitimos que un echo autoritativo de un clic anterior vuelva
+  // a mover el panel lateral al atleta viejo.
+  const seleccionLocalRef = useRef({ token: 0, atletaId: null, pendiente: false })
 
   // Las solicitudes sobreviven recargas y cierres del navegador. Se guarda el timestamp
   // de vencimiento para continuar el timer real, sin regalar otros 60s al recargar.
@@ -455,10 +459,22 @@ export default function CargadoresPage() {
   }, [sortModel, atletas, ejercicioFiltro])
 
   useEffect(() => {
+    const aplicarEstadoAutoritativo = (estado) => {
+      const seleccionLocal = seleccionLocalRef.current
+      if (
+        seleccionLocal.pendiente
+        && seleccionLocal.atletaId !== null
+        && Number(estado?.atleta_id) !== Number(seleccionLocal.atletaId)
+      ) {
+        return
+      }
+      setEstadoJueces(estado)
+    }
+
     const fetchEstadoInicial = async () => {
       // Lectura directa (sin hop Express)
       const { data } = await supabase.from('estado_competencia').select('*').eq('id', 1).maybeSingle()
-      if (data) setEstadoJueces(data)
+      if (data) aplicarEstadoAutoritativo(data)
     }
     fetchEstadoInicial()
 
@@ -466,7 +482,7 @@ export default function CargadoresPage() {
     const channel = supabase
       .channel('public:estado_competencia')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'estado_competencia', filter: 'id=eq.1' },
-        (payload) => { setEstadoJueces(payload.new) }
+        (payload) => { aplicarEstadoAutoritativo(payload.new) }
       )
       .subscribe()
 
@@ -746,6 +762,12 @@ export default function CargadoresPage() {
 
     if (!peso) return
 
+    const tokenSeleccion = seleccionLocalRef.current.token + 1
+    seleccionLocalRef.current = {
+      token: tokenSeleccion,
+      atletaId: params.row.id,
+      pendiente: true,
+    }
     setAtletaSeleccionado(params.row)
     setIntentoSeleccionado(intento)
 
@@ -795,6 +817,14 @@ export default function CargadoresPage() {
       })
     } catch (error) {
       console.error('Error al actualizar atleta actual:', error)
+    } finally {
+      // Una respuesta vieja nunca debe dar por terminada una selección más nueva.
+      if (seleccionLocalRef.current.token === tokenSeleccion) {
+        seleccionLocalRef.current = {
+          ...seleccionLocalRef.current,
+          pendiente: false,
+        }
+      }
     }
   }, [pesoFiltro, atletasOrdenados, ejercicioFiltro])
 

@@ -7,6 +7,13 @@ const PESO_FIELD_POR_EJERCICIO = {
 };
 const PAUSA_RESULTADO_MS = 5000;
 let cancelarAvancePendiente = null;
+let ultimaSolicitudAtletaMs = 0;
+
+function siguienteMarcaSeleccion() {
+  const ahora = Date.now();
+  ultimaSolicitudAtletaMs = Math.max(ahora, ultimaSolicitudAtletaMs + 1);
+  return new Date(ultimaSolicitudAtletaMs).toISOString();
+}
 
 function esperarResultadoAntesDeAvanzar() {
   cancelarAvancePendiente?.();
@@ -211,6 +218,10 @@ export async function stopIntento(_req, res) {
 // 🎯 Actualizar atleta actual
 export async function updateAtletaActual(req, res) {
   const { atleta_id, ejercicio, intento, peso, orden_proximos } = req.body;
+  // Se captura al recibir la petición, antes de cualquier await. Dos selecciones
+  // pueden resolver la consulta del atleta en orden inverso; este timestamp hace
+  // que la última petición recibida sea la única capaz de prevalecer en la DB.
+  const solicitadoEn = siguienteMarcaSeleccion();
 
   // Una elección manual prevalece sobre el salto automático pendiente.
   cancelarAvancePendiente?.();
@@ -244,7 +255,7 @@ export async function updateAtletaActual(req, res) {
     juez2_tipo: null,
     juez3_tipo: null,
     intento_valido: null,
-    updated_at: new Date(),
+    updated_at: solicitadoEn,
   };
 
   // Si se proporciona el orden de los próximos atletas, guardarlo
@@ -252,12 +263,15 @@ export async function updateAtletaActual(req, res) {
     updateData.orden_proximos = orden_proximos;
   }
 
-  const { error } = await supabase
+  const { data: estadoActualizado, error } = await supabase
     .from("estado_competencia")
     .update(updateData)
-    .eq("id", 1);
+    .eq("id", 1)
+    .or(`updated_at.is.null,updated_at.lt.${solicitadoEn}`)
+    .select('id')
+    .maybeSingle();
 
   if (error) return res.status(500).json({ error: error.message });
 
-  res.json({ ok: true });
+  res.json({ ok: true, aplicado: Boolean(estadoActualizado) });
 }
