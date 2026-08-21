@@ -1177,18 +1177,11 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginTop: 10, background: T.card, border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, overflow: 'hidden' }}>
-                <button
-                  type="button"
-                  onClick={() => verCategoria(clavesCategoriasAtleta(liveA)[0])}
-                  style={{ minWidth: 0, textAlign: 'center', background: 'rgba(255,255,255,.025)', border: 0, padding: '12px 8px', fontFamily: FO, fontWeight: 600, fontSize: 12, letterSpacing: '.05em', color: '#c9ced6', cursor: 'pointer' }}
-                >
-                  CATEGORÍA EN VIVO
-                </button>
+              <div style={{ marginTop: 10, background: T.card, border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, overflow: 'hidden' }}>
                 <button
                   type="button"
                   onClick={verTandaActual}
-                  style={{ minWidth: 0, textAlign: 'center', background: 'rgba(255,106,0,.09)', border: 0, borderLeft: '1px solid rgba(255,106,0,.3)', padding: '12px 8px', fontFamily: FO, fontWeight: 700, fontSize: 12, letterSpacing: '.05em', color: T.lime, cursor: 'pointer' }}
+                  style={{ width: '100%', display: 'block', textAlign: 'center', background: 'rgba(255,106,0,.09)', border: 0, padding: '12px 8px', fontFamily: FO, fontWeight: 700, fontSize: 12, letterSpacing: '.05em', color: T.lime, cursor: 'pointer' }}
                 >
                   TANDA {tandaActual} EN VIVO
                 </button>
