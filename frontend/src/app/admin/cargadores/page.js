@@ -236,7 +236,7 @@ const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, o
   const confirmar = () => {
     const n = parseFloat(valor)
     const d = dataRef.current
-    if (d && !isNaN(n) && n >= pesoMinimo) onConfirm(d, n)
+    if (d && !isNaN(n) && n >= pesoMinimo) onConfirm(d, n, { manual: true })
   }
 
   return (
@@ -342,7 +342,9 @@ export default function CargadoresPage() {
   useEffect(() => {
     try {
       const guardadas = JSON.parse(localStorage.getItem(SOLICITUDES_PESO_STORAGE_KEY) || '[]')
-      if (Array.isArray(guardadas)) setSolicitudesPeso(guardadas)
+      if (Array.isArray(guardadas)) {
+        setSolicitudesPeso(guardadas.map(solicitud => ({ ...solicitud, venceEn: undefined })))
+      }
     } catch (err) {
       console.error('No se pudieron restaurar los próximos pesos:', err)
     } finally {
@@ -567,7 +569,8 @@ export default function CargadoresPage() {
   const marcarIntento = useCallback(async (valido) => {
     if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }
     const atletaId = atletaSeleccionado.id
-    const peso = obtenerPesoSegunEjercicio(atletaSeleccionado, ejercicioFiltro, intentoSeleccionado)
+    const atletaActual = atletas.find(atleta => String(atleta.id) === String(atletaId)) || atletaSeleccionado
+    const peso = obtenerPesoSegunEjercicio(atletaActual, ejercicioFiltro, intentoSeleccionado)
     // 1) UI instantánea (optimista). peso no cambia -> el resultado es idéntico al del backend, no hace falta refetch.
     setAtletas(prev => prev.map(a => a.id === atletaId
       ? aplicarIntentoLocal(a, ejercicioFiltro, intentoSeleccionado, peso, valido) : a))
@@ -578,22 +581,27 @@ export default function CargadoresPage() {
     if (intentoSeleccionado < 3) {
       const pesoNum = parseFloat(peso) || 0
       const proximoIntento = intentoSeleccionado + 1
-      // Tanto válido como nulo generan una tarjeta. El válido sugiere +2.5 kg;
-      // el nulo conserva el mismo peso y permite mantenerlo o aumentarlo, nunca bajarlo.
+      const pesoProximoCargado = parseFloat(
+        obtenerPesoSegunEjercicio(atletaActual, ejercicioFiltro, proximoIntento)
+      ) || 0
+      const pesoBase = pesoProximoCargado > 0 ? pesoProximoCargado : pesoNum
+      // Un peso ya establecido para el próximo intento siempre tiene prioridad.
+      // Solo se sugiere +2.5 kg cuando ese intento todavía no tiene peso cargado.
       const nuevaSolicitud = {
         id: `${atletaId}-${ejercicioFiltro}-${proximoIntento}-${Date.now()}`,
         atletaId,
-        atletaNombre: `${atletaSeleccionado.nombre ?? ''} ${atletaSeleccionado.apellido ?? ''}`.trim(),
+        atletaNombre: `${atletaActual.nombre ?? ''} ${atletaActual.apellido ?? ''}`.trim(),
         ejercicio: ejercicioFiltro,
         ejercicioColor: { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicioFiltro],
         proximoIntento,
-        pesoActual: pesoNum,
-        pesoSugerido: valido ? pesoNum + 2.5 : pesoNum,
+        pesoActual: pesoBase,
+        pesoSugerido: pesoProximoCargado > 0 ? pesoProximoCargado : (valido ? pesoNum + 2.5 : pesoNum),
+        pesoProximoAlCrear: pesoProximoCargado || null,
         valido,
       }
       setSolicitudesPeso(prev => [
         ...prev.filter(s => !(
-          s.atletaId === atletaId &&
+          String(s.atletaId) === String(atletaId) &&
           s.ejercicio === ejercicioFiltro &&
           s.proximoIntento === proximoIntento
         )),
@@ -621,7 +629,7 @@ export default function CargadoresPage() {
       toast.error('Error al registrar el intento')
       fetchAtletas() // reconciliar si falló
     }
-  }, [atletaSeleccionado, ejercicioFiltro, intentoSeleccionado, detenerCronometro, fetchAtletas])
+  }, [atletaSeleccionado, atletas, ejercicioFiltro, intentoSeleccionado, detenerCronometro, fetchAtletas])
 
   const restablecerIntento = useCallback(async () => {
     if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }
@@ -718,7 +726,7 @@ export default function CargadoresPage() {
     setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
   }, [])
 
-  // Asigna el peso del intento siguiente (confirmado o automático por timeout).
+  // Asigna el peso del intento siguiente después de una confirmación manual.
   const asignarProximoPeso = useCallback(async (atletaId, ejercicio, proximoIntento, nuevoPeso, solicitudId = null) => {
     if (solicitudId) setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
     const n = parseFloat(nuevoPeso)
@@ -743,7 +751,21 @@ export default function CargadoresPage() {
     } catch (err) { console.error('Error al asignar próximo peso:', err); fetchAtletas() }
   }, [fetchAtletas])
 
-  const confirmarSolicitudPeso = useCallback((solicitud, nuevoPeso) => {
+  const confirmarSolicitudPeso = useCallback((solicitud, nuevoPeso, confirmacion = {}) => {
+    if (confirmacion.manual !== true) return
+    const atletaActual = atletas.find(atleta => String(atleta.id) === String(solicitud.atletaId))
+    const pesoProximoActual = parseFloat(
+      obtenerPesoSegunEjercicio(atletaActual, solicitud.ejercicio, solicitud.proximoIntento)
+    ) || 0
+    const pesoProximoAlCrear = parseFloat(solicitud.pesoProximoAlCrear) || 0
+
+    // Si la tabla cambió después de crear la tarjeta, conservar ese valor más reciente.
+    if (pesoProximoActual > 0 && pesoProximoActual !== pesoProximoAlCrear) {
+      descartarSolicitudPeso(solicitud.id)
+      toast.info(`${solicitud.proximoIntento}° intento: se mantuvieron ${pesoProximoActual} kg`)
+      return
+    }
+
     asignarProximoPeso(
       solicitud.atletaId,
       solicitud.ejercicio,
@@ -751,7 +773,7 @@ export default function CargadoresPage() {
       nuevoPeso,
       solicitud.id,
     )
-  }, [asignarProximoPeso])
+  }, [asignarProximoPeso, atletas, descartarSolicitudPeso])
 
   const handleCellClick = useCallback(async (params) => {
     // El rack se ajusta directamente en su columna; no debe enviar al atleta
@@ -864,7 +886,7 @@ export default function CargadoresPage() {
         setAtletas(prev => prev.map(a => a.id === newRow.id ? { ...a, [rackField]: altura } : a))
         setAtletaSeleccionado(prev => prev?.id === newRow.id ? { ...prev, [rackField]: altura } : prev)
         setSolicitudesPeso(prev => prev.filter(s =>
-          s.atletaId !== newRow.id || s.ejercicio !== ejercicioFiltro
+          String(s.atletaId) !== String(newRow.id) || s.ejercicio !== ejercicioFiltro
         ))
       }
 
@@ -879,7 +901,7 @@ export default function CargadoresPage() {
 
       // La edición manual reemplaza cualquier sugerencia pendiente para ese atleta.
       setSolicitudesPeso(prev => prev.filter(s =>
-        s.atletaId !== newRow.id || s.ejercicio !== ejercicioFiltro
+        String(s.atletaId) !== String(newRow.id) || s.ejercicio !== ejercicioFiltro
       ))
 
       // Optimista: aplicar localmente (peso no-null -> idéntico al backend, sin refetch bloqueante)
@@ -889,6 +911,12 @@ export default function CargadoresPage() {
         for (const c of cambios) upd = aplicarIntentoLocal(upd, ejercicioFiltro, c.intento_numero, c.peso, null)
         return upd
       }))
+      setAtletaSeleccionado(prev => {
+        if (String(prev?.id) !== String(newRow.id)) return prev
+        let upd = prev
+        for (const c of cambios) upd = aplicarIntentoLocal(upd, ejercicioFiltro, c.intento_numero, c.peso, null)
+        return upd
+      })
 
       // Persistir en background
       apiFetch(`/api/intentos/upsert-batch`, {

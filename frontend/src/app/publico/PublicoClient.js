@@ -682,6 +682,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
       (orden) => {
         if (!Number.isInteger(orden?.tandaId) || !Array.isArray(orden?.atletaIds)) return
         setOrdenTanda(orden)
+        setTablaTanda(String(orden.tandaId))
       }
     )
 
@@ -850,8 +851,22 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
     if (tablaCat !== 'todas') r = r.filter((a) => String(a.categoria) === String(tablaCat))
     const q = tablaBusqueda.trim().toLowerCase()
     if (q) r = r.filter((a) => `${a.nombre ?? ''} ${a.apellido ?? ''}`.toLowerCase().includes(q))
+
+    const contextoAplica = ordenTanda && Number(tablaTanda) === Number(ordenTanda.tandaId)
+    if (contextoAplica) {
+      const posicionPorAtleta = new Map(ordenTanda.atletaIds.map((id, index) => [Number(id), index]))
+      r = [...r].sort((a, b) => {
+        const posicionA = posicionPorAtleta.get(Number(a.id))
+        const posicionB = posicionPorAtleta.get(Number(b.id))
+        if (posicionA != null && posicionB != null) return posicionA - posicionB
+        if (posicionA != null) return -1
+        if (posicionB != null) return 1
+        return Number(a.lot ?? Infinity) - Number(b.lot ?? Infinity)
+      })
+    }
+
     return r
-  }, [tablaAtletas, tablaTanda, tablaCat, tablaBusqueda])
+  }, [tablaAtletas, tablaTanda, tablaCat, tablaBusqueda, ordenTanda])
 
   /* ---- filtrado ---- */
   const filtrados = useMemo(() => {
@@ -1183,7 +1198,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                   onClick={verTandaActual}
                   style={{ width: '100%', display: 'block', textAlign: 'center', background: 'rgba(255,106,0,.09)', border: 0, padding: '12px 8px', fontFamily: FO, fontWeight: 700, fontSize: 12, letterSpacing: '.05em', color: T.lime, cursor: 'pointer' }}
                 >
-                  TANDA {tandaActual} EN VIVO
+                  TANDA {letraTanda(tandaActual)} EN VIVO
                 </button>
               </div>
               </>
@@ -1387,7 +1402,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                         onClick={verTandaActual}
                         style={{ width: '100%', display: 'block', textAlign: 'center', background: 'rgba(255,106,0,.09)', border: 0, borderTop: '1px solid rgba(255,106,0,.3)', padding: 12, fontFamily: FO, fontWeight: 700, fontSize: 13, letterSpacing: '.08em', color: T.lime, cursor: 'pointer' }}
                       >
-                        VER TANDA {tandaActual} EN VIVO
+                        VER TANDA {letraTanda(tandaActual)} EN VIVO
                       </button>
                     )}
                   </div>
@@ -1543,7 +1558,7 @@ export default function PublicoClient({ initialAtletas = [], initialEstado = nul
                     TANDA EN VIVO
                   </div>
                   <div style={{ fontFamily: FO, fontWeight: 700, fontSize: 28, color: T.txt, textTransform: 'uppercase', lineHeight: 1, marginTop: 4 }}>
-                    TANDA {tandaActual}
+                    TANDA {letraTanda(tandaActual)}
                   </div>
                 </div>
               </div>
