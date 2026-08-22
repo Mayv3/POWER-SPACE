@@ -5,71 +5,12 @@ const PESO_FIELD_POR_EJERCICIO = {
   banco: ['primer_intento_banco', 'segundo_intento_banco', 'tercer_intento_banco'],
   peso_muerto: ['primer_intento_peso_muerto', 'segundo_intento_peso_muerto', 'tercer_intento_peso_muerto'],
 };
-const PAUSA_RESULTADO_MS = 5000;
-let cancelarAvancePendiente = null;
 let ultimaSolicitudAtletaMs = 0;
 
 function siguienteMarcaSeleccion() {
   const ahora = Date.now();
   ultimaSolicitudAtletaMs = Math.max(ahora, ultimaSolicitudAtletaMs + 1);
   return new Date(ultimaSolicitudAtletaMs).toISOString();
-}
-
-function esperarResultadoAntesDeAvanzar() {
-  cancelarAvancePendiente?.();
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      cancelarAvancePendiente = null;
-      resolve(true);
-    }, PAUSA_RESULTADO_MS);
-    cancelarAvancePendiente = () => {
-      clearTimeout(timeout);
-      cancelarAvancePendiente = null;
-      resolve(false);
-    };
-  });
-}
-
-// La cola se guarda al seleccionar una celda en Cargadores. Al cerrar un
-// intento elegimos el primer atleta que tenga peso cargado para ese ejercicio
-// e intento y dejamos el mismo estado que generaría un clic manual.
-async function avanzarAlSiguienteAtleta(estado) {
-  const pendientes = Array.isArray(estado.orden_proximos)
-    ? estado.orden_proximos.map(Number).filter(Number.isInteger)
-    : [];
-  const pesoField = PESO_FIELD_POR_EJERCICIO[estado.ejercicio]?.[Number(estado.intento) - 1];
-  if (!pendientes.length || !pesoField) return null;
-
-  const { data: atletas, error } = await supabase
-    .from('atletas_con_intentos')
-    .select(`id, nombre, apellido, ${pesoField}`)
-    .in('id', pendientes);
-  if (error) throw error;
-
-  const porId = new Map((atletas || []).map((atleta) => [Number(atleta.id), atleta]));
-  const indice = pendientes.findIndex((id) => Number(porId.get(id)?.[pesoField]) > 0);
-  if (indice < 0) return null;
-
-  const atleta = porId.get(pendientes[indice]);
-  return {
-    atleta_id: atleta.id,
-    atleta_nombre: atleta.nombre,
-    atleta_apellido: atleta.apellido,
-    ejercicio: estado.ejercicio,
-    intento: Number(estado.intento),
-    peso: Number(atleta[pesoField]),
-    corriendo: false,
-    tiempo_restante: 60,
-    juez1_valido: null,
-    juez2_valido: null,
-    juez3_valido: null,
-    juez1_tipo: null,
-    juez2_tipo: null,
-    juez3_tipo: null,
-    intento_valido: null,
-    orden_proximos: pendientes.slice(indice + 1),
-    updated_at: new Date(),
-  };
 }
 
 // 🟢 Obtener estado actual
@@ -145,9 +86,8 @@ export async function updateDecisionJuez(req, res) {
 
     if (intentoError) return res.status(500).json({ error: intentoError.message });
 
-    // Mostrar el fallo/válido durante cinco segundos antes de cambiar la
-    // plataforma. La condición evita tocar el estado si alguien seleccionó
-    // manualmente otro atleta durante esa espera.
+    // El resultado queda mostrado en esta misma plataforma; el cargador elige
+    // manualmente a quién sigue (sin avance ni cronómetro automático).
     await supabase
       .from('estado_competencia')
       .update({ intento_valido: intentoValido, corriendo: false, updated_at: new Date() })
@@ -156,39 +96,7 @@ export async function updateDecisionJuez(req, res) {
       .eq('ejercicio', estado.ejercicio)
       .eq('intento', intentoNumero);
 
-    const debeAvanzar = await esperarResultadoAntesDeAvanzar();
-    if (!debeAvanzar) {
-      return res.json({ ok: true, intento_registrado: true, valido: intentoValido, siguiente_atleta_id: null, avance_cancelado: true });
-    }
-
-    const { data: estadoActual, error: estadoActualError } = await supabase
-      .from('estado_competencia')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
-    if (estadoActualError) return res.status(500).json({ error: estadoActualError.message });
-
-    const sigueMismoIntento = estadoActual?.atleta_id === estado.atleta_id
-      && estadoActual?.ejercicio === estado.ejercicio
-      && Number(estadoActual?.intento) === intentoNumero
-      && estadoActual?.intento_valido === intentoValido;
-    if (!sigueMismoIntento) {
-      return res.json({ ok: true, intento_registrado: true, valido: intentoValido, siguiente_atleta_id: null });
-    }
-
-    const siguiente = await avanzarAlSiguienteAtleta(estadoActual);
-    if (siguiente) {
-      await supabase
-        .from('estado_competencia')
-        .update(siguiente)
-        .eq('id', 1)
-        .eq('atleta_id', estado.atleta_id)
-        .eq('ejercicio', estado.ejercicio)
-        .eq('intento', intentoNumero)
-        .eq('intento_valido', intentoValido);
-    }
-
-    return res.json({ ok: true, intento_registrado: true, valido: intentoValido, siguiente_atleta_id: siguiente?.atleta_id ?? null });
+    return res.json({ ok: true, intento_registrado: true, valido: intentoValido });
   }
 
   res.json({ ok: true, intento_registrado: false });
@@ -236,9 +144,6 @@ export async function updateAtletaActual(req, res) {
   // pueden resolver la consulta del atleta en orden inverso; este timestamp hace
   // que la última petición recibida sea la única capaz de prevalecer en la DB.
   const solicitadoEn = siguienteMarcaSeleccion();
-
-  // Una elección manual prevalece sobre el salto automático pendiente.
-  cancelarAvancePendiente?.();
 
   // El nombre forma parte de la fila que consumen las pantallas en vivo. Si se
   // actualiza solo atleta_id, postgres_changes reconcilia luego con los nombres

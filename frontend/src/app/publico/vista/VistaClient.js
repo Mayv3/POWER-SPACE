@@ -48,6 +48,11 @@ export default function VistaClient({ initialEstado = null }) {
         let activo = true
         let recibioCambioEnVivo = false
         let lastPresentedAtletaId = initialEstado?.atleta_id == null ? null : String(initialEstado.atleta_id)
+        // postgres_changes tarda 300-700ms y puede entregar, ya tarde, cada clic
+        // intermedio de una selección rápida que el broadcast (instantáneo) ya
+        // superó. Si acabamos de presentar vía broadcast, esos eventos son ecos
+        // viejos: no deben reabrir la animación con el atleta anterior.
+        let presentadoPorBroadcastEn = 0
 
         const solicitarPresentacion = (incoming) => {
             if (!activo) return
@@ -77,7 +82,10 @@ export default function VistaClient({ initialEstado = null }) {
             setEstadoCompetencia(prev => (full ? incoming : (prev ? { ...prev, ...incoming } : prev)))
             if (full) {
                 const nextAtletaId = incoming?.atleta_id == null ? null : String(incoming.atleta_id)
-                if (nextAtletaId && nextAtletaId !== lastPresentedAtletaId) solicitarPresentacion(incoming)
+                // Si hubo un broadcast hace poco, este evento es casi seguro un eco
+                // atrasado de un clic ya superado; no reabrir la animación con él.
+                const esEcoAtrasado = Date.now() - presentadoPorBroadcastEn < 2000
+                if (nextAtletaId && nextAtletaId !== lastPresentedAtletaId && !esEcoAtrasado) solicitarPresentacion(incoming)
                 if (!nextAtletaId) lastPresentedAtletaId = null
             }
             if (incoming.corriendo !== undefined && incoming.corriendo !== null) {
@@ -124,7 +132,7 @@ export default function VistaClient({ initialEstado = null }) {
         const live = joinCompetenciaLive(
             (parcial) => aplicarEstado(parcial, false),
             null,
-            solicitarPresentacion
+            (incoming) => { presentadoPorBroadcastEn = Date.now(); solicitarPresentacion(incoming) }
         )
 
         return () => {

@@ -739,6 +739,14 @@ export default function CargadoresPage() {
 
     if (!peso) return
 
+    // Un doble clic dispara este handler dos veces (una por cada clic). Si ya
+    // es el atleta/intento seleccionado, es un re-clic (p. ej. para editar la
+    // celda) y no una nueva selección: no repetir el broadcast ni la animación.
+    if (
+      String(atletaSeleccionado?.id) === String(params.row.id)
+      && intentoSeleccionado === intento
+    ) return
+
     const tokenSeleccion = seleccionLocalRef.current.token + 1
     seleccionLocalRef.current = {
       token: tokenSeleccion,
@@ -803,7 +811,7 @@ export default function CargadoresPage() {
         }
       }
     }
-  }, [pesoFiltro, atletasOrdenados, ejercicioFiltro])
+  }, [pesoFiltro, atletasOrdenados, ejercicioFiltro, atletaSeleccionado, intentoSeleccionado])
 
   const processRowUpdate = useCallback(async (newRow, oldRow) => {
     try {
