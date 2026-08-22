@@ -5,7 +5,7 @@ import {
   Box, Typography, Paper, FormControl, InputLabel,
   Select, MenuItem, useMediaQuery, useTheme,
   Button, Stack, CircularProgress, Divider, Chip,
-  TextField, IconButton, Tooltip,
+  IconButton, Tooltip,
 } from '@mui/material'
 import { PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
@@ -218,26 +218,9 @@ const Cronometro = memo(function Cronometro({ corriendo, tiempoInicial, onExpire
   )
 })
 
-// Tarjeta no bloqueante para definir el próximo peso.
-const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, onDismiss, isDark }) {
-  const [valor, setValor] = useState(String(data.pesoSugerido ?? ''))
-  const dataRef = useRef(data)
-  dataRef.current = data
-
-  useEffect(() => {
-    setValor(String(dataRef.current.pesoSugerido ?? ''))
-  }, [data.id])
-
+// Tarjeta informativa: el próximo peso se modifica únicamente en la tabla.
+const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onDismiss, isDark }) {
   const color = data.ejercicioColor || '#ff6b35'
-  const pesoIngresado = parseFloat(valor)
-  const pesoMinimo = parseFloat(data.pesoActual) || 0
-  const pesoPermitido = !isNaN(pesoIngresado) && pesoIngresado >= pesoMinimo
-  const masDosCinco = () => setValor(String(Math.max(parseFloat(valor) || pesoMinimo, pesoMinimo) + 2.5))
-  const confirmar = () => {
-    const n = parseFloat(valor)
-    const d = dataRef.current
-    if (d && !isNaN(n) && n >= pesoMinimo) onConfirm(d, n, { manual: true })
-  }
 
   return (
     <Paper
@@ -262,33 +245,14 @@ const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, o
         </Typography>
       </Box>
 
-      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto' }}>
-        <TextField
-          type="text" value={valor} size="small"
-          onChange={(e) => setValor(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') confirmar() }}
-          error={!pesoPermitido}
-          inputProps={{ 'aria-label': `Próximo peso de ${data.atletaNombre}`, inputMode: 'decimal' }}
-          sx={{
-            width: 72,
-            '& .MuiInputBase-root': { height: 34, borderRadius: 1.5 },
-            '& input': { p: '7px 6px', textAlign: 'center', fontWeight: 900, fontSize: '0.85rem' },
-          }}
-        />
-        <Button
-          variant="outlined" onClick={masDosCinco}
-          sx={{ minWidth: 44, height: 34, px: 0.5, borderColor: color, color, fontSize: '0.68rem', fontWeight: 900 }}
-        >
-          +2.5
-        </Button>
-        <Button
-          variant="contained" onClick={confirmar} disabled={!pesoPermitido}
-          aria-label={`Confirmar próximo peso de ${data.atletaNombre}`}
-          sx={{ minWidth: 36, width: 36, height: 34, p: 0, bgcolor: color, '&:hover': { bgcolor: color, filter: 'brightness(.9)' } }}
-        >
-          <CheckIcon fontSize="small" />
-        </Button>
-      </Stack>
+      <Box sx={{ ml: 'auto', mr: 1.5, textAlign: 'right' }}>
+        <Typography sx={{ fontSize: '0.66rem', color: 'text.secondary', fontWeight: 800, lineHeight: 1.1 }}>
+          PRÓXIMO PESO
+        </Typography>
+        <Typography sx={{ color, fontSize: '1.15rem', fontWeight: 900, lineHeight: 1.25 }}>
+          {data.pesoSugerido} kg
+        </Typography>
+      </Box>
 
       <Tooltip title="Descartar solicitud">
         <IconButton
@@ -596,7 +560,6 @@ export default function CargadoresPage() {
         proximoIntento,
         pesoActual: pesoBase,
         pesoSugerido: pesoProximoCargado > 0 ? pesoProximoCargado : (valido ? pesoNum + 2.5 : pesoNum),
-        pesoProximoAlCrear: pesoProximoCargado || null,
         valido,
       }
       setSolicitudesPeso(prev => [
@@ -725,55 +688,6 @@ export default function CargadoresPage() {
   const descartarSolicitudPeso = useCallback((solicitudId) => {
     setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
   }, [])
-
-  // Asigna el peso del intento siguiente después de una confirmación manual.
-  const asignarProximoPeso = useCallback(async (atletaId, ejercicio, proximoIntento, nuevoPeso, solicitudId = null) => {
-    if (solicitudId) setSolicitudesPeso(prev => prev.filter(s => s.id !== solicitudId))
-    const n = parseFloat(nuevoPeso)
-    if (isNaN(n) || n <= 0) return
-    // Optimista: cargar el peso del próximo intento (sin validar todavía).
-    setAtletas(prev => prev.map(a => a.id === atletaId
-      ? aplicarIntentoLocal(a, ejercicio, proximoIntento, n, null) : a))
-    toast.info(`${proximoIntento}° intento: ${n} kg`)
-    try {
-      await apiFetch(`/api/intentos/upsert`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          atleta_id: atletaId,
-          movimiento_id: MOVIMIENTO_MAP[ejercicio],
-          intento_numero: proximoIntento,
-          peso: n,
-          valido: null,
-        })
-      })
-      liveRef.current?.refreshAtletas()
-    } catch (err) { console.error('Error al asignar próximo peso:', err); fetchAtletas() }
-  }, [fetchAtletas])
-
-  const confirmarSolicitudPeso = useCallback((solicitud, nuevoPeso, confirmacion = {}) => {
-    if (confirmacion.manual !== true) return
-    const atletaActual = atletas.find(atleta => String(atleta.id) === String(solicitud.atletaId))
-    const pesoProximoActual = parseFloat(
-      obtenerPesoSegunEjercicio(atletaActual, solicitud.ejercicio, solicitud.proximoIntento)
-    ) || 0
-    const pesoProximoAlCrear = parseFloat(solicitud.pesoProximoAlCrear) || 0
-
-    // Si la tabla cambió después de crear la tarjeta, conservar ese valor más reciente.
-    if (pesoProximoActual > 0 && pesoProximoActual !== pesoProximoAlCrear) {
-      descartarSolicitudPeso(solicitud.id)
-      toast.info(`${solicitud.proximoIntento}° intento: se mantuvieron ${pesoProximoActual} kg`)
-      return
-    }
-
-    asignarProximoPeso(
-      solicitud.atletaId,
-      solicitud.ejercicio,
-      solicitud.proximoIntento,
-      nuevoPeso,
-      solicitud.id,
-    )
-  }, [asignarProximoPeso, atletas, descartarSolicitudPeso])
 
   const handleCellClick = useCallback(async (params) => {
     // El rack se ajusta directamente en su columna; no debe enviar al atleta
@@ -1233,7 +1147,6 @@ export default function CargadoresPage() {
             <TarjetaProximoPeso
               key={solicitud.id}
               data={solicitud}
-              onConfirm={confirmarSolicitudPeso}
               onDismiss={descartarSolicitudPeso}
               isDark={isDark}
             />
