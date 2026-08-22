@@ -87,9 +87,16 @@ export async function getEstadoCompetencia(_req, res) {
 // 🔴 Actualizar decisión de juez
 export async function updateDecisionJuez(req, res) {
   const { juezId } = req.params;
-  const { valido, tipo } = req.body;
+  const { valido, tipo, atleta_id, ejercicio, intento } = req.body;
 
-  if (!['1', '2', '3'].includes(juezId) || typeof valido !== 'boolean') {
+  const intentoNumeroSolicitado = Number(intento);
+  if (
+    !['1', '2', '3'].includes(juezId)
+    || typeof valido !== 'boolean'
+    || !atleta_id
+    || !Object.hasOwn(PESO_FIELD_POR_EJERCICIO, ejercicio)
+    || ![1, 2, 3].includes(intentoNumeroSolicitado)
+  ) {
     return res.status(400).json({ error: 'Decisión de juez inválida' });
   }
 
@@ -104,10 +111,17 @@ export async function updateDecisionJuez(req, res) {
     .from("estado_competencia")
     .update(updateData)
     .eq("id", 1)
+    .eq("corriendo", true)
+    .eq("atleta_id", atleta_id)
+    .eq("ejercicio", ejercicio)
+    .eq("intento", intentoNumeroSolicitado)
     .select()
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: error.message });
+  if (!estado) {
+    return res.status(409).json({ error: 'El intento cambió o ya no está en curso; el voto fue descartado' });
+  }
 
   // El registro del intento pertenece al flujo de jueces, no a una pantalla
   // particular. Al llegar el tercer voto se guarda aquí, por lo que funciona

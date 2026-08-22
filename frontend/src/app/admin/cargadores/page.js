@@ -445,11 +445,21 @@ export default function CargadoresPage() {
       )
       .subscribe()
 
-    // Fast-path: votos de jueces al instante -> luces + auto-marcado más rápidos.
-    // El merge parcial se reconcilia luego con postgres_changes (idempotente).
-    liveRef.current = joinCompetenciaLive((parcial) =>
-      setEstadoJueces(prev => prev ? { ...prev, ...parcial } : prev)
-    )
+    // Fast-path: cada voto trae el intento al que pertenece. Los paquetes
+    // demorados de una ronda anterior no se mezclan con el atleta actual.
+    liveRef.current = joinCompetenciaLive((parcial) => {
+      const { contexto_voto: contextoVoto, ...cambios } = parcial
+      setEstadoJueces(prev => {
+        if (!prev) return prev
+        if (contextoVoto && (
+          Number(prev.atleta_id) !== Number(contextoVoto.atleta_id)
+          || prev.ejercicio !== contextoVoto.ejercicio
+          || Number(prev.intento) !== Number(contextoVoto.intento)
+          || prev.corriendo !== true
+        )) return prev
+        return { ...prev, ...cambios }
+      })
+    })
     if (ordenTandaRef.current) liveRef.current.ordenarTanda(ordenTandaRef.current)
 
     return () => { supabase.removeChannel(channel); liveRef.current?.leave() }
@@ -481,31 +491,70 @@ export default function CargadoresPage() {
       .eq('id', 1)
   }, [])
 
-  // Auto-marcar intento cuando todos los jueces votan.
+  const crearAvisoProximoPeso = useCallback((valido, contexto) => {
+    const atletaId = contexto?.atleta_id
+    const ejercicio = contexto?.ejercicio
+    const intento = Number(contexto?.intento)
+    const atletaActual = atletas.find(atleta => String(atleta.id) === String(atletaId))
+      || (String(atletaSeleccionado?.id) === String(atletaId) ? atletaSeleccionado : null)
+    if (!atletaActual || !MOVIMIENTO_MAP[ejercicio] || intento >= 3) return
+
+    const peso = obtenerPesoSegunEjercicio(atletaActual, ejercicio, intento)
+    const pesoNum = parseFloat(peso) || 0
+    const proximoIntento = intento + 1
+    const pesoProximoCargado = parseFloat(
+      obtenerPesoSegunEjercicio(atletaActual, ejercicio, proximoIntento)
+    ) || 0
+    const pesoBase = pesoProximoCargado > 0 ? pesoProximoCargado : pesoNum
+    const nuevaSolicitud = {
+      id: `${atletaId}-${ejercicio}-${proximoIntento}-${Date.now()}`,
+      atletaId,
+      atletaNombre: `${atletaActual.nombre ?? ''} ${atletaActual.apellido ?? ''}`.trim(),
+      ejercicio,
+      ejercicioColor: { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicio],
+      proximoIntento,
+      pesoActual: pesoBase,
+      pesoSugerido: pesoProximoCargado > 0 ? pesoProximoCargado : (valido ? pesoNum + 2.5 : pesoNum),
+      valido,
+    }
+    setSolicitudesPeso(prev => [
+      ...prev.filter(s => !(
+        String(s.atletaId) === String(atletaId)
+        && s.ejercicio === ejercicio
+        && s.proximoIntento === proximoIntento
+      )),
+      nuevaSolicitud,
+    ])
+  }, [atletas, atletaSeleccionado])
+
+  // El backend es la única fuente que registra el resultado de los jueces.
+  // Acá solo mostramos el aviso cuando llega el resultado ya confirmado.
   useEffect(() => {
     if (!estadoJueces) return
 
     const votos = [estadoJueces.juez1_valido, estadoJueces.juez2_valido, estadoJueces.juez3_valido]
     const votado = (v) => v !== null && v !== undefined
-    const todosVotaron = votos.every(votado)
     const ningunoVoto = votos.every((v) => !votado(v))
 
     // Ronda nueva: los 3 votos vuelven a null (iniciarCronometro / handleCellClick).
-    // Re-armamos para permitir marcar la próxima tentativa (incluido un redo de la misma).
+    // Re-armamos para permitir avisar la próxima tentativa (incluido un redo de la misma).
     if (ningunoVoto) marcadoClaveRef.current = null
 
-    if (!todosVotaron) return
+    if (typeof estadoJueces.intento_valido !== 'boolean') return
 
-    // Clave autoritativa de la tentativa (del estado en DB, no de la selección local).
-    // Si ya la marcamos, ignoramos los echoes de postgres_changes que replayan los votos
-    // uno a uno tras el fast-path — eso reabría el modal / doble-marcaba.
-    const claveIntento = `${estadoJueces.atleta_id}-${estadoJueces.intento}`
+    const claveIntento = `${estadoJueces.atleta_id}-${estadoJueces.ejercicio}-${estadoJueces.intento}`
     if (marcadoClaveRef.current === claveIntento) return
 
     marcadoClaveRef.current = claveIntento
-    const votosValidos = votos.filter((v) => v === true).length
-    marcarIntento(votosValidos >= 2)
-  }, [estadoJueces])
+    const valido = estadoJueces.intento_valido
+    if (valido) toast.success('Intento VÁLIDO registrado')
+    else toast.error('Intento NULO registrado')
+    crearAvisoProximoPeso(valido, {
+      atleta_id: estadoJueces.atleta_id,
+      ejercicio: estadoJueces.ejercicio,
+      intento: Number(estadoJueces.intento),
+    })
+  }, [estadoJueces, crearAvisoProximoPeso])
 
   const iniciarCronometro = useCallback(async () => {
     const reset = {
@@ -530,47 +579,25 @@ export default function CargadoresPage() {
       .eq('id', 1)
   }, [])
 
-  const marcarIntento = useCallback(async (valido) => {
-    if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }
-    const atletaId = atletaSeleccionado.id
-    const atletaActual = atletas.find(atleta => String(atleta.id) === String(atletaId)) || atletaSeleccionado
-    const peso = obtenerPesoSegunEjercicio(atletaActual, ejercicioFiltro, intentoSeleccionado)
+  const marcarIntento = useCallback(async (valido, contexto = null) => {
+    const atletaId = contexto?.atleta_id ?? atletaSeleccionado?.id
+    const ejercicio = contexto?.ejercicio ?? ejercicioFiltro
+    const intento = Number(contexto?.intento ?? intentoSeleccionado)
+    const atletaActual = atletas.find(atleta => String(atleta.id) === String(atletaId))
+      || (String(atletaSeleccionado?.id) === String(atletaId) ? atletaSeleccionado : null)
+    if (!atletaActual || !MOVIMIENTO_MAP[ejercicio] || ![1, 2, 3].includes(intento)) {
+      toast.warning('El intento cambió antes de poder registrarlo')
+      return
+    }
+    const peso = obtenerPesoSegunEjercicio(atletaActual, ejercicio, intento)
     // 1) UI instantánea (optimista). peso no cambia -> el resultado es idéntico al del backend, no hace falta refetch.
     setAtletas(prev => prev.map(a => a.id === atletaId
-      ? aplicarIntentoLocal(a, ejercicioFiltro, intentoSeleccionado, peso, valido) : a))
+      ? aplicarIntentoLocal(a, ejercicio, intento, peso, valido) : a))
     if (valido) toast.success('Intento VÁLIDO registrado')
     else toast.error('Intento NULO registrado')
 
-    // 2) Próximo peso (solo si hay intento siguiente)
-    if (intentoSeleccionado < 3) {
-      const pesoNum = parseFloat(peso) || 0
-      const proximoIntento = intentoSeleccionado + 1
-      const pesoProximoCargado = parseFloat(
-        obtenerPesoSegunEjercicio(atletaActual, ejercicioFiltro, proximoIntento)
-      ) || 0
-      const pesoBase = pesoProximoCargado > 0 ? pesoProximoCargado : pesoNum
-      // Un peso ya establecido para el próximo intento siempre tiene prioridad.
-      // Solo se sugiere +2.5 kg cuando ese intento todavía no tiene peso cargado.
-      const nuevaSolicitud = {
-        id: `${atletaId}-${ejercicioFiltro}-${proximoIntento}-${Date.now()}`,
-        atletaId,
-        atletaNombre: `${atletaActual.nombre ?? ''} ${atletaActual.apellido ?? ''}`.trim(),
-        ejercicio: ejercicioFiltro,
-        ejercicioColor: { sentadilla: '#1976d2', banco: '#d32f2f', peso_muerto: '#388e3c' }[ejercicioFiltro],
-        proximoIntento,
-        pesoActual: pesoBase,
-        pesoSugerido: pesoProximoCargado > 0 ? pesoProximoCargado : (valido ? pesoNum + 2.5 : pesoNum),
-        valido,
-      }
-      setSolicitudesPeso(prev => [
-        ...prev.filter(s => !(
-          String(s.atletaId) === String(atletaId) &&
-          s.ejercicio === ejercicioFiltro &&
-          s.proximoIntento === proximoIntento
-        )),
-        nuevaSolicitud,
-      ])
-    }
+    // 2) El aviso superior no escribe el próximo peso; solo informa.
+    crearAvisoProximoPeso(valido, { atleta_id: atletaId, ejercicio, intento })
 
     // 3) Persistir en background (no bloquea la UI)
     try {
@@ -579,8 +606,8 @@ export default function CargadoresPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           atleta_id: atletaId,
-          movimiento_id: MOVIMIENTO_MAP[ejercicioFiltro],
-          intento_numero: intentoSeleccionado,
+          movimiento_id: MOVIMIENTO_MAP[ejercicio],
+          intento_numero: intento,
           peso,
           valido,
         })
@@ -592,7 +619,7 @@ export default function CargadoresPage() {
       toast.error('Error al registrar el intento')
       fetchAtletas() // reconciliar si falló
     }
-  }, [atletaSeleccionado, atletas, ejercicioFiltro, intentoSeleccionado, detenerCronometro, fetchAtletas])
+  }, [atletaSeleccionado, atletas, ejercicioFiltro, intentoSeleccionado, crearAvisoProximoPeso, detenerCronometro, fetchAtletas])
 
   const restablecerIntento = useCallback(async () => {
     if (!atletaSeleccionado) { toast.warning('Selecciona un atleta primero'); return }

@@ -108,24 +108,34 @@ export default function RefereePage() {
   }, [id])
 
   const enviarDecision = async (valido: boolean, tipo?: number) => {
+    if (!estado?.corriendo || !estado?.atleta_id || !estado?.ejercicio || !estado?.intento) return
+
+    const contextoVoto = {
+      atleta_id: estado.atleta_id,
+      ejercicio: estado.ejercicio,
+      intento: Number(estado.intento),
+    }
     const colValido = `juez${id}_valido`
     const colTipo = `juez${id}_tipo`
     const partial: Record<string, unknown> = {
       [colValido]: valido,
       [colTipo]: (!valido && tipo !== undefined) ? tipo : null,
     }
+    // Bloquea dobles clics en este dispositivo mientras llega la confirmación.
+    setEstado((prev) => prev ? { ...prev, ...partial } : prev)
     // 1) Fast-path: la luz aparece en la vista en ~50-150ms (no espera al WAL).
-    liveRef.current?.send(partial)
+    liveRef.current?.send({ ...partial, contexto_voto: contextoVoto })
     // 2) El backend persiste el voto y, si es el tercero, registra el intento.
     // Así el resultado no depende de que Cargadores esté abierto.
     try {
       await apiFetch(`/api/jueces/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ valido, tipo }),
+        body: JSON.stringify({ valido, tipo, ...contextoVoto }),
       })
     } catch (error) {
       console.error('Error al enviar decisión:', error)
+      fetchEstado()
     }
   }
 
@@ -265,13 +275,16 @@ export default function RefereePage() {
                 <Box
                   role="button"
                   aria-label={label}
-                  onClick={() => enviarDecision(valido, tipo)}
+                  aria-disabled={!estado?.corriendo}
+                  onClick={() => { if (estado?.corriendo) enviarDecision(valido, tipo) }}
                   sx={{
                     width: 130,
                     height: 130,
                     borderRadius: '50%',
                     backgroundColor: bg,
-                    cursor: 'pointer',
+                    cursor: estado?.corriendo ? 'pointer' : 'not-allowed',
+                    opacity: estado?.corriendo ? 1 : 0.28,
+                    pointerEvents: estado?.corriendo ? 'auto' : 'none',
                     boxShadow: `0 0 18px 3px ${glow}`,
                     transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                     '&:hover': { transform: 'scale(1.08)', boxShadow: `0 0 26px 6px ${glow}` },
