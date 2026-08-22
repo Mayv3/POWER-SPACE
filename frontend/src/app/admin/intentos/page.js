@@ -244,7 +244,11 @@ export default function IntentosPage() {
           console.error('Realtime de intentos no disponible:', error || status)
         }
       })
-    const live = joinCompetenciaLive(null, refreshDeRespaldo)
+    const live = joinCompetenciaLive(null, refreshDeRespaldo, null, (orden) => {
+      if (!Number.isInteger(orden?.tandaId) || !Array.isArray(orden?.atletaIds)) return
+      setContextoCargadores(orden)
+      setTandaSeleccionada(String(orden.tandaId))
+    })
 
     return () => {
       clearTimeout(fallbackTimer)
@@ -619,6 +623,8 @@ export default function IntentosPage() {
               rows={atletasFiltrados}
               columns={columnsIntentos(handleCellClick, colorCategoriaVisible)}
               paginationMode="client"
+              sortModel={[]}
+              disableColumnSorting
               processRowUpdate={processRowUpdate}
               onProcessRowUpdateError={handleProcessRowUpdateError}
               mobileHorizontal

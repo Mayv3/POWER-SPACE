@@ -19,6 +19,7 @@ export function GenericDataGrid({
   columnVisibilityModel,
   sortModel,
   onSortModelChange,
+  disableColumnSorting = false,
   getRowClassName,
   mobileHorizontal = false,
 }) {
@@ -137,6 +138,7 @@ export function GenericDataGrid({
         columns={visibleColumns}
         disableColumnResize
         disableColumnMenu
+        disableColumnSorting={disableColumnSorting}
         paginationMode={paginationMode}
         processRowUpdate={processRowUpdate}
         onProcessRowUpdateError={onProcessRowUpdateError}

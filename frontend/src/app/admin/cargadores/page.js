@@ -5,7 +5,7 @@ import {
   Box, Typography, Paper, FormControl, InputLabel,
   Select, MenuItem, useMediaQuery, useTheme,
   Button, Stack, CircularProgress, Divider, Chip,
-  TextField, LinearProgress, IconButton, Tooltip,
+  TextField, IconButton, Tooltip,
 } from '@mui/material'
 import { PlayArrow as PlayArrowIcon, Pause as PauseIcon, Check as CheckIcon, RestartAlt as RestartAltIcon, FitnessCenter as FitnessCenterIcon, Close as CloseIcon } from '@mui/icons-material'
 import { toast } from 'react-toastify'
@@ -31,6 +31,23 @@ const PESO_FIELDS = {
   banco: ['primer_intento_banco', 'segundo_intento_banco', 'tercer_intento_banco'],
   peso_muerto: ['primer_intento_peso_muerto', 'segundo_intento_peso_muerto', 'tercer_intento_peso_muerto'],
 }
+
+// Al ordenar por peso, los empates se resuelven siempre por lote ascendente.
+const compararPesoPorLote = (direccion) => (pesoA, pesoB, paramsA, paramsB) => {
+  const lote = (params) => Number(params.api.getRow(params.id)?.lot ?? Infinity)
+  const sinPesoA = pesoA == null || pesoA === ''
+  const sinPesoB = pesoB == null || pesoB === ''
+  if (sinPesoA || sinPesoB) {
+    if (sinPesoA && sinPesoB) return lote(paramsA) - lote(paramsB)
+    const resultado = sinPesoA ? -1 : 1
+    return direccion === 'desc' ? -resultado : resultado
+  }
+
+  const diferencia = Number(pesoA) - Number(pesoB)
+  if (Number.isFinite(diferencia) && diferencia !== 0) return direccion === 'desc' ? -diferencia : diferencia
+  return lote(paramsA) - lote(paramsB)
+}
+
 const VALIDO_FIELDS = {
   sentadilla: ['valido_s1', 'valido_s2', 'valido_s3'],
   banco: ['valido_b1', 'valido_b2', 'valido_b3'],
@@ -201,48 +218,17 @@ const Cronometro = memo(function Cronometro({ corriendo, tiempoInicial, onExpire
   )
 })
 
-// Tarjeta no bloqueante para definir el próximo peso. Cada tarjeta administra su propio
-// timer para que el tick de 1s no vuelva a renderizar la página ni la grilla completa.
+// Tarjeta no bloqueante para definir el próximo peso.
 const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, onDismiss, isDark }) {
   const [valor, setValor] = useState(String(data.pesoSugerido ?? ''))
-  const [segundos, setSegundos] = useState(() =>
-    Math.max(0, Math.ceil(((data.venceEn ?? Date.now() + 60000) - Date.now()) / 1000))
-  )
-  const intervalRef = useRef(null)
-  const venceEnRef = useRef(data.venceEn ?? Date.now() + 60000)
   const dataRef = useRef(data)
   dataRef.current = data
-  const onConfirmRef = useRef(onConfirm)
-  onConfirmRef.current = onConfirm
 
   useEffect(() => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
     setValor(String(dataRef.current.pesoSugerido ?? ''))
-    const calcularRestante = () =>
-      Math.max(0, Math.ceil((venceEnRef.current - Date.now()) / 1000))
-    let s = calcularRestante()
-    setSegundos(s)
-    if (s <= 0) {
-      const d = dataRef.current
-      if (d) onConfirmRef.current?.(d, d.pesoSugerido)
-      return
-    }
-    intervalRef.current = setInterval(() => {
-      s = calcularRestante()
-      setSegundos(Math.max(0, s))
-      if (s <= 0) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-        const d = dataRef.current
-        if (d) onConfirmRef.current?.(d, d.pesoSugerido)
-      }
-    }, 1000)
-    return () => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null } }
   }, [data.id])
 
   const color = data.ejercicioColor || '#ff6b35'
-  const urgente = segundos <= 10
-  const progreso = (segundos / 60) * 100
   const pesoIngresado = parseFloat(valor)
   const pesoMinimo = parseFloat(data.pesoActual) || 0
   const pesoPermitido = !isNaN(pesoIngresado) && pesoIngresado >= pesoMinimo
@@ -259,10 +245,9 @@ const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, o
       sx={{
         position: 'relative', flex: '0 0 auto', width: { xs: 330, md: 390 }, height: 66,
         display: 'flex', alignItems: 'center', gap: 1, px: 1.25, pb: 0.5,
-        border: `1px solid ${urgente ? '#ff1744' : (isDark ? '#424242' : '#dedede')}`,
+        border: `1px solid ${isDark ? '#424242' : '#dedede'}`,
         borderRadius: 0.75, overflow: 'hidden',
         bgcolor: isDark ? '#202020' : '#fff',
-        transition: 'border-color .2s ease',
       }}
     >
       <Box sx={{ minWidth: 112, maxWidth: 132, overflow: 'hidden' }}>
@@ -305,12 +290,6 @@ const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, o
         </Button>
       </Stack>
 
-      <Typography
-        aria-label={`${segundos} segundos restantes`}
-        sx={{ width: 30, textAlign: 'right', fontSize: '0.72rem', fontWeight: 900, color: urgente ? '#ff1744' : 'text.secondary' }}
-      >
-        {segundos}s
-      </Typography>
       <Tooltip title="Descartar solicitud">
         <IconButton
           size="small" onClick={() => onDismiss(data.id)}
@@ -321,13 +300,6 @@ const TarjetaProximoPeso = memo(function TarjetaProximoPeso({ data, onConfirm, o
         </IconButton>
       </Tooltip>
 
-      <LinearProgress
-        variant="determinate" value={progreso}
-        sx={{
-          position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, bgcolor: isDark ? '#343434' : '#eceff1',
-          '& .MuiLinearProgress-bar': { bgcolor: urgente ? '#ff1744' : color, transition: 'transform 1s linear' },
-        }}
-      />
     </Paper>
   )
 })
@@ -366,8 +338,7 @@ export default function CargadoresPage() {
   // a mover el panel lateral al atleta viejo.
   const seleccionLocalRef = useRef({ token: 0, atletaId: null, pendiente: false })
 
-  // Las solicitudes sobreviven recargas y cierres del navegador. Se guarda el timestamp
-  // de vencimiento para continuar el timer real, sin regalar otros 60s al recargar.
+  // Las solicitudes sobreviven recargas y cierres del navegador hasta ser confirmadas o descartadas.
   useEffect(() => {
     try {
       const guardadas = JSON.parse(localStorage.getItem(SOLICITUDES_PESO_STORAGE_KEY) || '[]')
@@ -619,7 +590,6 @@ export default function CargadoresPage() {
         pesoActual: pesoNum,
         pesoSugerido: valido ? pesoNum + 2.5 : pesoNum,
         valido,
-        venceEn: Date.now() + 60000,
       }
       setSolicitudesPeso(prev => [
         ...prev.filter(s => !(
@@ -893,6 +863,9 @@ export default function CargadoresPage() {
 
         setAtletas(prev => prev.map(a => a.id === newRow.id ? { ...a, [rackField]: altura } : a))
         setAtletaSeleccionado(prev => prev?.id === newRow.id ? { ...prev, [rackField]: altura } : prev)
+        setSolicitudesPeso(prev => prev.filter(s =>
+          s.atletaId !== newRow.id || s.ejercicio !== ejercicioFiltro
+        ))
       }
 
       const campos = PESO_FIELDS[ek]
@@ -903,6 +876,11 @@ export default function CargadoresPage() {
           cambios.push({ atleta_id: newRow.id, movimiento_id: MOVIMIENTO_MAP[ejercicioFiltro], intento_numero: i + 1, peso: parseFloat(newRow[campo]), valido: null })
       }
       if (cambios.length === 0) return newRow
+
+      // La edición manual reemplaza cualquier sugerencia pendiente para ese atleta.
+      setSolicitudesPeso(prev => prev.filter(s =>
+        s.atletaId !== newRow.id || s.ejercicio !== ejercicioFiltro
+      ))
 
       // Optimista: aplicar localmente (peso no-null -> idéntico al backend, sin refetch bloqueante)
       setAtletas(prev => prev.map(a => {
@@ -967,6 +945,7 @@ export default function CargadoresPage() {
       field: 'intento1', headerName: '1°', flex: 0.06, minWidth: 80,
       align: 'center', headerAlign: 'center', editable: true, type: 'number',
       cellClassName: 'full-bleed-cell',
+      getSortComparator: compararPesoPorLote,
       valueGetter: (value, row) => {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return row[`primer_intento_${ek}`] || null
@@ -981,6 +960,7 @@ export default function CargadoresPage() {
       field: 'intento2', headerName: '2°', flex: 0.06, minWidth: 80,
       align: 'center', headerAlign: 'center', editable: true, type: 'number',
       cellClassName: 'full-bleed-cell',
+      getSortComparator: compararPesoPorLote,
       valueGetter: (value, row) => {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return row[`segundo_intento_${ek}`] || null
@@ -995,6 +975,7 @@ export default function CargadoresPage() {
       field: 'intento3', headerName: '3°', flex: 0.06, minWidth: 80,
       align: 'center', headerAlign: 'center', editable: true, type: 'number',
       cellClassName: 'full-bleed-cell',
+      getSortComparator: compararPesoPorLote,
       valueGetter: (value, row) => {
         const ek = ejercicioFiltro === 'sentadilla' ? 'sentadilla' : ejercicioFiltro === 'banco' ? 'banco' : 'peso_muerto'
         return row[`tercer_intento_${ek}`] || null
